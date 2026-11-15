@@ -33,6 +33,9 @@ type StoreSettingsPatch struct {
 	TableTimeLimitMinutes    *int    `json:"table_time_limit_minutes"`
 	TableTimerWarningMinutes *int    `json:"table_timer_warning_minutes"`
 	QRServiceMode            *string `json:"qr_service_mode"`
+	OfflineMaxHours          *int    `json:"offline_max_hours"`
+	OfflineMaxOrders         *int    `json:"offline_max_orders"`
+	StockApprovalLimit       *int64  `json:"stock_approval_limit"`
 }
 
 // SettingsService lets owners change operating policies without a developer (owner decision K3).
@@ -123,6 +126,15 @@ func (s *SettingsService) Update(ctx context.Context, actor *AuthenticatedStaff,
 		if patch.QRServiceMode != nil {
 			after.QRServiceMode = *patch.QRServiceMode
 		}
+		if patch.OfflineMaxHours != nil {
+			after.OfflineMaxHours = *patch.OfflineMaxHours
+		}
+		if patch.OfflineMaxOrders != nil {
+			after.OfflineMaxOrders = *patch.OfflineMaxOrders
+		}
+		if patch.StockApprovalLimit != nil {
+			after.StockApprovalLimit = *patch.StockApprovalLimit
+		}
 		if err := validateStoreSettings(after); err != nil {
 			return err
 		}
@@ -169,6 +181,12 @@ func validateStoreSettings(s domain.StoreSettings) error {
 		return errors.Join(ErrInvalidSettings, errors.New("mode QRIS statis harus off, auto, atau forced"))
 	case s.QRServiceMode != domain.QRServicePickup && s.QRServiceMode != domain.QRServiceTable:
 		return errors.Join(ErrInvalidSettings, errors.New("mode layanan QR harus pickup atau table"))
+	case s.OfflineMaxHours < 1 || s.OfflineMaxHours > 72:
+		return errors.Join(ErrInvalidSettings, errors.New("batas waktu offline harus 1-72 jam"))
+	case s.OfflineMaxOrders < 10 || s.OfflineMaxOrders > 5000:
+		return errors.Join(ErrInvalidSettings, errors.New("batas pesanan offline harus 10-5000 pesanan"))
+	case s.StockApprovalLimit < 0 || s.StockApprovalLimit > 100_000_000:
+		return errors.Join(ErrInvalidSettings, errors.New("batas persetujuan stok harus 0 - Rp100.000.000"))
 	}
 	return nil
 }

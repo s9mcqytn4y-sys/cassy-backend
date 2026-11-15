@@ -19,7 +19,7 @@ const (
 // GuestHandler serves QR guest sessions, guest orders and the public tracker (iteration 5b).
 type GuestHandler struct {
 	guests *service.GuestService
-	// shortcut: in-process sliding windows (single API instance, ADR-002); see loginFailureLimiter.
+	// Sliding-window rate limiters (Redis-backed when REDIS_ADDR is set, in-memory fallback).
 	sessionsPerIP  *loginFailureLimiter
 	ordersPerGuest *loginFailureLimiter
 	// Every attempt opens a new gateway charge; switching method or renewing an expired QRIS stays well under it.

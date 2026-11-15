@@ -3,7 +3,9 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -13,8 +15,7 @@ import (
 const (
 	// TokenTypeStaffAccess separates staff access tokens from future guest/QR tokens (ADR-003 D4).
 	TokenTypeStaffAccess = "staff_access"
-	// staffKeyID names the signing key. shortcut: single key from JWT_SECRET_KEY, add the
-	// STAFF_JWT_KEYS key ring when the first rotation is needed.
+	// staffKeyID names the default signing key; STAFF_JWT_KEYS (k1:secret1,k2:secret2) enables rotation.
 	staffKeyID = "k1"
 )
 
@@ -78,10 +79,19 @@ func ValidateStaffAccessToken(tokenString, secret string) (*StaffClaims, error) 
 		if t.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 			return nil, fmt.Errorf("unexpected signing method alg: %v", t.Header["alg"])
 		}
-		if kid, _ := t.Header["kid"].(string); kid != staffKeyID {
-			return nil, ErrTokenKeyIDInvalid
+		kid, _ := t.Header["kid"].(string)
+		if kid == staffKeyID {
+			return []byte(secret), nil
 		}
-		return []byte(secret), nil
+		if ring := strings.TrimSpace(os.Getenv("STAFF_JWT_KEYS")); ring != "" {
+			for _, pair := range strings.Split(ring, ",") {
+				k, v, ok := strings.Cut(strings.TrimSpace(pair), ":")
+				if ok && k == kid && len(v) >= 32 {
+					return []byte(v), nil
+				}
+			}
+		}
+		return nil, ErrTokenKeyIDInvalid
 	}, jwt.WithExpirationRequired(), jwt.WithIssuer(ExpectedIssuer), jwt.WithAudience(ExpectedAudience))
 	if err != nil {
 		switch {

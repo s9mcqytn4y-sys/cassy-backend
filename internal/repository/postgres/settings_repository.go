@@ -21,7 +21,8 @@ const storeSettingsColumns = `store_id, void_refund_owner_threshold, cashier_max
 	cashier_handles_bar, table_idle_close_minutes, qr_ordering_paused, static_qris_fallback_mode,
 	refund_window_cashier_days, refund_window_owner_days, cash_rounding_step,
 	outlet_daily_expense_limit, default_opening_float, cashier_sees_expected_cash, gateway_partial_refunds,
-	table_time_limit_minutes, table_timer_warning_minutes, qr_service_mode`
+	table_time_limit_minutes, table_timer_warning_minutes, qr_service_mode,
+	offline_max_hours, offline_max_orders, stock_approval_limit`
 
 // GetStoreSettings returns the store's settings, or the defaults when no row exists yet.
 func (r *SettingsRepository) GetStoreSettings(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) (domain.StoreSettings, error) {
@@ -46,7 +47,7 @@ func (r *SettingsRepository) UpsertStoreSettings(ctx context.Context, tx *sqlx.T
 	}
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO store_settings (`+storeSettingsColumns+`, updated_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 		ON CONFLICT (store_id) DO UPDATE SET
 			void_refund_owner_threshold = EXCLUDED.void_refund_owner_threshold,
 			cashier_max_discount_bps = EXCLUDED.cashier_max_discount_bps,
@@ -65,12 +66,16 @@ func (r *SettingsRepository) UpsertStoreSettings(ctx context.Context, tx *sqlx.T
 			table_time_limit_minutes = EXCLUDED.table_time_limit_minutes,
 			table_timer_warning_minutes = EXCLUDED.table_timer_warning_minutes,
 			qr_service_mode = EXCLUDED.qr_service_mode,
+			offline_max_hours = EXCLUDED.offline_max_hours,
+			offline_max_orders = EXCLUDED.offline_max_orders,
+			stock_approval_limit = EXCLUDED.stock_approval_limit,
 			updated_by = EXCLUDED.updated_by
 	`, s.StoreID, s.VoidRefundOwnerThreshold, s.CashierMaxDiscountBPS, s.CashVarianceTolerance,
 		s.CashierHandlesBar, s.TableIdleCloseMinutes, s.QROrderingPaused, s.StaticQRISFallbackMode,
 		s.RefundWindowCashierDays, s.RefundWindowOwnerDays, s.CashRoundingStep,
 		s.OutletDailyExpenseLimit, s.DefaultOpeningFloat, s.CashierSeesExpectedCash, s.GatewayPartialRefunds,
-		s.TableTimeLimitMinutes, s.TableTimerWarningMinutes, s.QRServiceMode, updatedBy)
+		s.TableTimeLimitMinutes, s.TableTimerWarningMinutes, s.QRServiceMode,
+		s.OfflineMaxHours, s.OfflineMaxOrders, s.StockApprovalLimit, updatedBy)
 	if err != nil {
 		return fmt.Errorf("failed to save store settings: %w", err)
 	}

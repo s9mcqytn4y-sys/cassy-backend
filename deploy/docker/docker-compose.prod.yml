@@ -59,6 +59,29 @@ services:
           cpus: '0.5'
           memory: 1024M
 
+  redis:
+    image: redis:8-alpine
+    container_name: mycaffe-redis
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    networks:
+      - mycaffe-data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 96M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
   migrate:
     image: ghcr.io/s9mcqytn4y-sys/mycaffe-api@${API_IMAGE_DIGEST:?API_IMAGE_DIGEST must be set (use scripts/deploy/deploy.sh)}
     container_name: mycaffe-migrate
@@ -83,11 +106,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     environment:
       PORT: "8080"
       APP_ENV: "production"
+      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL must be set}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS must be set}
       # Only the edge network (Nginx) may set X-Forwarded-For; keeps ClientIP() unspoofable.

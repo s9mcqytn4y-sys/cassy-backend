@@ -378,9 +378,13 @@ func (s *InvoiceService) InvoicePDF(ctx context.Context, actor *AuthenticatedSta
 func (s *InvoiceService) PayInvoice(ctx context.Context, actor *AuthenticatedStaff, id uuid.UUID, in InvoicePaymentInput) (*Invoice, error) {
 	f := fieldErrors{}
 	f.intRange("amount", in.Amount, 1, 1<<53)
-	f.oneOf("method", in.Method, "transfer", "cash", "qris")
+	f.oneOf("method", in.Method, "transfer", "cash", "qris", "credit")
 	in.Reference = f.text("reference", in.Reference, 0, 100)
-	in.Note = f.text("note", in.Note, 0, 500)
+	if in.Method == "credit" {
+		in.Note = f.text("note", in.Note, 3, 500)
+	} else {
+		in.Note = f.text("note", in.Note, 0, 500)
+	}
 	if err := f.err(); err != nil {
 		return nil, err
 	}

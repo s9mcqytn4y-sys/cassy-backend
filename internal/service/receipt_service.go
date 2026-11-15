@@ -60,9 +60,10 @@ type Receipt struct {
 }
 
 type ReceiptStore struct {
-	Name    string `json:"name"`
-	Address string `json:"address,omitempty"`
-	Phone   string `json:"phone,omitempty"`
+	Name     string `json:"name"`
+	Address  string `json:"address,omitempty"`
+	Phone    string `json:"phone,omitempty"`
+	Timezone string `json:"-"`
 }
 
 type ReceiptLine struct {
@@ -245,7 +246,7 @@ func (s *ReceiptService) buildTx(ctx context.Context, tx *sqlx.Tx, storeID, orde
 		return nil, fmt.Errorf("failed to load receipt order: %w", err)
 	}
 	r := &Receipt{
-		Kind: kind, OrderID: orderID, Store: ReceiptStore{Name: head.StoreName, Address: head.Address.String, Phone: head.Phone.String},
+		Kind: kind, OrderID: orderID, Store: ReceiptStore{Name: head.StoreName, Address: head.Address.String, Phone: head.Phone.String, Timezone: head.Timezone},
 		OrderNumber: head.OrderNumber, QueueNumber: head.QueueNumber, TableNumber: head.TableNumber.String,
 		OrderType: head.OrderType, Status: head.Status, PaymentStat: head.PaymentStat, IssuedAt: head.CreatedAt,
 		StaffName: head.StaffName.String, Subtotal: head.Subtotal, Discount: head.Discount, Tax: head.Tax,

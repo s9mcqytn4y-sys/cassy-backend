@@ -8,5 +8,8 @@ Total Pembayaran: {{.TotalLabel}}
 
 Lihat struk dan status pesanan terbaru:
 {{.ActionURL}}
-
+{{if .PDFURL}}
+Unduh PDF Struk Resmi:
+{{.PDFURL}}
+{{end}}
 (c) {{.Year}} {{.StoreName}} | Cassy by AzureDevID

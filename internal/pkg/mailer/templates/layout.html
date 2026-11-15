@@ -2,40 +2,76 @@
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>{{template "subject" .}}</title>
 <style>
-  body { margin:0; padding:0; background-color:#F7F5F0; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#17211E; }
-  table { border-collapse:collapse; }
+  body { margin:0; padding:0; width:100% !important; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; background-color:#F7F5F0; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#17211E; }
+  table { border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; }
   a { color:#1F5F52; text-decoration:none; }
+  @media only screen and (max-width: 640px) {
+    .email-shell { padding: 14px 10px !important; }
+    .email-card { padding: 24px 18px !important; border-radius: 12px !important; }
+    .email-btn { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; padding: 15px 18px !important; }
+    .email-header-store { font-size: 17px !important; }
+  }
 </style>
 </head>
 <body style="margin:0;padding:0;background-color:#F7F5F0;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#17211E;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{template "preheader" .}}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F7F5F0;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">{{template "preheader" .}}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F7F5F0;width:100%;">
   <tr>
-    <td align="center" style="padding:32px 16px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:580px;">
+    <td align="center" class="email-shell" style="padding:28px 14px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;margin:0 auto;">
+        <!-- Header -->
         <tr>
           <td style="padding:0 4px 16px 4px;">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td style="background-color:#1F5F52;color:#F7F5F0;font-size:12px;font-weight:700;letter-spacing:0.8px;padding:6px 12px;border-radius:999px;vertical-align:middle;">CASSY</td>
-                <td style="padding-left:10px;font-size:18px;font-weight:700;letter-spacing:-0.2px;color:#17211E;vertical-align:middle;">{{.StoreName}}</td>
+                <td valign="middle">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td valign="middle" style="padding-right:12px;">
+                        <img src="{{.LogoURL}}" alt="Cassy" width="38" height="38" style="display:block;width:38px;height:38px;border-radius:10px;border:0;outline:none;text-decoration:none;background-color:#1F5F52;color:#F7F5F0;font-size:11px;font-weight:700;text-align:center;line-height:38px;">
+                      </td>
+                      <td valign="middle">
+                        <div class="email-header-store" style="font-size:18px;font-weight:700;letter-spacing:-0.2px;color:#17211E;line-height:22px;">{{.StoreName}}</div>
+                        <div style="font-size:11px;font-weight:600;color:#1F5F52;letter-spacing:0.3px;line-height:16px;">Cassy by AzureDevID</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                {{if .StoreSlug}}
+                <td align="right" valign="middle" style="font-size:12px;font-family:'Courier New',monospace;color:#4A5954;background-color:#EDE9E0;padding:5px 10px;border-radius:6px;white-space:nowrap;">{{.StoreSlug}}</td>
+                {{end}}
               </tr>
             </table>
           </td>
         </tr>
+        <!-- Main Card Body -->
         <tr>
-          <td style="background-color:#FFFFFF;border:1px solid #E2DDD4;border-top:4px solid #1F5F52;border-radius:12px;padding:32px 28px;font-size:15px;line-height:24px;color:#17211E;">
+          <td class="email-card" style="background-color:#FFFFFF;border:1px solid #E2DDD4;border-top:4px solid #1F5F52;border-radius:14px;padding:32px 28px;font-size:15px;line-height:24px;color:#17211E;box-shadow:0 2px 8px rgba(23,33,30,0.04);">
             {{template "html_body" .}}
           </td>
         </tr>
+        <!-- Legal & System Footer -->
         <tr>
-          <td style="padding:20px 4px 0 4px;font-size:12px;line-height:18px;color:#4A5954;">
-            Email otomatis dari <strong>Cassy</strong> by AzureDevID. Jangan membalas email ini{{if .ReplyTo}}; hubungi {{.ReplyTo}} bila perlu bantuan{{end}}.<br>
-            &copy; {{.Year}} {{.StoreName}} &bull; Didukung oleh Cassy by AzureDevID
+          <td style="padding:20px 8px 0 8px;font-size:12px;line-height:19px;color:#4A5954;">
+            <p style="margin:0 0 8px 0;">
+              Email transaksional otomatis dari <strong>Cassy by AzureDevID</strong> untuk operasional gerai <strong>{{.StoreName}}</strong>. Mohon tidak membalas langsung ke alamat pengirim ini{{if .ReplyTo}}; untuk bantuan hubungi <a href="mailto:{{.ReplyTo}}" style="color:#1F5F52;text-decoration:underline;font-weight:600;">{{.ReplyTo}}</a>{{end}}.
+            </p>
+            <p style="margin:0 0 10px 0;color:#667570;font-size:11px;line-height:17px;">
+              <strong>Perlindungan Data &amp; Privasi:</strong> Pesan ini beserta informasi di dalamnya bersifat rahasia untuk penerima yang dituju dan diproses sesuai Undang-Undang Pelindungan Data Pribadi (UU No. 27 Tahun 2022) serta ketentuan Penyelenggara Sistem Elektronik di Indonesia.
+            </p>
+            <p style="margin:0 0 10px 0;font-size:12px;">
+              <a href="https://demo.abbdullaziz.online/legal" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 10px 6px 0;color:#1F5F52;text-decoration:underline;font-weight:600;">Ketentuan &amp; Privasi Tamu</a>
+              &bull;
+              <a href="https://demo.abbdullaziz.online/legal/mitra" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 0 6px 10px;color:#1F5F52;text-decoration:underline;font-weight:600;">Dokumen Hukum Mitra</a>
+            </p>
+            <p style="margin:0;color:#667570;font-size:11px;">
+              &copy; {{.Year}} {{.StoreName}} &bull; Didukung oleh <strong>Cassy POS &amp; QR Ordering</strong> &bull; AzureDevID (Jakarta, Indonesia)
+            </p>
           </td>
         </tr>
       </table>
@@ -45,11 +81,11 @@
 </body>
 </html>
 
-{{define "button"}}<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+{{define "button"}}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 16px 0;width:100%;">
   <tr>
-    <td style="border-radius:8px;background-color:#1F5F52;">
-      <a href="{{.ActionURL}}" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:#F7F5F0;text-decoration:none;border-radius:8px;">{{.ActionLabel}}</a>
+    <td align="center" bgcolor="#1F5F52" style="border-radius:10px;background-color:#1F5F52;">
+      <a href="{{.ActionURL}}" target="_blank" rel="noopener noreferrer" class="email-btn" style="display:block;width:100%;box-sizing:border-box;padding:15px 24px;min-height:48px;line-height:20px;font-size:15px;font-weight:700;color:#F7F5F0 !important;text-decoration:none;text-align:center;border-radius:10px;border:1px solid #1F5F52;">{{.ActionLabel}}</a>
     </td>
   </tr>
 </table>
-<p style="margin:0 0 16px 0;font-size:13px;line-height:20px;color:#4A5954;">Tombol tidak berfungsi? Salin tautan berikut ke browser:<br><a href="{{.ActionURL}}" style="color:#1F5F52;word-break:break-all;text-decoration:underline;">{{.ActionURL}}</a></p>{{end}}
+<p style="margin:0 0 16px 0;font-size:12px;line-height:19px;color:#4A5954;">Jika tombol di atas tidak dapat dibuka, ketuk atau salin tautan berikut ke peramban:<br><a href="{{.ActionURL}}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:4px 0;color:#1F5F52;word-break:break-all;text-decoration:underline;font-weight:600;">{{.ActionURL}}</a></p>{{end}}

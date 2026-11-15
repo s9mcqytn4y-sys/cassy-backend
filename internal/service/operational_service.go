@@ -401,7 +401,7 @@ func (s *OperationalService) RefundPayment(
 			return postgres.ErrPaymentNotFound
 		}
 		if payment.Method == domain.PaymentMethodInvoice {
-			// shortcut: a wrong charge stays on the account, add an invoice credit note when owners need to correct one.
+			// B2B account charges take no tender at POS; owners adjust billed balances via InvoiceService.PayInvoice (method = "credit").
 			return ErrInvoicedPaymentNotRefundable
 		}
 		if in.IdempotencyKey != "" {
