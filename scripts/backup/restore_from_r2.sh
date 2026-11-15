@@ -6,14 +6,14 @@
 # and restores into PostgreSQL 18.
 #
 # Usage:
-#   BACKUP_OBJECT="daily/backup_mycaffe_prod_20261028_190000Z.dump.gpg" ./scripts/backup/restore_from_r2.sh
+#   BACKUP_OBJECT="daily/backup_cassy_prod_20261028_190000Z.dump.gpg" ./scripts/backup/restore_from_r2.sh
 #   BACKUP_OBJECT=latest ./scripts/backup/restore_from_r2.sh   # newest object in hourly/
 #
 # Target: set DB_CONTAINER to restore through `docker exec` (pg_restore 18 inside the
 # container, local socket, no password). Otherwise DB_HOST/DB_PORT/DB_MIGRATOR_PASSWORD
 # are used with a host pg_restore, which must be version 18.
 # The target database must already have the mycaffe_* roles (deploy/postgres/00-init-roles.sh):
-# GRANTs to mycaffe_app are restored from the dump, so the API works right after a restore.
+# GRANTs to cassy_app are restored from the dump, so the API works right after a restore.
 # ==============================================================================
 set -euo pipefail
 umask 077
@@ -96,10 +96,10 @@ gpg --batch --yes --quiet --decrypt \
   --output "${DUMP_FILE}" \
   "${ENC_FILE}" 3<<< "${BACKUP_ENCRYPTION_PASSPHRASE}"
 
-# Privileges are restored on purpose: dropping them (--no-privileges) leaves mycaffe_app
+# Privileges are restored on purpose: dropping them (--no-privileges) leaves cassy_app
 # without its GRANTs and the API fails with "permission denied" after a restore.
 # Extensions are skipped: they belong to the superuser (00-init-roles.sh creates them), and
-# --clean would try to drop them as mycaffe_migrator and abort the whole restore.
+# --clean would try to drop them as cassy_migrator and abort the whole restore.
 RESTORE_ARGS=(-U "${DB_MIGRATOR_USER}" -d "${DB_NAME}" --clean --if-exists --no-owner --single-transaction --exit-on-error)
 LIST_FILTER="pg_restore -l \"\$1\" | grep -v ' EXTENSION ' > \"\$1.list\""
 

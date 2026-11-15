@@ -202,7 +202,7 @@ func LoadConfig() (*Config, error) {
 		TrustedProxies:               splitCSV(getEnv("TRUSTED_PROXIES", "")),
 		DatabaseURL:                  getEnv("DATABASE_URL", ""),
 		DatabaseMigrationURL:         getEnv("DATABASE_MIGRATION_URL", getEnv("DATABASE_URL", "")),
-		DBAppUser:                    getEnv("DB_APP_USER", "mycaffe_app"),
+		DBAppUser:                    getEnv("DB_APP_USER", "cassy_app"),
 		DBAppPassword:                getEnv("DB_APP_PASSWORD", ""),
 		JWTSecret:                    getEnv("JWT_SECRET_KEY", ""),
 		JWTExpiryHours:               jwtHours,
@@ -285,7 +285,7 @@ func LoadMigrateConfig() (*Config, error) {
 		AppEnv:               appEnv,
 		DatabaseURL:          getEnv("DATABASE_URL", ""),
 		DatabaseMigrationURL: getEnv("DATABASE_MIGRATION_URL", getEnv("DATABASE_URL", "")),
-		DBAppUser:            getEnv("DB_APP_USER", "mycaffe_app"),
+		DBAppUser:            getEnv("DB_APP_USER", "cassy_app"),
 		DBAppPassword:        getEnv("DB_APP_PASSWORD", ""),
 	}
 

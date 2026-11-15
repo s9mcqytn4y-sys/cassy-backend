@@ -204,12 +204,12 @@ func (m *Migrator) Seed(ctx context.Context, seedFilePath, appEnv string) error 
 	return tx.Commit()
 }
 
-// ProvisionAppRole configures the runtime application role (e.g. mycaffe_app) with a login password
+// ProvisionAppRole configures the runtime application role (e.g. cassy_app) with a login password
 // and enforces NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS so it can authenticate directly via pg_hba.
 func (m *Migrator) ProvisionAppRole(ctx context.Context, appUser, appPassword string) error {
 	appUser = strings.TrimSpace(appUser)
 	if appUser == "" {
-		appUser = "mycaffe_app"
+		appUser = "cassy_app"
 	}
 	for i := 0; i < len(appUser); i++ {
 		c := appUser[i]
@@ -229,9 +229,9 @@ func (m *Migrator) ProvisionAppRole(ctx context.Context, appUser, appPassword st
 		return fmt.Errorf("failed to inspect caller role capabilities: %w", err)
 	}
 
-	// When connected as least-privilege mycaffe_migrator (NOSUPERUSER NOCREATEROLE),
-	// 00-init-roles.sh has already provisioned mycaffe_app with its password.
-	// Verify mycaffe_app exists with login enabled and without superuser/bypassrls.
+	// When connected as least-privilege cassy_migrator (NOSUPERUSER NOCREATEROLE),
+	// 00-init-roles.sh has already provisioned cassy_app with its password.
+	// Verify cassy_app exists with login enabled and without superuser/bypassrls.
 	if !callerPerms.RolSuper && !callerPerms.RolCreateRole {
 		var appRoleFlags struct {
 			RolCanLogin  bool `db:"rolcanlogin"`

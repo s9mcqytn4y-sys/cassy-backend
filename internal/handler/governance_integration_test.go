@@ -94,7 +94,7 @@ func signMidtransWebhook(orderID, statusCode, grossAmount, serverKey string) str
 	return hex.EncodeToString(sum[:])
 }
 
-// TestGovernanceIntegration verifies ADR-009 end-to-end against PostgreSQL 18 with mycaffe_app (NOBYPASSRLS):
+// TestGovernanceIntegration verifies ADR-009 end-to-end against PostgreSQL 18 with cassy_app (NOBYPASSRLS):
 //  1. Public legal docs, IDR pricing plans (0% commission), and idempotent onboarding with NIB/NPWP masking.
 //  2. RBAC owner-only guard vs cashier denial.
 //  3. AES-256-GCM BYOK Midtrans encryption bound to store_id AAD + cross-tenant RLS isolation.

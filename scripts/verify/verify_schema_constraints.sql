@@ -184,7 +184,7 @@ BEGIN
     END;
 END $$;
 
--- 10. Test Row-Level Security (RLS) & Financial DELETE Revocation under mycaffe_app
+-- 10. Test Row-Level Security (RLS) & Financial DELETE Revocation under cassy_app
 DO $$
 DECLARE
     v_store_a UUID;
@@ -209,7 +209,7 @@ BEGIN
     WHERE store_id = v_store_a AND idempotency_key = 'idem-test-001';
 
     -- Switch to runtime application role (NOBYPASSRLS)
-    EXECUTE 'SET LOCAL ROLE mycaffe_app';
+    EXECUTE 'SET LOCAL ROLE cassy_app';
 
     -- 10A. Verify controlled SECURITY DEFINER webhook context resolver works before setting tenant context
     SELECT store_id INTO v_resolved_store FROM resolve_payment_webhook_context(v_provider_order_id);
@@ -235,14 +235,14 @@ BEGIN
         RAISE EXCEPTION 'RLS error for Store A: stores=%, orders=%, notifs=%', v_visible_stores, v_visible_orders, v_visible_notifs;
     END IF;
 
-    -- 10D. Verify mycaffe_app CANNOT physically DELETE payments, orders, or payment_notification_logs
+    -- 10D. Verify cassy_app CANNOT physically DELETE payments, orders, or payment_notification_logs
     BEGIN
         DELETE FROM payments;
     EXCEPTION WHEN insufficient_privilege THEN
         v_delete_payment_blocked := TRUE;
     END;
     IF NOT v_delete_payment_blocked THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app was allowed to DELETE FROM payments!';
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app was allowed to DELETE FROM payments!';
     END IF;
 
     BEGIN
@@ -251,7 +251,7 @@ BEGIN
         v_delete_order_blocked := TRUE;
     END;
     IF NOT v_delete_order_blocked THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app was allowed to DELETE FROM orders!';
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app was allowed to DELETE FROM orders!';
     END IF;
 
     BEGIN
@@ -260,7 +260,7 @@ BEGIN
         v_delete_notif_blocked := TRUE;
     END;
     IF NOT v_delete_notif_blocked THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app was allowed to DELETE FROM payment_notification_logs!';
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app was allowed to DELETE FROM payment_notification_logs!';
     END IF;
 
     -- 10E. Attempt cross-tenant insert into Store B while scoped to Store A (must fail WITH CHECK policy)
@@ -282,11 +282,11 @@ BEGIN
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.auth_sessions'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: auth_sessions does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.auth_sessions', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE auth_sessions (sessions must be revoked, not deleted)!';
+    IF has_table_privilege('cassy_app', 'public.auth_sessions', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE auth_sessions (sessions must be revoked, not deleted)!';
     END IF;
-    IF NOT has_function_privilege('mycaffe_app', 'public.resolve_store_for_login(character varying)', 'EXECUTE') THEN
-        RAISE EXCEPTION 'resolve_store_for_login is not executable by mycaffe_app';
+    IF NOT has_function_privilege('cassy_app', 'public.resolve_store_for_login(character varying)', 'EXECUTE') THEN
+        RAISE EXCEPTION 'resolve_store_for_login is not executable by cassy_app';
     END IF;
     IF EXISTS (
         SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
@@ -300,12 +300,12 @@ BEGIN
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.table_sessions'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: tables/table_sessions do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.tables', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.table_sessions', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE tables or table_sessions (archive/close instead)!';
+    IF has_table_privilege('cassy_app', 'public.tables', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.table_sessions', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE tables or table_sessions (archive/close instead)!';
     END IF;
-    IF NOT has_function_privilege('mycaffe_app', 'public.resolve_table_qr(character varying)', 'EXECUTE') THEN
-        RAISE EXCEPTION 'resolve_table_qr is not executable by mycaffe_app';
+    IF NOT has_function_privilege('cassy_app', 'public.resolve_table_qr(character varying)', 'EXECUTE') THEN
+        RAISE EXCEPTION 'resolve_table_qr is not executable by cassy_app';
     END IF;
     IF EXISTS (
         SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
@@ -318,11 +318,11 @@ BEGIN
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.guest_sessions'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: guest_sessions does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.guest_sessions', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE guest_sessions!';
+    IF has_table_privilege('cassy_app', 'public.guest_sessions', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE guest_sessions!';
     END IF;
-    IF NOT has_function_privilege('mycaffe_app', 'public.track_order_by_token(bytea)', 'EXECUTE') THEN
-        RAISE EXCEPTION 'track_order_by_token is not executable by mycaffe_app';
+    IF NOT has_function_privilege('cassy_app', 'public.track_order_by_token(bytea)', 'EXECUTE') THEN
+        RAISE EXCEPTION 'track_order_by_token is not executable by cassy_app';
     END IF;
     IF EXISTS (
         SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
@@ -336,11 +336,11 @@ BEGIN
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.store_event_sequences'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: ws_tickets/store_event_sequences do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.ws_tickets', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE ws_tickets!';
+    IF has_table_privilege('cassy_app', 'public.ws_tickets', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE ws_tickets!';
     END IF;
-    IF NOT has_function_privilege('mycaffe_app', 'public.list_stores_with_pending_outbox(integer)', 'EXECUTE') THEN
-        RAISE EXCEPTION 'list_stores_with_pending_outbox is not executable by mycaffe_app';
+    IF NOT has_function_privilege('cassy_app', 'public.list_stores_with_pending_outbox(integer)', 'EXECUTE') THEN
+        RAISE EXCEPTION 'list_stores_with_pending_outbox is not executable by cassy_app';
     END IF;
     IF EXISTS (
         SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
@@ -352,44 +352,44 @@ BEGIN
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.kds_tickets'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: kds_tickets does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.kds_tickets', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE kds_tickets!';
+    IF has_table_privilege('cassy_app', 'public.kds_tickets', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE kds_tickets!';
     END IF;
     -- 10F-25. Payables (migration 000047): RLS on; payments are append-only.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.payables'::regclass)
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.payable_payments'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: payables tables do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.payable_payments', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.payable_payments', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.payables', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may rewrite payable payments or delete payables!';
+    IF has_table_privilege('cassy_app', 'public.payable_payments', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.payable_payments', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.payables', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may rewrite payable payments or delete payables!';
     END IF;
     -- 10F-26. Stock sessions (migration 000048): RLS on; lines are append-only, sessions are never deleted.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.stock_sessions'::regclass)
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.stock_session_lines'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: stock session tables do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.stock_session_lines', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.stock_session_lines', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.stock_sessions', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may rewrite stock session lines or delete sessions!';
+    IF has_table_privilege('cassy_app', 'public.stock_session_lines', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.stock_session_lines', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.stock_sessions', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may rewrite stock session lines or delete sessions!';
     END IF;
     -- 10F-27. Sales channels (migration 000049): RLS on; channels are never deleted.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.sales_channels'::regclass)
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.channel_prices'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: sales channel tables do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.sales_channels', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may delete sales channels!';
+    IF has_table_privilege('cassy_app', 'public.sales_channels', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may delete sales channels!';
     END IF;
     -- 10F-28. Stamp card (migration 000050): RLS on; stamps are only marked redeemed, never deleted.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.stamp_programs'::regclass)
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.customer_stamps'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: stamp card tables do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.customer_stamps', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may delete customer stamps!';
+    IF has_table_privilege('cassy_app', 'public.customer_stamps', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may delete customer stamps!';
     END IF;
     -- 10F-29. Invoices (migration 000055): RLS on; payments are append-only, invoices are never deleted.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.business_customers'::regclass)
@@ -397,26 +397,26 @@ BEGIN
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.invoice_payments'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: invoice tables do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.invoice_payments', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.invoice_payments', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.invoices', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may rewrite invoice payments or delete invoices!';
+    IF has_table_privilege('cassy_app', 'public.invoice_payments', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.invoice_payments', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.invoices', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may rewrite invoice payments or delete invoices!';
     END IF;
     -- 10F-30. Invoice reminders (migration 000056): RLS on; the ledger is never rewritten.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.invoice_reminders'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: invoice_reminders does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.invoice_reminders', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.invoice_reminders', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may rewrite invoice reminders!';
+    IF has_table_privilege('cassy_app', 'public.invoice_reminders', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.invoice_reminders', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may rewrite invoice reminders!';
     END IF;
     -- 10F-31. Guest split links (migration 000057): RLS on; links are never rewritten.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.guest_split_shares'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: guest_split_shares does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.guest_split_shares', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.guest_split_shares', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may rewrite guest split links!';
+    IF has_table_privilege('cassy_app', 'public.guest_split_shares', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.guest_split_shares', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may rewrite guest split links!';
     END IF;
     -- 10F-24. Purchasing (migration 000046): RLS on; receipts are append-only (stock and cost already moved).
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.suppliers'::regclass)
@@ -426,12 +426,12 @@ BEGIN
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.goods_receipt_lines'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: purchasing tables do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.goods_receipts', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.goods_receipts', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.goods_receipt_lines', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.goods_receipt_lines', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.suppliers', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may rewrite goods receipts or delete suppliers!';
+    IF has_table_privilege('cassy_app', 'public.goods_receipts', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.goods_receipts', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.goods_receipt_lines', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.goods_receipt_lines', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.suppliers', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may rewrite goods receipts or delete suppliers!';
     END IF;
     -- 10F-23. Ingredients, recipes, movements (migration 000045): RLS on; the movement ledger is append-only.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.ingredients'::regclass)
@@ -439,10 +439,10 @@ BEGIN
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.ingredient_movements'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: inventory tables do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.ingredient_movements', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.ingredient_movements', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.ingredients', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may rewrite the ingredient ledger or delete ingredients!';
+    IF has_table_privilege('cassy_app', 'public.ingredient_movements', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.ingredient_movements', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.ingredients', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may rewrite the ingredient ledger or delete ingredients!';
     END IF;
     -- 10F-22. Bundle slots (migration 000044): RLS on (replaced as a whole by the owner, so DELETE is granted).
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.bundle_slots'::regclass) THEN
@@ -452,15 +452,15 @@ BEGIN
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.promotions'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: promotions does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.promotions', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE promotions!';
+    IF has_table_privilege('cassy_app', 'public.promotions', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE promotions!';
     END IF;
     -- 10F-20. Offline order submissions (migration 000039): RLS on, never deleted by the app role (OF9).
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.offline_order_submissions'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: offline_order_submissions does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.offline_order_submissions', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE offline_order_submissions!';
+    IF has_table_privilege('cassy_app', 'public.offline_order_submissions', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE offline_order_submissions!';
     END IF;
     -- 10F-19. Devices, PIN verifier records, catalog snapshots (migration 000038): RLS on; devices are
     -- revoked, never deleted; snapshots are immutable.
@@ -469,110 +469,110 @@ BEGIN
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.catalog_versions'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: devices/device_pin_verifiers/catalog_versions do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.devices', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.catalog_versions', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.catalog_versions', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may delete devices or change catalog snapshots!';
+    IF has_table_privilege('cassy_app', 'public.devices', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.catalog_versions', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.catalog_versions', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may delete devices or change catalog snapshots!';
     END IF;
     -- 10F-18. Receipt deliveries (migration 000037): RLS on, append-only for the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.receipt_deliveries'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: receipt_deliveries does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.receipt_deliveries', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.receipt_deliveries', 'UPDATE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may change receipt_deliveries!';
+    IF has_table_privilege('cassy_app', 'public.receipt_deliveries', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.receipt_deliveries', 'UPDATE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may change receipt_deliveries!';
     END IF;
     -- 10F-17. Printers and print jobs (migration 000036): RLS on, never deleted by the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.printers'::regclass)
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.print_jobs'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: printers/print_jobs do not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.printers', 'DELETE') OR has_table_privilege('mycaffe_app', 'public.print_jobs', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE printers/print_jobs!';
+    IF has_table_privilege('cassy_app', 'public.printers', 'DELETE') OR has_table_privilege('cassy_app', 'public.print_jobs', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE printers/print_jobs!';
     END IF;
     -- 10F-16. Queue display tokens (migration 000035): RLS on, never deleted by the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.display_tokens'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: display_tokens does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.display_tokens', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE display_tokens!';
+    IF has_table_privilege('cassy_app', 'public.display_tokens', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE display_tokens!';
     END IF;
     -- 10F-15. Table merge links (migration 000033): RLS on, never deleted by the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.table_session_links'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: table_session_links does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.table_session_links', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE table_session_links!';
+    IF has_table_privilege('cassy_app', 'public.table_session_links', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE table_session_links!';
     END IF;
     -- 10F-14. Staff badges (migration 000032): RLS on, never deleted by the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.staff_badges'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: staff_badges does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.staff_badges', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE staff_badges!';
+    IF has_table_privilege('cassy_app', 'public.staff_badges', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE staff_badges!';
     END IF;
     -- 10F-13. Gateway refund requests (migration 000030): RLS on, never deleted by the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.gateway_refunds'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: gateway_refunds does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.gateway_refunds', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE gateway_refunds!';
+    IF has_table_privilege('cassy_app', 'public.gateway_refunds', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE gateway_refunds!';
     END IF;
     -- 10F-12. Refund lines (migration 000029): RLS on, insert-only for the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.payment_refund_lines'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: payment_refund_lines does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.payment_refund_lines', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.payment_refund_lines', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may UPDATE or DELETE payment_refund_lines!';
+    IF has_table_privilege('cassy_app', 'public.payment_refund_lines', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.payment_refund_lines', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may UPDATE or DELETE payment_refund_lines!';
     END IF;
     -- 10F-11. Outlet cash ledger (migration 000028): RLS on, insert-only for the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.outlet_cash_movements'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: outlet_cash_movements does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.outlet_cash_movements', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.outlet_cash_movements', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may UPDATE or DELETE outlet_cash_movements!';
+    IF has_table_privilege('cassy_app', 'public.outlet_cash_movements', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.outlet_cash_movements', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may UPDATE or DELETE outlet_cash_movements!';
     END IF;
     -- 10F-10. Messaging (migration 000026): RLS on, never deleted by the app role.
     IF NOT (SELECT bool_and(relrowsecurity) FROM pg_class WHERE oid IN
             ('public.customers'::regclass, 'public.otp_challenges'::regclass, 'public.message_outbox'::regclass)) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: customers/otp_challenges/message_outbox must have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.customers', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.otp_challenges', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.message_outbox', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE messaging rows!';
+    IF has_table_privilege('cassy_app', 'public.customers', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.otp_challenges', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.message_outbox', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE messaging rows!';
     END IF;
     -- 10F-9. Approval requests (migration 000024, ADR-007): RLS on, never deleted by the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.approval_requests'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: approval_requests does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.approval_requests', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE approval_requests!';
+    IF has_table_privilege('cassy_app', 'public.approval_requests', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE approval_requests!';
     END IF;
     -- 10F-8. Refund ledger (migration 000023): RLS on, insert-only for the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.payment_refunds'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: payment_refunds does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.payment_refunds', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.payment_refunds', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may UPDATE or DELETE payment_refunds!';
+    IF has_table_privilege('cassy_app', 'public.payment_refunds', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.payment_refunds', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may UPDATE or DELETE payment_refunds!';
     END IF;
     -- 10F-7. Media uploads (migration 000022): RLS on, no DELETE for the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.media_uploads'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: media_uploads does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.media_uploads', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE media_uploads!';
+    IF has_table_privilege('cassy_app', 'public.media_uploads', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE media_uploads!';
     END IF;
     -- 10F-6. Receipt tokens (migration 000020): RLS on, insert-only for the app role.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.receipt_tokens'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: receipt_tokens does not have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.receipt_tokens', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.receipt_tokens', 'UPDATE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may UPDATE or DELETE receipt_tokens!';
+    IF has_table_privilege('cassy_app', 'public.receipt_tokens', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.receipt_tokens', 'UPDATE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may UPDATE or DELETE receipt_tokens!';
     END IF;
     IF EXISTS (SELECT 1 FROM outbox_events WHERE store_seq IS NULL) THEN
         RAISE EXCEPTION 'outbox_events rows without store_seq';
@@ -586,10 +586,10 @@ BEGIN
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.product_variants'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: account_tokens/email_outbox/store_settings must have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.account_tokens', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.email_outbox', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.product_variants', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app may DELETE account_tokens/email_outbox!';
+    IF has_table_privilege('cassy_app', 'public.account_tokens', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.email_outbox', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.product_variants', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may DELETE account_tokens/email_outbox!';
     END IF;
     IF EXISTS (
         SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
@@ -598,8 +598,8 @@ BEGIN
         RAISE EXCEPTION 'SECURITY FAILURE: list_stores_with_due_email is executable by PUBLIC!';
     END IF;
     -- Table timer worker discovery (migration 000034): app role only, never PUBLIC.
-    IF NOT has_function_privilege('mycaffe_app', 'public.list_stores_with_due_table_timers()', 'EXECUTE') THEN
-        RAISE EXCEPTION 'list_stores_with_due_table_timers is not executable by mycaffe_app';
+    IF NOT has_function_privilege('cassy_app', 'public.list_stores_with_due_table_timers()', 'EXECUTE') THEN
+        RAISE EXCEPTION 'list_stores_with_due_table_timers is not executable by cassy_app';
     END IF;
     IF EXISTS (
         SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
@@ -609,7 +609,7 @@ BEGIN
     END IF;
 
     -- Platform SaaS Governance & BYOK tables (migration 000051): RLS on all tenant-owned tables,
-    -- append-only legal acceptances & governance audit logs, and zero DELETE privileges for mycaffe_app.
+    -- append-only legal acceptances & governance audit logs, and zero DELETE privileges for cassy_app.
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.tenant_legal_acceptances'::regclass)
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.store_kyb_profiles'::regclass)
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.platform_invoices'::regclass)
@@ -621,22 +621,22 @@ BEGIN
        OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.governance_audit_logs'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: platform SaaS governance tenant tables must have row-level security enabled!';
     END IF;
-    IF has_table_privilege('mycaffe_app', 'public.tenant_legal_acceptances', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.tenant_legal_acceptances', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.governance_audit_logs', 'UPDATE')
-       OR has_table_privilege('mycaffe_app', 'public.governance_audit_logs', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.store_payment_credentials', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.platform_invoices', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.tenant_clearance_requests', 'DELETE')
-       OR has_table_privilege('mycaffe_app', 'public.store_mikrotik_profiles', 'DELETE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: mycaffe_app has forbidden UPDATE/DELETE on immutable governance/BYOK tables!';
+    IF has_table_privilege('cassy_app', 'public.tenant_legal_acceptances', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.tenant_legal_acceptances', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.governance_audit_logs', 'UPDATE')
+       OR has_table_privilege('cassy_app', 'public.governance_audit_logs', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.store_payment_credentials', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.platform_invoices', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.tenant_clearance_requests', 'DELETE')
+       OR has_table_privilege('cassy_app', 'public.store_mikrotik_profiles', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app has forbidden UPDATE/DELETE on immutable governance/BYOK tables!';
     END IF;
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.store_mikrotik_profiles'::regclass) THEN
         RAISE EXCEPTION 'SECURITY FAILURE: store_mikrotik_profiles must have row-level security enabled!';
     END IF;
-    IF NOT has_function_privilege('mycaffe_app', 'public.resolve_platform_invoice_webhook_context(character varying)', 'EXECUTE')
-       OR NOT has_function_privilege('mycaffe_app', 'public.provision_store_from_onboarding(uuid, uuid, uuid, text, text)', 'EXECUTE') THEN
-        RAISE EXCEPTION 'SECURITY FAILURE: onboarding/webhook SECURITY DEFINER functions are not executable by mycaffe_app!';
+    IF NOT has_function_privilege('cassy_app', 'public.resolve_platform_invoice_webhook_context(character varying)', 'EXECUTE')
+       OR NOT has_function_privilege('cassy_app', 'public.provision_store_from_onboarding(uuid, uuid, uuid, text, text)', 'EXECUTE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: onboarding/webhook SECURITY DEFINER functions are not executable by cassy_app!';
     END IF;
     IF EXISTS (
         SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a

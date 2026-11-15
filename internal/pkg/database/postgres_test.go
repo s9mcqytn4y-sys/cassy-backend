@@ -15,7 +15,7 @@ import (
 
 func TestBuildSafeDatabaseURL_SpecialCharacters(t *testing.T) {
 	specialPassword := "p@ss:w/rd?with#special%chars&more=1"
-	dsn := database.BuildSafeDatabaseURL("db.mycaffe.internal", "5432", "mycaffe_app", specialPassword, "mycaffe_pos", "require")
+	dsn := database.BuildSafeDatabaseURL("db.mycaffe.internal", "5432", "cassy_app", specialPassword, "cassy_pos", "require")
 
 	parsed, err := url.Parse(dsn)
 	if err != nil {
@@ -28,8 +28,8 @@ func TestBuildSafeDatabaseURL_SpecialCharacters(t *testing.T) {
 	if parsed.Host != "db.mycaffe.internal:5432" {
 		t.Errorf("expected host db.mycaffe.internal:5432, got %q", parsed.Host)
 	}
-	if parsed.User.Username() != "mycaffe_app" {
-		t.Errorf("expected username mycaffe_app, got %q", parsed.User.Username())
+	if parsed.User.Username() != "cassy_app" {
+		t.Errorf("expected username cassy_app, got %q", parsed.User.Username())
 	}
 	decodedPass, ok := parsed.User.Password()
 	if !ok || decodedPass != specialPassword {
@@ -71,15 +71,15 @@ func TestMigrator_ProductionGuards(t *testing.T) {
 
 func TestMigrator_ProvisionAppRole_RejectsInvalidIdentifier(t *testing.T) {
 	migrator := database.NewMigrator(nil)
-	if err := migrator.ProvisionAppRole(context.Background(), "mycaffe_app; DROP ROLE postgres;--", "secret"); err == nil {
+	if err := migrator.ProvisionAppRole(context.Background(), "cassy_app; DROP ROLE postgres;--", "secret"); err == nil {
 		t.Fatal("expected ProvisionAppRole to reject SQL injection in role identifier")
 	}
 }
 
-// TestDirectAppRoleLoginAndTenantRLS connects directly as mycaffe_app (not postgres) when
+// TestDirectAppRoleLoginAndTenantRLS connects directly as cassy_app (not postgres) when
 // TEST_APP_DATABASE_URL is provided in CI or local integration environments.
 // It verifies:
-// 1. Direct TCP login as mycaffe_app succeeds with NOSUPERUSER and NOBYPASSRLS.
+// 1. Direct TCP login as cassy_app succeeds with NOSUPERUSER and NOBYPASSRLS.
 // 2. Queries without WithTenantTx return 0 rows (fail-closed RLS).
 // 3. WithTenantTx(StoreA) sees only Store A rows across stores, orders, and payments.
 // 4. resolve_payment_webhook_context resolves Store A context from provider_order_id before tenant context is set.
@@ -87,18 +87,18 @@ func TestMigrator_ProvisionAppRole_RejectsInvalidIdentifier(t *testing.T) {
 func TestDirectAppRoleLoginAndTenantRLS(t *testing.T) {
 	appDSN := strings.TrimSpace(os.Getenv("TEST_APP_DATABASE_URL"))
 	if appDSN == "" {
-		t.Skip("TEST_APP_DATABASE_URL not set; skipping live mycaffe_app direct-login integration test")
+		t.Skip("TEST_APP_DATABASE_URL not set; skipping live cassy_app direct-login integration test")
 	}
 
 	db, err := database.NewPostgresDB(&config.Config{DatabaseURL: appDSN})
 	if err != nil {
-		t.Fatalf("failed to connect directly as mycaffe_app: %v", err)
+		t.Fatalf("failed to connect directly as cassy_app: %v", err)
 	}
 	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
-	// 1. Verify current_user is mycaffe_app and neither superuser nor bypassrls
+	// 1. Verify current_user is cassy_app and neither superuser nor bypassrls
 	var roleInfo struct {
 		CurrentUser  string `db:"current_user"`
 		RolSuper     bool   `db:"rolsuper"`
@@ -112,11 +112,11 @@ func TestDirectAppRoleLoginAndTenantRLS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to inspect current_user role flags: %v", err)
 	}
-	if roleInfo.CurrentUser != "mycaffe_app" {
-		t.Fatalf("expected direct connection as mycaffe_app, got %q", roleInfo.CurrentUser)
+	if roleInfo.CurrentUser != "cassy_app" {
+		t.Fatalf("expected direct connection as cassy_app, got %q", roleInfo.CurrentUser)
 	}
 	if roleInfo.RolSuper || roleInfo.RolBypassRLS {
-		t.Fatalf("mycaffe_app must not have superuser (%v) or bypassrls (%v)", roleInfo.RolSuper, roleInfo.RolBypassRLS)
+		t.Fatalf("cassy_app must not have superuser (%v) or bypassrls (%v)", roleInfo.RolSuper, roleInfo.RolBypassRLS)
 	}
 
 	// 2. Without tenant context, RLS must fail-closed (0 rows across stores and orders)
@@ -125,13 +125,13 @@ func TestDirectAppRoleLoginAndTenantRLS(t *testing.T) {
 		t.Fatalf("unexpected error querying orders without tenant context: %v", err)
 	}
 	if unAuthCount != 0 {
-		t.Fatalf("expected 0 orders without tenant context under mycaffe_app, got %d", unAuthCount)
+		t.Fatalf("expected 0 orders without tenant context under cassy_app, got %d", unAuthCount)
 	}
 	if err := db.GetContext(ctx, &unAuthCount, "SELECT COUNT(*) FROM stores"); err != nil {
 		t.Fatalf("unexpected error querying stores without tenant context: %v", err)
 	}
 	if unAuthCount != 0 {
-		t.Fatalf("expected 0 stores without tenant context under mycaffe_app, got %d", unAuthCount)
+		t.Fatalf("expected 0 stores without tenant context under cassy_app, got %d", unAuthCount)
 	}
 
 	// 3. Seed a self-contained fixture order + payment for Store A (since db/seeds/development.sql has 0 seeded orders),
@@ -174,7 +174,7 @@ func TestDirectAppRoleLoginAndTenantRLS(t *testing.T) {
 	}
 	err = db.GetContext(ctx, &resolved, "SELECT store_id, order_id FROM resolve_payment_webhook_context($1)", "ORD-20261028-0001")
 	if err != nil {
-		t.Fatalf("resolve_payment_webhook_context failed under mycaffe_app: %v", err)
+		t.Fatalf("resolve_payment_webhook_context failed under cassy_app: %v", err)
 	}
 	if resolved.StoreID != storeAID {
 		t.Fatalf("expected resolved store_id %s, got %s", storeAID, resolved.StoreID)
@@ -203,12 +203,12 @@ func TestDirectAppRoleLoginAndTenantRLS(t *testing.T) {
 		t.Fatalf("WithTenantTx failed for Store A: %v", err)
 	}
 
-	// 5. Verify DELETE privilege is revoked on payments and orders under mycaffe_app
+	// 5. Verify DELETE privilege is revoked on payments and orders under cassy_app
 	delErr := database.WithTenantTx(ctx, db, storeAID, func(tx *sqlx.Tx) error {
 		_, err := tx.ExecContext(ctx, "DELETE FROM payments")
 		return err
 	})
 	if delErr == nil || !strings.Contains(strings.ToLower(delErr.Error()), "permission denied") {
-		t.Fatalf("expected DELETE FROM payments to fail with permission denied for mycaffe_app, got: %v", delErr)
+		t.Fatalf("expected DELETE FROM payments to fail with permission denied for cassy_app, got: %v", delErr)
 	}
 }
