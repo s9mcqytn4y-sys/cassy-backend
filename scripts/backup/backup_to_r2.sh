@@ -7,8 +7,8 @@ set -euo pipefail
 
 # Required environment variables:
 # DB_CONTAINER (default: mycaffe-postgres)
-# DB_USER (default: mycaffe_backup — read-only BYPASSRLS role from 00-init-roles.sh, local socket only)
-# DB_NAME (default: mycaffe_prod)
+# DB_USER (default: cassy_backup — read-only BYPASSRLS role from 00-init-roles.sh, local socket only)
+# DB_NAME (default: cassy_prod)
 # R2_BACKUP_BUCKET (default: mycaffe-backups)
 # R2_ENDPOINT (e.g. https://<account_id>.r2.cloudflarestorage.com)
 # AWS_ACCESS_KEY_ID (R2 backup access token ID)
@@ -16,8 +16,8 @@ set -euo pipefail
 # BACKUP_ENCRYPTION_PASSPHRASE (High-entropy passphrase for GPG symmetric AES256)
 
 DB_CONTAINER="${DB_CONTAINER:-mycaffe-postgres}"
-DB_USER="${DB_USER:-mycaffe_backup}"
-DB_NAME="${DB_NAME:-mycaffe_prod}"
+DB_USER="${DB_USER:-cassy_backup}"
+DB_NAME="${DB_NAME:-cassy_prod}"
 R2_BACKUP_BUCKET="${R2_BACKUP_BUCKET:-${R2_BUCKET:-mycaffe-backups}}"
 R2_BACKUP_PREFIX="${R2_BACKUP_PREFIX:-backups}"
 TIMESTAMP="$(date -u +%Y%m%d_%H%M%SZ)"

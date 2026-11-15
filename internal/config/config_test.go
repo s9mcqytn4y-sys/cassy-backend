@@ -86,13 +86,13 @@ func TestValidateConfigProductionFailClosed(t *testing.T) {
 
 	// Placeholder DatabaseURL in production must fail
 	cfg.AllowedOrigins = []string{"https://app.mycaffe.com"}
-	cfg.DatabaseURL = "postgres://mycaffe_app:change_me_in_production@postgres:5432/mycaffe_pos"
+	cfg.DatabaseURL = "postgres://cassy_app:change_me_in_production@postgres:5432/cassy_pos"
 	if err := config.ValidateConfig(cfg); err == nil {
 		t.Errorf("expected ValidateConfig to fail for placeholder DatabaseURL in production, got nil")
 	}
 
 	// Placeholder MidtransServerKey in production must fail
-	cfg.DatabaseURL = "postgresql://mycaffe_app:strong_prod_db_pass_99@postgres:5432/mycaffe_pos"
+	cfg.DatabaseURL = "postgresql://cassy_app:strong_prod_db_pass_99@postgres:5432/cassy_pos"
 	cfg.MidtransServerKey = "Mid-server-placeholder-key"
 	if err := config.ValidateConfig(cfg); err == nil {
 		t.Errorf("expected ValidateConfig to fail for placeholder MidtransServerKey in production, got nil")
@@ -198,8 +198,8 @@ func TestValidateMigrateConfigLeastPrivilege(t *testing.T) {
 	// Migrate config in production must succeed WITHOUT JWT_SECRET_KEY or MIDTRANS_SERVER_KEY
 	cfg := &config.Config{
 		AppEnv:               "production",
-		DatabaseMigrationURL: "postgres://mycaffe_migrator:strong_prod_mig_pass_99@postgres:5432/mycaffe_pos?sslmode=disable",
-		DBAppUser:            "mycaffe_app",
+		DatabaseMigrationURL: "postgres://cassy_migrator:strong_prod_mig_pass_99@postgres:5432/cassy_pos?sslmode=disable",
+		DBAppUser:            "cassy_app",
 		DBAppPassword:        "strong_prod_app_pass_99",
 	}
 	if err := config.ValidateMigrateConfig(cfg); err != nil {
@@ -209,7 +209,7 @@ func TestValidateMigrateConfigLeastPrivilege(t *testing.T) {
 	// Placeholder migration password in production must fail
 	cfgPlaceholder := &config.Config{
 		AppEnv:               "production",
-		DatabaseMigrationURL: "postgres://mycaffe_migrator:change_me_in_production@postgres:5432/mycaffe_pos",
+		DatabaseMigrationURL: "postgres://cassy_migrator:change_me_in_production@postgres:5432/cassy_pos",
 	}
 	if err := config.ValidateMigrateConfig(cfgPlaceholder); err == nil {
 		t.Fatal("expected ValidateMigrateConfig to reject placeholder DSN in production")

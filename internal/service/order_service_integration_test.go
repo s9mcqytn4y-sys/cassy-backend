@@ -30,7 +30,7 @@ func openIntegrationAppDB(t *testing.T) *sqlx.DB {
 	}
 	db, err := database.NewPostgresDB(&config.Config{DatabaseURL: appDSN})
 	if err != nil {
-		t.Fatalf("failed to connect to PostgreSQL as mycaffe_app: %v", err)
+		t.Fatalf("failed to connect to PostgreSQL as cassy_app: %v", err)
 	}
 	db.SetMaxOpenConns(6)
 	db.SetMaxIdleConns(2)

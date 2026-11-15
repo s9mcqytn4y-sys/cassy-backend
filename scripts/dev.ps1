@@ -52,10 +52,10 @@ function Set-LocalDatabaseEnv {
         $vars[$Matches[1]] = $Matches[2].Trim().Trim('"').Trim("'")
     }
     $get = { param($key, $default) if ($vars[$key]) { $vars[$key] } else { $default } }
-    $db = & $get 'DB_NAME' 'mycaffe_dev'
-    $migUser = & $get 'DB_MIGRATOR_USER' 'mycaffe_migrator'
+    $db = & $get 'DB_NAME' 'cassy_dev'
+    $migUser = & $get 'DB_MIGRATOR_USER' 'cassy_migrator'
     $migPass = [uri]::EscapeDataString((& $get 'DB_MIGRATOR_PASSWORD' 'mycaffe_local_migrator_password'))
-    $appUser = & $get 'DB_APP_USER' 'mycaffe_app'
+    $appUser = & $get 'DB_APP_USER' 'cassy_app'
     $appPass = & $get 'DB_APP_PASSWORD' 'mycaffe_local_app_password'
     $port = & $get 'DB_PORT' '5432'
     $env:DB_APP_USER = $appUser
@@ -119,7 +119,7 @@ switch ($Command) {
         Assert-EnvFile
         Write-Step 'PostgreSQL 18 (127.0.0.1:5432)'
         Invoke-DevCompose @('up', '-d', 'postgres')
-        Wait-Healthy 'mycaffe-postgres-dev'
+        Wait-Healthy 'CassyPostgresDev'
     }
 
     'migrate' { Assert-EnvFile; Set-LocalDatabaseEnv; Invoke-Native go @('run', './cmd/migrate', '-action=up') }
@@ -147,24 +147,24 @@ switch ($Command) {
         }
         $initScript = (Resolve-Path 'deploy/postgres/00-init-roles.sh').Path
         Invoke-Native docker @('run', '-d', '--name', $TestContainer,
-            '-e', 'POSTGRES_PASSWORD=it_super', '-e', 'POSTGRES_DB=mycaffe_test',
-            '-e', 'DB_MIGRATOR_USER=mycaffe_migrator', '-e', 'DB_MIGRATOR_PASSWORD=it_migrator',
-            '-e', 'DB_APP_USER=mycaffe_app', '-e', 'DB_APP_PASSWORD=it_app',
-            '--health-cmd', 'pg_isready -U mycaffe_migrator -d mycaffe_test', '--health-interval', '1s',
+            '-e', 'POSTGRES_PASSWORD=it_super', '-e', 'POSTGRES_DB=cassy_test',
+            '-e', 'DB_MIGRATOR_USER=cassy_migrator', '-e', 'DB_MIGRATOR_PASSWORD=it_migrator',
+            '-e', 'DB_APP_USER=cassy_app', '-e', 'DB_APP_PASSWORD=it_app',
+            '--health-cmd', 'pg_isready -U cassy_migrator -d cassy_test', '--health-interval', '1s',
             '-p', "127.0.0.1:${TestPort}:5432", '-v', "${initScript}:/docker-entrypoint-initdb.d/00-init-roles.sh:ro",
             'postgres:18-alpine')
         try {
             Wait-Healthy $TestContainer
-            $migrator = "postgres://mycaffe_migrator:it_migrator@127.0.0.1:$TestPort/mycaffe_test?sslmode=disable"
+            $migrator = "postgres://cassy_migrator:it_migrator@127.0.0.1:$TestPort/cassy_test?sslmode=disable"
             $env:APP_ENV = 'test'
             $env:DATABASE_URL = $migrator
             $env:DATABASE_MIGRATION_URL = $migrator
-            $env:DB_APP_USER = 'mycaffe_app'
+            $env:DB_APP_USER = 'cassy_app'
             $env:DB_APP_PASSWORD = 'it_app'
             Invoke-Native go @('run', './cmd/migrate', '-action=up')
             Invoke-Native go @('run', './cmd/migrate', '-action=seed', '-seed-file=db/seeds/development.sql')
             Invoke-Native go @('run', './cmd/migrate', '-action=seed', '-seed-file=db/seeds/test_fixtures.sql')
-            $env:TEST_APP_DATABASE_URL = "postgres://mycaffe_app:it_app@127.0.0.1:$TestPort/mycaffe_test?sslmode=disable"
+            $env:TEST_APP_DATABASE_URL = "postgres://cassy_app:it_app@127.0.0.1:$TestPort/cassy_test?sslmode=disable"
             $env:TEST_MIGRATOR_DATABASE_URL = $migrator
             Invoke-Native go @('test', '-race', '-count=1', '-p', '1', './...')
         }
