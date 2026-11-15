@@ -15,13 +15,47 @@ set -euo pipefail
 umask 077
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly INIT_SCRIPT="${SCRIPT_DIR}/../../deploy/postgres/00-init-roles.sh"
 readonly PG_IMAGE="${PG_IMAGE:-postgres:18-alpine}"
-readonly SOURCE_CONTAINER="${SOURCE_CONTAINER:-mycaffe-postgres}"
+readonly SOURCE_CONTAINER="${SOURCE_CONTAINER:-CassyPostgresProd}"
 readonly SOURCE_DB="${SOURCE_DB:-${DB_NAME:-cassy_prod}}"
-readonly DRILL_DB="mycaffe_drill"
-readonly DRILL_CONTAINER="mycaffe-restore-drill-$$"
+readonly DRILL_DB="cassy_drill"
+readonly DRILL_CONTAINER="cassy-restore-drill-$$"
 readonly STARTED_AT="$(date -u +%s)"
+
+TEMP_INIT_SCRIPT=""
+if [[ -n "${INIT_SCRIPT:-}" && -f "${INIT_SCRIPT}" ]]; then
+  RESOLVED_INIT_SCRIPT="${INIT_SCRIPT}"
+elif [[ -f "${SCRIPT_DIR}/../../../Docker/Postgres/00-init-roles.sh" ]]; then
+  RESOLVED_INIT_SCRIPT="${SCRIPT_DIR}/../../../Docker/Postgres/00-init-roles.sh"
+else
+  TEMP_INIT_SCRIPT="$(mktemp)"
+  chmod 0755 "${TEMP_INIT_SCRIPT}"
+  cat > "${TEMP_INIT_SCRIPT}" <<'EOS'
+#!/bin/sh
+set -eu
+psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${POSTGRES_DB}" <<-SQL
+  DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${DB_MIGRATOR_USER:-cassy_migrator}') THEN
+      CREATE ROLE ${DB_MIGRATOR_USER:-cassy_migrator} WITH LOGIN PASSWORD '${DB_MIGRATOR_PASSWORD:-cassy_migrator}' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${DB_APP_USER:-cassy_app}') THEN
+      CREATE ROLE ${DB_APP_USER:-cassy_app} WITH LOGIN PASSWORD '${DB_APP_PASSWORD:-cassy_app}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${DB_BACKUP_USER:-cassy_backup}') THEN
+      CREATE ROLE ${DB_BACKUP_USER:-cassy_backup} WITH LOGIN PASSWORD '${DB_BACKUP_PASSWORD:-cassy_backup}' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mycaffe_app') THEN
+      CREATE ROLE mycaffe_app WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+    END IF;
+  END
+  $$;
+  GRANT ALL PRIVILEGES ON DATABASE ${POSTGRES_DB} TO ${DB_MIGRATOR_USER:-cassy_migrator};
+  ALTER SCHEMA public OWNER TO ${DB_MIGRATOR_USER:-cassy_migrator};
+SQL
+EOS
+  RESOLVED_INIT_SCRIPT="${TEMP_INIT_SCRIPT}"
+fi
 
 for tool in docker aws gpg sha256sum openssl; do
   command -v "${tool}" >/dev/null || { echo "[DRILL ERROR] ${tool} is required." >&2; exit 1; }
@@ -29,6 +63,9 @@ done
 
 cleanup() {
   docker rm -f "${DRILL_CONTAINER}" >/dev/null 2>&1 || true
+  if [[ -n "${TEMP_INIT_SCRIPT}" ]]; then
+    rm -f "${TEMP_INIT_SCRIPT}" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
@@ -40,7 +77,7 @@ docker create --name "${DRILL_CONTAINER}" \
   -e DB_MIGRATOR_USER=cassy_migrator -e DB_MIGRATOR_PASSWORD="$(openssl rand -hex 24)" \
   -e DB_APP_USER=cassy_app -e DB_APP_PASSWORD="$(openssl rand -hex 24)" \
   "${PG_IMAGE}" >/dev/null
-docker cp "${INIT_SCRIPT}" "${DRILL_CONTAINER}:/docker-entrypoint-initdb.d/00-init-roles.sh"
+docker cp "${RESOLVED_INIT_SCRIPT}" "${DRILL_CONTAINER}:/docker-entrypoint-initdb.d/00-init-roles.sh"
 docker start "${DRILL_CONTAINER}" >/dev/null
 
 for _ in $(seq 1 60); do
