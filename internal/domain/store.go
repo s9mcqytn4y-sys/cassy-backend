@@ -224,6 +224,10 @@ type StoreSettings struct {
 	TableTimerWarningMinutes int `json:"table_timer_warning_minutes" db:"table_timer_warning_minutes"`
 	// QRServiceMode says how a QR order reaches the guest: picked up at the bar or brought to the table.
 	QRServiceMode string `json:"qr_service_mode" db:"qr_service_mode"`
+	// Offline sync caps (OF7) and inventory count/waste auto-approval threshold (K2).
+	OfflineMaxHours    int   `json:"offline_max_hours" db:"offline_max_hours"`
+	OfflineMaxOrders   int   `json:"offline_max_orders" db:"offline_max_orders"`
+	StockApprovalLimit int64 `json:"stock_approval_limit" db:"stock_approval_limit"`
 }
 
 // QR service modes (PRD v3 Q3).
@@ -238,7 +242,7 @@ func DefaultStoreSettings(storeID uuid.UUID) StoreSettings {
 		StoreID: storeID, VoidRefundOwnerThreshold: 100000, CashierMaxDiscountBPS: 1000, CashVarianceTolerance: 5000,
 		TableIdleCloseMinutes: 30, StaticQRISFallbackMode: StaticQRISFallbackAuto,
 		RefundWindowCashierDays: 0, RefundWindowOwnerDays: 7, TableTimerWarningMinutes: 10,
-		QRServiceMode: QRServicePickup,
+		QRServiceMode: QRServicePickup, OfflineMaxHours: 12, OfflineMaxOrders: 300, StockApprovalLimit: 50000,
 	}
 }
 

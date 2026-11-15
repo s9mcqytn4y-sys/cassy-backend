@@ -25,7 +25,7 @@ import (
 
 const (
 	offlineMaxBatch = 50
-	// shortcut: OF7 limits are constants, not store_settings columns yet; move them there when an owner asks to tune them.
+	// Default OF7 limits when store_settings has no custom row yet.
 	offlineMaxHours  = 12
 	offlineMaxOrders = 300
 	staleCatalogAge  = 24 * time.Hour
@@ -203,16 +203,27 @@ func (s *OfflineSyncService) checkPolicy(ctx context.Context, tx *sqlx.Tx, store
 	if device.LastSyncAt != nil {
 		since = *device.LastSyncAt
 	}
-	if o.OfflineCreatedAt.Sub(since) > offlineMaxHours*time.Hour {
-		return fmt.Sprintf("melewati batas %d jam sejak sinkronisasi terakhir", offlineMaxHours), nil
+	limits := struct {
+		MaxHours  int `db:"offline_max_hours"`
+		MaxOrders int `db:"offline_max_orders"`
+	}{MaxHours: offlineMaxHours, MaxOrders: offlineMaxOrders}
+	_ = tx.GetContext(ctx, &limits, `SELECT offline_max_hours, offline_max_orders FROM store_settings WHERE store_id = $1`, storeID)
+	if limits.MaxHours <= 0 {
+		limits.MaxHours = offlineMaxHours
+	}
+	if limits.MaxOrders <= 0 {
+		limits.MaxOrders = offlineMaxOrders
+	}
+	if o.OfflineCreatedAt.Sub(since) > time.Duration(limits.MaxHours)*time.Hour {
+		return fmt.Sprintf("melewati batas %d jam sejak sinkronisasi terakhir", limits.MaxHours), nil
 	}
 	var taken int
 	if err := tx.GetContext(ctx, &taken, `SELECT COUNT(*) FROM orders WHERE store_id = $1 AND device_id = $2 AND offline_created_at > $3`,
 		storeID, device.ID, since); err != nil {
 		return "", err
 	}
-	if taken >= offlineMaxOrders {
-		return fmt.Sprintf("melewati batas %d pesanan sejak sinkronisasi terakhir", offlineMaxOrders), nil
+	if taken >= limits.MaxOrders {
+		return fmt.Sprintf("melewati batas %d pesanan sejak sinkronisasi terakhir", limits.MaxOrders), nil
 	}
 	var verified bool
 	if err := tx.GetContext(ctx, &verified, `SELECT EXISTS (SELECT 1 FROM device_pin_verifiers v JOIN users u ON u.store_id = v.store_id AND u.id = v.user_id

@@ -201,10 +201,14 @@ func (s *ReceiptDeliveryService) send(ctx context.Context, storeID, orderID uuid
 // receiptEmailData fills the receipt email from the stored receipt, so lines and totals match the paper
 // receipt. The link opens the web receipt page, which also shows the order's current status (PRD v3 N8).
 func receiptEmailData(r *Receipt, link *ReceiptLink) mailer.Data {
+	pdfURL := ""
+	if strings.Contains(link.URL, "/receipts/") {
+		pdfURL = strings.Replace(strings.TrimRight(link.URL, "/"), "/receipts/", "/api/v1/public/receipts/", 1) + "/pdf"
+	}
 	d := mailer.Data{
-		ActionURL: link.URL, ActionLabel: "Lihat struk dan status pesanan",
+		ActionURL: link.URL, ActionLabel: "Lihat struk dan status pesanan", PDFURL: pdfURL,
 		OrderNumber: r.OrderNumber, TotalLabel: rupiah(r.Total), ExpiresAt: link.ExpiresAt.Format("02/01/2006"),
-		IssuedAt: formatLocalTime(r.IssuedAt), SubtotalItemsLabel: rupiah(r.Subtotal),
+		IssuedAt: formatLocalTimeInZone(r.IssuedAt, r.Store.Timezone), SubtotalItemsLabel: rupiah(r.Subtotal),
 	}
 	// r.Payments holds only payments that took money; split bills may repeat a method.
 	methods := []string{}

@@ -111,6 +111,19 @@ func (h *ReceiptHandler) PublicReceipt(c *gin.Context) {
 	c.JSON(http.StatusOK, receipt)
 }
 
+// PublicReceiptPDF handles GET /api/v1/public/receipts/:token/pdf.
+func (h *ReceiptHandler) PublicReceiptPDF(c *gin.Context) {
+	receipt, pdfBytes, err := h.svc.PublicPDF(c.Request.Context(), c.Param("token"))
+	if err != nil {
+		writeReceiptError(c, err)
+		return
+	}
+	filename := "Struk-" + receipt.OrderNumber + ".pdf"
+	c.Header("Cache-Control", "no-store")
+	c.Header("Content-Disposition", `attachment; filename="`+filename+`"`)
+	c.Data(http.StatusOK, "application/pdf", pdfBytes)
+}
+
 func writeReceiptError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrReceiptNotFound):

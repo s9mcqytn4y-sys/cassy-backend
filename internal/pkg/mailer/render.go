@@ -72,6 +72,7 @@ type ReceiptItem struct {
 type Data struct {
 	StoreName      string
 	StoreSlug      string
+	LogoURL        string
 	ReplyTo        string
 	RecipientName  string
 	RecipientEmail string
@@ -80,6 +81,7 @@ type Data struct {
 	RoleLabel      string
 	ActionURL      string
 	ActionLabel    string
+	PDFURL         string
 	OTPCode        string
 	PlanLabel      string
 	ExpiresIn      string
@@ -118,6 +120,9 @@ func Render(name string, data Data) (Rendered, error) {
 	pair, ok := compiledTemplates[name]
 	if !ok {
 		return Rendered{}, fmt.Errorf("unknown mailer template %q", name)
+	}
+	if strings.TrimSpace(data.LogoURL) == "" {
+		data.LogoURL = "https://demo.abbdullaziz.online/AndroidChrome192.png"
 	}
 	var subject, html bytes.Buffer
 	if err := pair.html.ExecuteTemplate(&subject, "subject", data); err != nil {

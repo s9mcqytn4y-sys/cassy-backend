@@ -1,7 +1,7 @@
 {{define "subject"}}Struk Digital {{.StoreName}} - Pesanan {{.OrderNumber}}{{end}}
 {{define "preheader"}}Struk resmi pesanan {{.OrderNumber}} di {{.StoreName}}, total {{.TotalLabel}}.{{end}}
 {{define "html_body"}}<h1 style="margin:0 0 8px 0;font-size:22px;line-height:30px;color:#17211E;">Terima kasih sudah memesan di {{.StoreName}}</h1>
-<p style="margin:0 0 20px 0;color:#4A5954;">Pembayaran pesanan <strong>{{.OrderNumber}}</strong> sudah diterima. Lihat rincian transaksi dan status pesanan Anda lewat tombol di bawah.</p>
+<p style="margin:0 0 20px 0;color:#4A5954;">Pembayaran pesanan <strong>{{.OrderNumber}}</strong> sudah diterima. Lihat rincian transaksi, status pesanan, atau unduh PDF struk resmi lewat tombol di bawah.</p>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;border-collapse:collapse;border-top:1px solid #E2DDD4;border-bottom:1px solid #E2DDD4;">
   <tr>
@@ -69,6 +69,15 @@
 
 {{if .ActionURL}}
 {{template "button" .}}
+{{end}}
+{{if .PDFURL}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px 0;width:100%;">
+  <tr>
+    <td align="center" bgcolor="#F7F5F0" style="border-radius:10px;background-color:#F7F5F0;">
+      <a href="{{.PDFURL}}" target="_blank" rel="noopener noreferrer" class="email-btn" style="display:block;width:100%;box-sizing:border-box;padding:14px 24px;min-height:48px;line-height:20px;font-size:14px;font-weight:700;color:#1F5F52 !important;text-decoration:none;text-align:center;border-radius:10px;border:1px solid #1F5F52;">Unduh PDF Struk Resmi</a>
+    </td>
+  </tr>
+</table>
 {{end}}
 
 <p style="margin:20px 0 0 0;font-size:13px;line-height:20px;color:#4A5954;">Struk digital ini adalah bukti pembayaran sah dari {{.StoreName}} dengan sistem Cassy by AzureDevID. Hubungi kasir bila ada transaksi yang tidak Anda kenali.</p>{{end}}

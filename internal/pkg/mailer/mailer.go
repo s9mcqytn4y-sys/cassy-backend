@@ -150,7 +150,7 @@ func (LogSender) Send(_ context.Context, msg Message) error {
 func BuildMIME(fromAddr, fromName string, msg Message, now time.Time) ([]byte, error) {
 	from := (&mail.Address{Name: clean(fromName), Address: clean(fromAddr)}).String()
 	to := (&mail.Address{Name: clean(msg.ToName), Address: clean(msg.To)}).String()
-	domain := "mycaffe.local"
+	domain := "cassy.azuredevid.com"
 	if at := strings.LastIndex(fromAddr, "@"); at >= 0 {
 		domain = clean(fromAddr[at+1:])
 	}
@@ -196,6 +196,8 @@ func BuildMIME(fromAddr, fromName string, msg Message, now time.Time) ([]byte, e
 	header("Message-ID", fmt.Sprintf("<%s@%s>", hex.EncodeToString(id), domain))
 	header("MIME-Version", "1.0")
 	header("Auto-Submitted", "auto-generated")
+	header("X-Auto-Response-Suppress", "All")
+	header("X-Mailer", "Cassy-Transactional-Mailer/2.3")
 	header("Content-Type", "multipart/alternative; boundary="+mw.Boundary())
 	out.WriteString("\r\n")
 	out.Write(body.Bytes())

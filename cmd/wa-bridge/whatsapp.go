@@ -163,4 +163,36 @@ func (s *waSender) Send(ctx context.Context, phone, text string) error {
 	return err
 }
 
+func (s *waSender) SendDocument(ctx context.Context, phone, filename string, pdfBytes []byte, caption string) error {
+	if !s.Ready() {
+		return ErrNotReady
+	}
+	jid, onWA, err := s.resolveJID(ctx, phone)
+	if err != nil {
+		return err
+	}
+	if !onWA {
+		return ErrNotOnWhatsApp
+	}
+	uploaded, err := s.client.Upload(ctx, pdfBytes, whatsmeow.MediaDocument)
+	if err != nil {
+		return fmt.Errorf("upload pdf document: %w", err)
+	}
+	_, err = s.client.SendMessage(ctx, jid, &waE2E.Message{
+		DocumentMessage: &waE2E.DocumentMessage{
+			URL:           proto.String(uploaded.URL),
+			DirectPath:    proto.String(uploaded.DirectPath),
+			MediaKey:      uploaded.MediaKey,
+			Mimetype:      proto.String("application/pdf"),
+			FileEncSHA256: uploaded.FileEncSHA256,
+			FileSHA256:    uploaded.FileSHA256,
+			FileLength:    proto.Uint64(uploaded.FileLength),
+			FileName:      proto.String(filename),
+			Title:         proto.String(filename),
+			Caption:       proto.String(caption),
+		},
+	})
+	return err
+}
+
 func (s *waSender) Close() { s.client.Disconnect() }

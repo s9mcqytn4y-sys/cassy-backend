@@ -162,33 +162,42 @@ func ApplyDemoPINs(ctx context.Context, db *sqlx.DB, storeSlugs []string, ownerP
 
 // purgeRules deletes technical rows past their retention (P0-08). Money, audit and webhook evidence
 // (payments, payment_notification_logs, audit_logs, ledgers, approvals) is never purged.
+const purgeBatchSize = 5000
+
 var purgeRules = []struct{ table, query string }{
-	{"outbox_events", `DELETE FROM outbox_events WHERE processed_at < $1::timestamptz - interval '7 days'`},
-	{"ws_tickets", `DELETE FROM ws_tickets WHERE expires_at < $1::timestamptz - interval '1 day'`},
-	{"guest_sessions", `DELETE FROM guest_sessions g WHERE g.expires_at < $1::timestamptz - interval '30 days'
+	{"outbox_events", `DELETE FROM outbox_events WHERE ctid IN (SELECT ctid FROM outbox_events WHERE processed_at < $1::timestamptz - interval '7 days' LIMIT 5000)`},
+	{"ws_tickets", `DELETE FROM ws_tickets WHERE ctid IN (SELECT ctid FROM ws_tickets WHERE expires_at < $1::timestamptz - interval '1 day' LIMIT 5000)`},
+	{"guest_sessions", `DELETE FROM guest_sessions WHERE ctid IN (SELECT g.ctid FROM guest_sessions g WHERE g.expires_at < $1::timestamptz - interval '30 days'
 		AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.store_id = g.store_id AND o.guest_session_id = g.id)
-		AND NOT EXISTS (SELECT 1 FROM ws_tickets w WHERE w.store_id = g.store_id AND w.guest_session_id = g.id)`},
-	{"receipt_tokens", `DELETE FROM receipt_tokens WHERE expires_at < $1::timestamptz - interval '30 days'`},
-	{"account_tokens", `DELETE FROM account_tokens WHERE expires_at < $1::timestamptz - interval '30 days'`},
-	{"auth_sessions", `DELETE FROM auth_sessions WHERE expires_at < $1::timestamptz - interval '30 days'`},
-	{"email_outbox", `DELETE FROM email_outbox WHERE status IN ('sent', 'failed') AND created_at < $1::timestamptz - interval '90 days'`},
-	{"media_uploads", `DELETE FROM media_uploads WHERE status = 'pending' AND expires_at < $1::timestamptz - interval '1 day'`},
-	{"otp_challenges", `DELETE FROM otp_challenges WHERE expires_at < $1::timestamptz - interval '1 day'`},
-	{"message_outbox", `DELETE FROM message_outbox WHERE status IN ('sent', 'failed') AND created_at < $1::timestamptz - interval '90 days'`},
-	{"print_jobs", `DELETE FROM print_jobs WHERE status IN ('printed', 'dead') AND created_at < $1::timestamptz - interval '30 days'`},
+		AND NOT EXISTS (SELECT 1 FROM ws_tickets w WHERE w.store_id = g.store_id AND w.guest_session_id = g.id) LIMIT 5000)`},
+	{"receipt_tokens", `DELETE FROM receipt_tokens WHERE ctid IN (SELECT ctid FROM receipt_tokens WHERE expires_at < $1::timestamptz - interval '30 days' LIMIT 5000)`},
+	{"account_tokens", `DELETE FROM account_tokens WHERE ctid IN (SELECT ctid FROM account_tokens WHERE expires_at < $1::timestamptz - interval '30 days' LIMIT 5000)`},
+	{"auth_sessions", `DELETE FROM auth_sessions WHERE ctid IN (SELECT ctid FROM auth_sessions WHERE expires_at < $1::timestamptz - interval '30 days' LIMIT 5000)`},
+	{"email_outbox", `DELETE FROM email_outbox WHERE ctid IN (SELECT ctid FROM email_outbox WHERE status IN ('sent', 'failed') AND created_at < $1::timestamptz - interval '90 days' LIMIT 5000)`},
+	{"media_uploads", `DELETE FROM media_uploads WHERE ctid IN (SELECT ctid FROM media_uploads WHERE status = 'pending' AND expires_at < $1::timestamptz - interval '1 day' LIMIT 5000)`},
+	{"otp_challenges", `DELETE FROM otp_challenges WHERE ctid IN (SELECT ctid FROM otp_challenges WHERE expires_at < $1::timestamptz - interval '1 day' LIMIT 5000)`},
+	{"message_outbox", `DELETE FROM message_outbox WHERE ctid IN (SELECT ctid FROM message_outbox WHERE status IN ('sent', 'failed') AND created_at < $1::timestamptz - interval '90 days' LIMIT 5000)`},
+	{"print_jobs", `DELETE FROM print_jobs WHERE ctid IN (SELECT ctid FROM print_jobs WHERE status IN ('printed', 'dead') AND created_at < $1::timestamptz - interval '30 days' LIMIT 5000)`},
 }
 
 // PurgeTechnicalRows runs every purge rule with the migrator connection (cron: migrate -action=purge)
-// and returns the deleted row count per table.
-// shortcut: one DELETE per table, fine at single-cafe volume; batch with LIMIT when a table passes ~1M rows.
+// in bounded 5,000-row ctid batches to prevent table lock contention and returns the deleted row count per table.
 func PurgeTechnicalRows(ctx context.Context, db *sqlx.DB, now time.Time) (map[string]int64, error) {
 	out := make(map[string]int64, len(purgeRules))
 	for _, r := range purgeRules {
-		res, err := db.ExecContext(ctx, r.query, now)
-		if err != nil {
-			return out, fmt.Errorf("purge %s: %w", r.table, err)
+		var total int64
+		for {
+			res, err := db.ExecContext(ctx, r.query, now)
+			if err != nil {
+				return out, fmt.Errorf("purge %s: %w", r.table, err)
+			}
+			n, _ := res.RowsAffected()
+			total += n
+			if n < purgeBatchSize {
+				break
+			}
 		}
-		out[r.table], _ = res.RowsAffected()
+		out[r.table] = total
 	}
 	return out, nil
 }

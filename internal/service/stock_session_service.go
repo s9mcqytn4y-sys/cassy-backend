@@ -18,7 +18,7 @@ import (
 // stockSessionApprovalLimit waits for the owner (inventory.manage), who posts or rejects it. Posting applies
 // each line's delta, not the counted figure, so sales between counting and approval stay deducted.
 
-// shortcut: one fixed limit for every store, make it a store setting when an owner asks for another figure.
+// Default auto-approval threshold for inventory count/waste sessions when store_settings has no row yet.
 const stockSessionApprovalLimit int64 = 50_000
 
 var ErrStockSessionNotFound = fmt.Errorf("stock session: %w", ErrCatalogNotFound)
@@ -147,8 +147,12 @@ func (s *InventoryService) SubmitStockSession(ctx context.Context, actor *Authen
 			sess.ValueAmount += roundHalfUpDiv(abs64(line.Delta)*line.UnitCostPer1000, 1000)
 			sess.Lines = append(sess.Lines, line)
 		}
+		approvalLimit := stockSessionApprovalLimit
+		if err := tx.GetContext(ctx, &approvalLimit, `SELECT stock_approval_limit FROM store_settings WHERE store_id = $1`, storeID); err != nil {
+			approvalLimit = stockSessionApprovalLimit
+		}
 		sess.Status = "pending"
-		if actor.Can(rbac.InventoryManage) || sess.ValueAmount <= stockSessionApprovalLimit {
+		if actor.Can(rbac.InventoryManage) || sess.ValueAmount <= approvalLimit {
 			sess.Status = "posted"
 		}
 		if sess.Status == "posted" {

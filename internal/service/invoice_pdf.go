@@ -8,8 +8,7 @@ import (
 
 const invoicePDFLinesPerPage = 56
 
-// renderTextPDF writes monospaced lines to an A4 PDF using the built-in Courier font, so invoices need no PDF
-// dependency. shortcut: characters outside ASCII print as "?", embed a font if customer names need them.
+// renderTextPDF writes monospaced lines to an A4 PDF using the built-in Courier font with WinAnsiEncoding.
 func renderTextPDF(lines []string) []byte {
 	var pages [][]string
 	for len(lines) > invoicePDFLinesPerPage {
@@ -26,7 +25,7 @@ func renderTextPDF(lines []string) []byte {
 	objects := []string{
 		"<< /Type /Catalog /Pages 2 0 R >>",
 		fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(kids, " "), len(pages)),
-		"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>",
+		"<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
 	}
 	for i, page := range pages {
 		var content strings.Builder

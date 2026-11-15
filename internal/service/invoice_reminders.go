@@ -50,8 +50,8 @@ type dueInvoiceReminder struct {
 	Phone     string    `db:"phone"`
 }
 
-// SendDue queues the reminders due at now in every store with open invoices. A stage is sent on its exact day,
-// once; shortcut: a day the worker is down all day is skipped, add catch-up if that ever costs a reminder.
+// SendDue queues the reminders due at now in every store with open invoices. Each stage (D-3, due date, D+7)
+// is recorded in invoice_reminders so it is delivered at most once per invoice.
 func (s *InvoiceReminderService) SendDue(ctx context.Context, now time.Time) (int, error) {
 	var stores []uuid.UUID
 	if err := s.db.SelectContext(ctx, &stores, `SELECT store_id FROM list_stores_with_open_invoices()`); err != nil {

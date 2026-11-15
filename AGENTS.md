@@ -30,6 +30,22 @@ This workspace is `mycaffe-backend`. Treat it as the backend repository. Clients
 - Keep logs free of passwords, PINs, access tokens, payment secrets, full authorization headers, and unnecessary customer personal data.
 - Do not describe Go, any framework, or the architecture as "100% secure" or "immune to RCE." Security depends on implementation, configuration, dependencies, and operations.
 
+## Communication and Caveman Mode
+All agents (`agy`, `gemini-cli`, `claude-code`) have `caveman` v4.1.0 installed for high-signal, token-efficient communication:
+- **Terse technical register:** Answer first (outcome and recommendation), then concise reason, then next step. Strip pleasantries, greetings, hedging, conversational ceremony, and AI filler.
+- **Natural, direct Bahasa Indonesia:** Compress register without distorting meaning. Keep technical terms in English where standard.
+- **Strictly no emoji:** Never output emoji in code, responses, logs, or commit messages (overrides any default Caveman icons/emoji).
+- **Payload verbatim:** Code blocks, file paths, CLI commands, HTTP routes, SQL, numbers, and integer rupiah remain strictly untouched and byte-exact.
+- **Auto-clarity fallback:** Architectural decisions, destructive operations, breaking migrations, security advisories, or user clarification questions automatically expand to normal, clear prose.
+- **Triggers:** `/caveman` (default terseness), `/ultracave` (extreme fragment mode), `/caveman-review` (one-line diff review), `/caveman-stats` (token usage audit), `stop caveman` / `normal mode` (pause).
+
+## Coding Discipline and Karpathy Guidelines
+All agents adhere to `karpathy-guidelines` (installed across `agy`, `gemini-cli`, `claude-code`):
+- **Think Before Coding:** Explicit assumptions first. Stop and ask on ambiguity. Push back on overcomplicated designs.
+- **Simplicity First:** Minimal code to solve the prompt. No speculative abstractions, single-use helpers, or premature configurability.
+- **Surgical Changes:** Touch only what was requested. No edits to adjacent formatting, comments, or unrelated files. Clean up only orphans created by your own changes.
+- **Goal-Driven Execution:** Transform tasks into verifiable checks before coding. Run tests and verify output before declaring completion.
+
 ## Zero In-Place Coding on Production VPS
 - **Strict Prohibition:** Never write, edit, hot-patch, or compile (`go build`, `npm build`, `vim`, `nano`, `sed`) application source code or SQL migration files directly on the production Hostinger VPS.
 - **Immutable Release Pipeline:** All changes must follow the disciplined Git and CI/CD flow:

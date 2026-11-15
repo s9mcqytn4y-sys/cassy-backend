@@ -304,6 +304,7 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	pos.GET("/orders/:id/receipt", h.auth.RequirePermission(rbac.OrderReadStore), h.receipt.GetReceipt)
 	pos.POST("/orders/:id/receipt-link", h.auth.RequirePermission(rbac.OrderReadStore), h.receipt.IssueLink)
 	v1.GET("/public/receipts/:token", h.receipt.PublicReceipt)
+	v1.GET("/public/receipts/:token/pdf", h.receipt.PublicReceiptPDF)
 	// Queue TV displays (v0.9 PR 9.3, W7): owner manages tokens; displays read with "Authorization: Display <token>".
 	displays := v1.Group("/store/display-tokens", h.auth.RequirePermission(rbac.StoreSettingsManage))
 	displays.GET("", h.display.ListTokens)

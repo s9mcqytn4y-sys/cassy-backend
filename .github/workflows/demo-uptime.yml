@@ -1,8 +1,7 @@
 name: Ops - Demo Uptime Check
 
 # A failed run is the alert: GitHub emails the owner when a scheduled workflow fails.
-# shortcut: GitHub may delay schedules by several minutes and pauses them after 60 days without repo activity;
-# move to the monitoring stack (deploy/monitoring) once the pilot runs on a VPS.
+# Supplemented by the host-side cron health check in deploy/backup/mycaffe-backup-demo.cron and deploy/monitoring.
 on:
   schedule:
     - cron: "*/5 * * * *"

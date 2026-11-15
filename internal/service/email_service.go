@@ -137,10 +137,38 @@ func (s *EmailService) StartWorker(ctx context.Context, interval time.Duration) 
 	}
 }
 
-// formatLocalTime renders times for Indonesian email copy, e.g. "2 Nov 2026 10:00 WIB".
+// formatLocalTime renders times for Indonesian email copy in WIB (default), e.g. "2 Nov 2026 10:00 WIB".
 func formatLocalTime(t time.Time) string {
+	return formatLocalTimeInZone(t, "Asia/Jakarta")
+}
+
+// formatLocalTimeInZone renders times in the store's Indonesian time zone (WIB / WITA / WIT).
+func formatLocalTimeInZone(t time.Time, tz string) string {
 	months := [...]string{"Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"}
-	// shortcut: fixed WIB (UTC+7); use the store timezone once stores outside Java/Sumatra onboard.
-	local := t.In(time.FixedZone("WIB", 7*3600))
-	return fmt.Sprintf("%d %s %d %02d:%02d WIB", local.Day(), months[local.Month()-1], local.Year(), local.Hour(), local.Minute())
+	abbr := "WIB"
+	offset := 7 * 3600
+	switch tz {
+	case "Asia/Makassar", "Asia/Pontianak", "WITA":
+		if tz != "Asia/Pontianak" {
+			abbr = "WITA"
+			offset = 8 * 3600
+		}
+	case "Asia/Jayapura", "WIT":
+		abbr = "WIT"
+		offset = 9 * 3600
+	default:
+		if loc, err := time.LoadLocation(tz); err == nil && tz != "" {
+			local := t.In(loc)
+			_, zOff := local.Zone()
+			switch zOff {
+			case 8 * 3600:
+				abbr = "WITA"
+			case 9 * 3600:
+				abbr = "WIT"
+			}
+			return fmt.Sprintf("%d %s %d %02d:%02d %s", local.Day(), months[local.Month()-1], local.Year(), local.Hour(), local.Minute(), abbr)
+		}
+	}
+	local := t.In(time.FixedZone(abbr, offset))
+	return fmt.Sprintf("%d %s %d %02d:%02d %s", local.Day(), months[local.Month()-1], local.Year(), local.Hour(), local.Minute(), abbr)
 }
