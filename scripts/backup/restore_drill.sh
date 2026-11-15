@@ -34,7 +34,7 @@ else
 #!/bin/sh
 set -eu
 psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${POSTGRES_DB}" <<-SQL
-  DO $$
+  DO \$\$
   BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${DB_MIGRATOR_USER:-cassy_migrator}') THEN
       CREATE ROLE ${DB_MIGRATOR_USER:-cassy_migrator} WITH LOGIN PASSWORD '${DB_MIGRATOR_PASSWORD:-cassy_migrator}' NOSUPERUSER NOCREATEDB NOCREATEROLE;
@@ -49,7 +49,7 @@ psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${POSTGRES_DB}" 
       CREATE ROLE mycaffe_app WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
     END IF;
   END
-  $$;
+  \$\$;
   GRANT ALL PRIVILEGES ON DATABASE ${POSTGRES_DB} TO ${DB_MIGRATOR_USER:-cassy_migrator};
   ALTER SCHEMA public OWNER TO ${DB_MIGRATOR_USER:-cassy_migrator};
 SQL
