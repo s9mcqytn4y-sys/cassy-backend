@@ -91,6 +91,6 @@ echo "[BACKUP] Backup and integrity manifest uploaded successfully at $(date -u 
 # rename so a scrape never sees a half-written file; a missing directory only skips the metric.
 METRICS_DIR="${METRICS_TEXTFILE_DIR:-/var/lib/mycaffe/metrics}"
 if [[ -d "${METRICS_DIR}" ]]; then
-    printf '# TYPE cassy_backup_last_success_timestamp_seconds gauge\ncassy_backup_last_success_timestamp_seconds %s\n# TYPE cassy_backup_last_size_bytes gauge\ncassy_backup_last_size_bytes %s\n' \
+    printf '# TYPE mycaffe_backup_last_success_timestamp_seconds gauge\nmycaffe_backup_last_success_timestamp_seconds %s\n# TYPE mycaffe_backup_last_size_bytes gauge\nmycaffe_backup_last_size_bytes %s\n' \
         "$(date -u +%s)" "${FILESIZE}" > "${METRICS_DIR}/backup.prom.$$" && mv "${METRICS_DIR}/backup.prom.$$" "${METRICS_DIR}/backup.prom"
 fi
