@@ -124,6 +124,30 @@ func (h *ReceiptHandler) PublicReceiptPDF(c *gin.Context) {
 	c.Data(http.StatusOK, "application/pdf", pdfBytes)
 }
 
+// PublicReceiptByShortCode handles GET /api/v1/public/receipts/short/:code.
+func (h *ReceiptHandler) PublicReceiptByShortCode(c *gin.Context) {
+	receipt, err := h.svc.PublicByShortCode(c.Request.Context(), c.Param("code"))
+	if err != nil {
+		writeReceiptError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, receipt)
+}
+
+// PublicReceiptPDFByShortCode handles GET /api/v1/public/receipts/short/:code/pdf.
+func (h *ReceiptHandler) PublicReceiptPDFByShortCode(c *gin.Context) {
+	receipt, pdfBytes, err := h.svc.PublicPDFByShortCode(c.Request.Context(), c.Param("code"))
+	if err != nil {
+		writeReceiptError(c, err)
+		return
+	}
+	filename := "Struk-" + receipt.OrderNumber + ".pdf"
+	c.Header("Cache-Control", "no-store")
+	c.Header("Content-Disposition", `attachment; filename="`+filename+`"`)
+	c.Data(http.StatusOK, "application/pdf", pdfBytes)
+}
+
 func writeReceiptError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrReceiptNotFound):

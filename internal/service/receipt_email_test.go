@@ -19,7 +19,7 @@ func TestReceiptEmailDataCarriesLinesTotalsAndLink(t *testing.T) {
 		Subtotal: 101000, Service: 5050, Tax: 10100, Total: 116150,
 		Payments: []ReceiptPayment{{Method: "gopay", Status: "paid"}, {Method: "gopay", Status: "paid"}},
 	}
-	link := &ReceiptLink{URL: "https://demo.test/receipts/abc", ExpiresAt: time.Date(2027, 2, 9, 0, 0, 0, 0, time.UTC)}
+	link := &ReceiptLink{URL: "https://demo.test/r/Ab12Cd34", ShortCode: "Ab12Cd34", PDFURL: "https://demo.test/api/v1/public/receipts/short/Ab12Cd34/pdf", ExpiresAt: time.Date(2027, 2, 9, 0, 0, 0, 0, time.UTC)}
 
 	d := receiptEmailData(r, link)
 	if d.PaymentMethod != "GoPay" || d.DiscountLabel != "" || d.ServiceFeeLabel == "" || len(d.Items) != 2 {
@@ -34,12 +34,25 @@ func TestReceiptEmailDataCarriesLinesTotalsAndLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Classic Iced Latte", "Oat Milk Barista Blend", rupiah(116150), "GoPay", "https://demo.test/receipts/abc", "status pesanan"} {
+	for _, want := range []string{"Classic Iced Latte", "Oat Milk Barista Blend", rupiah(116150), "GoPay", "https://demo.test/r/Ab12Cd34", "https://demo.test/api/v1/public/receipts/short/Ab12Cd34/pdf", "https://demo.test/legal", "prefers-color-scheme: dark", "status pesanan"} {
 		if !strings.Contains(out.HTML, want) {
 			t.Fatalf("receipt html is missing %q", want)
 		}
 	}
-	if !strings.Contains(out.Text, "https://demo.test/receipts/abc") {
+	if !strings.Contains(out.Text, "https://demo.test/r/Ab12Cd34") {
 		t.Fatal("receipt text must carry the link")
+	}
+}
+
+func TestShortCodeGenerationAndValidation(t *testing.T) {
+	code, err := randomShortCode(8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(code) != 8 || !isValidShortCode(code) {
+		t.Fatalf("invalid generated short code %q", code)
+	}
+	if isValidShortCode("../etc") || isValidShortCode("abc") {
+		t.Fatal("expected invalid short code rejection")
 	}
 }

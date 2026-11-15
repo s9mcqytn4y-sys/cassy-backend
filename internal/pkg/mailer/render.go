@@ -6,6 +6,7 @@ import (
 	"fmt"
 	stdhtml "html"
 	htmltemplate "html/template"
+	"net/url"
 	"strings"
 	texttemplate "text/template"
 )
@@ -72,6 +73,7 @@ type ReceiptItem struct {
 type Data struct {
 	StoreName      string
 	StoreSlug      string
+	PublicBaseURL  string
 	LogoURL        string
 	ReplyTo        string
 	RecipientName  string
@@ -121,8 +123,18 @@ func Render(name string, data Data) (Rendered, error) {
 	if !ok {
 		return Rendered{}, fmt.Errorf("unknown mailer template %q", name)
 	}
+	baseURL := strings.TrimRight(strings.TrimSpace(data.PublicBaseURL), "/")
+	if baseURL == "" && strings.TrimSpace(data.ActionURL) != "" {
+		if u, err := url.Parse(strings.TrimSpace(data.ActionURL)); err == nil && u.Scheme != "" && u.Host != "" {
+			baseURL = u.Scheme + "://" + u.Host
+		}
+	}
+	if baseURL == "" {
+		baseURL = "https://cassy.azuredevid.com"
+	}
+	data.PublicBaseURL = baseURL
 	if strings.TrimSpace(data.LogoURL) == "" {
-		data.LogoURL = "https://demo.abbdullaziz.online/AndroidChrome192.png"
+		data.LogoURL = baseURL + "/AndroidChrome192.png"
 	}
 	var subject, html bytes.Buffer
 	if err := pair.html.ExecuteTemplate(&subject, "subject", data); err != nil {

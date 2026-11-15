@@ -73,6 +73,7 @@ func TestIntegrationReceipts(t *testing.T) {
 	r.GET("/pos/orders/:id/receipt", ah.RequirePermission(rbac.OrderReadStore), rh.GetReceipt)
 	r.POST("/pos/orders/:id/receipt-link", ah.RequirePermission(rbac.OrderReadStore), rh.IssueLink)
 	r.GET("/public/receipts/:token", rh.PublicReceipt)
+	r.GET("/public/receipts/short/:code", rh.PublicReceiptByShortCode)
 
 	call := func(method, path, token string, body any) *httptest.ResponseRecorder {
 		var buf bytes.Buffer
@@ -233,7 +234,7 @@ func TestIntegrationReceipts(t *testing.T) {
 		res := call("GET", receiptPath(order.ID, "kind=sale&format=escpos&width=80"), cashier, nil)
 		count(&after)
 		if res.Code != http.StatusOK || !bytes.HasPrefix(res.Body.Bytes(), []byte{0x1b, '@'}) ||
-			!bytes.Contains(res.Body.Bytes(), []byte("https://pos.example.test/receipts/")) || !bytes.Contains(res.Body.Bytes(), []byte("Rp40.000")) {
+			!bytes.Contains(res.Body.Bytes(), []byte("https://pos.example.test/r/")) || !bytes.Contains(res.Body.Bytes(), []byte("Rp40.000")) {
 			t.Fatalf("ESC/POS sale receipt with QR link expected, got %d", res.Code)
 		}
 		if after != before+1 {
@@ -321,8 +322,13 @@ func TestIntegrationReceipts(t *testing.T) {
 		}
 		var link service.ReceiptLink
 		_ = json.Unmarshal(res.Body.Bytes(), &link)
-		if !strings.HasPrefix(link.URL, "https://pos.example.test/receipts/") || link.ExpiresAt.Sub(time.Now()) < 89*24*time.Hour {
-			t.Fatalf("link must be a 90-day URL: %+v", link)
+		if !strings.HasPrefix(link.URL, "https://pos.example.test/r/") || len(link.ShortCode) != 8 || link.ExpiresAt.Sub(time.Now()) < 89*24*time.Hour {
+			t.Fatalf("link must be a 90-day short URL: %+v", link)
+		}
+		shortPub := call("GET", "/public/receipts/short/"+link.ShortCode, "", nil)
+		shortRc := decode(shortPub)
+		if shortRc.Total != order.TotalAmount || shortRc.StaffName != "" {
+			t.Fatalf("short receipt lookup failed: %+v", shortRc)
 		}
 		pub := call("GET", "/public/receipts/"+link.Token, "", nil)
 		rc := decode(pub)

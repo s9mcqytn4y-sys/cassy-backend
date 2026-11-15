@@ -108,6 +108,15 @@ func (s *ReceiptService) PublicPDF(ctx context.Context, token string) (*Receipt,
 	return r, RenderReceiptPDF(r, s.LinkURL(token)), nil
 }
 
+// PublicPDFByShortCode resolves a short receipt code and returns the receipt metadata and PDF bytes.
+func (s *ReceiptService) PublicPDFByShortCode(ctx context.Context, code string) (*Receipt, []byte, error) {
+	r, err := s.PublicByShortCode(ctx, code)
+	if err != nil {
+		return nil, nil, err
+	}
+	return r, RenderReceiptPDF(r, s.ShortLinkURL(code)), nil
+}
+
 // PDFURL returns the public PDF download endpoint for a receipt token.
 func (s *ReceiptService) PDFURL(token string) string {
 	return s.publicURL + "/api/v1/public/receipts/" + token + "/pdf"

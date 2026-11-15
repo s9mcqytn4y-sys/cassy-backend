@@ -7,6 +7,9 @@ import (
 
 func receiptPDFURL(receiptURL string) string {
 	trimmed := strings.TrimRight(strings.TrimSpace(receiptURL), "/")
+	if strings.Contains(trimmed, "/r/") {
+		return strings.Replace(trimmed, "/r/", "/api/v1/public/receipts/short/", 1) + "/pdf"
+	}
 	if strings.Contains(trimmed, "/receipts/") {
 		return strings.Replace(trimmed, "/receipts/", "/api/v1/public/receipts/", 1) + "/pdf"
 	}
