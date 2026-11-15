@@ -126,7 +126,15 @@ func (l *loginFailureLimiter) redisRecord(ip string, now time.Time) {
 	cmd := respCmd("ZREMRANGEBYSCORE", key, "-inf", cutoff) +
 		respCmd("ZADD", key, score, score) +
 		respCmd("PEXPIRE", key, ttlMs)
-	_, _ = conn.Write([]byte(cmd))
+	if _, err := conn.Write([]byte(cmd)); err != nil {
+		return
+	}
+	r := bufio.NewReader(conn)
+	for i := 0; i < 3; i++ {
+		if _, err := r.ReadString('\n'); err != nil {
+			return
+		}
+	}
 }
 
 func respCmd(args ...string) string {
