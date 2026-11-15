@@ -193,9 +193,11 @@ func (s *ReceiptService) issueLinkTx(ctx context.Context, tx *sqlx.Tx, storeID, 
 	}, nil
 }
 
-func (s *ReceiptService) LinkURL(token string) string          { return s.publicURL + "/receipts/" + token }
-func (s *ReceiptService) ShortLinkURL(code string) string      { return s.publicURL + "/r/" + code }
-func (s *ReceiptService) ShortPDFURL(code string) string       { return s.publicURL + "/api/v1/public/receipts/short/" + code + "/pdf" }
+func (s *ReceiptService) LinkURL(token string) string     { return s.publicURL + "/receipts/" + token }
+func (s *ReceiptService) ShortLinkURL(code string) string { return s.publicURL + "/r/" + code }
+func (s *ReceiptService) ShortPDFURL(code string) string {
+	return s.publicURL + "/api/v1/public/receipts/short/" + code + "/pdf"
+}
 
 // PublicByShortCode resolves an 8-character digital receipt short code (Redis cache -> Postgres resolver).
 func (s *ReceiptService) PublicByShortCode(ctx context.Context, code string) (*Receipt, error) {
