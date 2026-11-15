@@ -71,6 +71,14 @@ func TestSendHandler(t *testing.T) {
 		t.Fatalf("tagihan_invoice must be 204, got %d", code)
 	}
 
+	if code := post(h, "Bearer "+testToken, `{"to":"+6281234567890","template":"struk_digital","params":["Kafe Uji","ORD-3","https://x/r/Ab12Cd34"]}`); code != http.StatusNoContent {
+		t.Fatalf("short URL struk_digital must be 204, got %d", code)
+	}
+	wantShort := "+6281234567890|Terima kasih sudah memesan di Kafe Uji via Cassy.\n\nNomor Pesanan: ORD-3\nStruk Digital: https://x/r/Ab12Cd34\nUnduh PDF Struk: https://x/api/v1/public/receipts/short/Ab12Cd34/pdf\n\nTautan berlaku 90 hari."
+	if len(f.sent) < 2 || f.sent[len(f.sent)-1] != wantShort {
+		t.Fatalf("unexpected short message %v, want %q", f.sent, wantShort)
+	}
+
 	pdfB64 := base64.StdEncoding.EncodeToString([]byte("%PDF-1.4 sample receipt"))
 	if code := post(h, "Bearer "+testToken, `{"to":"+6281234567890","template":"struk_digital","params":["Kafe Uji","ORD-1","https://x/receipts/a"],"pdf_base64":"`+pdfB64+`","pdf_filename":"Struk-ORD-1.pdf"}`); code != http.StatusNoContent {
 		t.Fatalf("document send must be 204, got %d", code)

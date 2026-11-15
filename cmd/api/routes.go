@@ -216,7 +216,7 @@ func registerRoutes(router *gin.Engine, h *handlerSet) {
 	// Root greeting
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "MyCaffe Core POS Backend API is running.",
+			"message": "Cassy Core POS Backend API is running.",
 			"version": "1.0.0",
 			"docs":    "/swagger/index.html",
 		})
@@ -305,6 +305,8 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	pos.POST("/orders/:id/receipt-link", h.auth.RequirePermission(rbac.OrderReadStore), h.receipt.IssueLink)
 	v1.GET("/public/receipts/:token", h.receipt.PublicReceipt)
 	v1.GET("/public/receipts/:token/pdf", h.receipt.PublicReceiptPDF)
+	v1.GET("/public/receipts/short/:code", h.receipt.PublicReceiptByShortCode)
+	v1.GET("/public/receipts/short/:code/pdf", h.receipt.PublicReceiptPDFByShortCode)
 	// Queue TV displays (v0.9 PR 9.3, W7): owner manages tokens; displays read with "Authorization: Display <token>".
 	displays := v1.Group("/store/display-tokens", h.auth.RequirePermission(rbac.StoreSettingsManage))
 	displays.GET("", h.display.ListTokens)

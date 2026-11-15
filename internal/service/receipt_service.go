@@ -1,13 +1,18 @@
 package service
 
 import (
+	"bufio"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -105,20 +110,31 @@ type ReceiptRefund struct {
 // ReceiptLink is a digital receipt token; Token is shown once and stored only as its SHA-256.
 type ReceiptLink struct {
 	Token     string    `json:"token"`
+	ShortCode string    `json:"short_code,omitempty"`
 	URL       string    `json:"url"`
+	PDFURL    string    `json:"pdf_url,omitempty"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
 type ReceiptService struct {
 	db        *sqlx.DB
 	publicURL string
+	redisAddr string
 	nowFunc   func() time.Time
 }
 
-// NewReceiptService builds digital receipt URLs as <publicURL>/receipts/<token>.
+// NewReceiptService builds digital receipt URLs anchored on publicURL and optional Redis short-code cache.
 func NewReceiptService(db *sqlx.DB, publicURL string) *ReceiptService {
-	return &ReceiptService{db: db, publicURL: strings.TrimRight(publicURL, "/"), nowFunc: time.Now}
+	return &ReceiptService{
+		db:        db,
+		publicURL: strings.TrimRight(publicURL, "/"),
+		redisAddr: strings.TrimSpace(os.Getenv("REDIS_ADDR")),
+		nowFunc:   time.Now,
+	}
 }
+
+// PublicURL returns the normalized canonical public origin for this deployment.
+func (s *ReceiptService) PublicURL() string { return s.publicURL }
 
 // Build returns a receipt of one kind: sale (any order), refund (paymentID of a refunded payment) or
 // void (a cancelled order with a VOID_ORDER audit).
@@ -144,29 +160,172 @@ func (s *ReceiptService) IssueLink(ctx context.Context, actor *AuthenticatedStaf
 	return link, err
 }
 
-// issueLinkTx creates the token inside the caller's transaction; createdBy is nil for a guest.
+// issueLinkTx creates the token and 8-character short code inside the caller's transaction; createdBy is nil for a guest.
 func (s *ReceiptService) issueLinkTx(ctx context.Context, tx *sqlx.Tx, storeID, orderID uuid.UUID, createdBy *uuid.UUID) (*ReceiptLink, error) {
 	secret, hash, err := randomToken()
+	if err != nil {
+		return nil, err
+	}
+	shortCode, err := randomShortCode(8)
 	if err != nil {
 		return nil, err
 	}
 	id, now := uuid.New(), s.nowFunc().UTC()
 	expires := now.Add(receiptLinkTTL)
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO receipt_tokens (id, store_id, order_id, token_hash, created_by, created_at, expires_at)
-		SELECT $1, $2, o.id, $4, $5, $6, $7 FROM orders o WHERE o.store_id = $2 AND o.id = $3`,
-		id, storeID, orderID, hash, createdBy, now, expires)
+		INSERT INTO receipt_tokens (id, store_id, order_id, token_hash, short_code, created_by, created_at, expires_at)
+		SELECT $1, $2, o.id, $4, $5, $6, $7, $8 FROM orders o WHERE o.store_id = $2 AND o.id = $3`,
+		id, storeID, orderID, hash, shortCode, createdBy, now, expires)
 	if err != nil {
 		return nil, fmt.Errorf("failed to issue receipt link: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return nil, ErrReceiptNotFound
 	}
+	s.cacheShortLink(shortCode, storeID, orderID, expires)
 	token := storeID.String() + "." + id.String() + "." + secret
-	return &ReceiptLink{Token: token, URL: s.LinkURL(token), ExpiresAt: expires}, nil
+	return &ReceiptLink{
+		Token:     token,
+		ShortCode: shortCode,
+		URL:       s.ShortLinkURL(shortCode),
+		PDFURL:    s.ShortPDFURL(shortCode),
+		ExpiresAt: expires,
+	}, nil
 }
 
-func (s *ReceiptService) LinkURL(token string) string { return s.publicURL + "/receipts/" + token }
+func (s *ReceiptService) LinkURL(token string) string     { return s.publicURL + "/receipts/" + token }
+func (s *ReceiptService) ShortLinkURL(code string) string { return s.publicURL + "/r/" + code }
+func (s *ReceiptService) ShortPDFURL(code string) string {
+	return s.publicURL + "/api/v1/public/receipts/short/" + code + "/pdf"
+}
+
+// PublicByShortCode resolves an 8-character digital receipt short code (Redis cache -> Postgres resolver).
+func (s *ReceiptService) PublicByShortCode(ctx context.Context, code string) (*Receipt, error) {
+	code = strings.TrimSpace(code)
+	if !isValidShortCode(code) {
+		return nil, ErrInvalidReceiptLink
+	}
+	storeID, orderID, expiresAt, ok := s.getCachedShortLink(code)
+	if !ok {
+		var row struct {
+			StoreID   uuid.UUID `db:"store_id"`
+			OrderID   uuid.UUID `db:"order_id"`
+			ExpiresAt time.Time `db:"expires_at"`
+		}
+		err := s.db.GetContext(ctx, &row, `SELECT store_id, order_id, expires_at FROM resolve_receipt_short_code($1)`, code)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrInvalidReceiptLink
+		}
+		if err != nil {
+			return nil, err
+		}
+		storeID, orderID, expiresAt = row.StoreID, row.OrderID, row.ExpiresAt
+		s.cacheShortLink(code, storeID, orderID, expiresAt)
+	}
+	if !s.nowFunc().Before(expiresAt) {
+		return nil, ErrInvalidReceiptLink
+	}
+	var r *Receipt
+	if err := database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
+		var err error
+		r, err = s.buildTx(ctx, tx, storeID, orderID, ReceiptKindSale, nil)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	r.StaffName = "" // staff names stay off the public page
+	return r, nil
+}
+
+const shortCodeAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+func randomShortCode(length int) (string, error) {
+	buf := make([]byte, length)
+	raw := make([]byte, length)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	for i := range length {
+		buf[i] = shortCodeAlphabet[int(raw[i])%len(shortCodeAlphabet)]
+	}
+	return string(buf), nil
+}
+
+func isValidShortCode(code string) bool {
+	if len(code) < 6 || len(code) > 12 {
+		return false
+	}
+	for i := 0; i < len(code); i++ {
+		c := code[i]
+		isAlphaNum := (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+		if !isAlphaNum {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *ReceiptService) getCachedShortLink(code string) (uuid.UUID, uuid.UUID, time.Time, bool) {
+	if s.redisAddr == "" {
+		return uuid.Nil, uuid.Nil, time.Time{}, false
+	}
+	conn, err := net.DialTimeout("tcp", s.redisAddr, 120*time.Millisecond)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, time.Time{}, false
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(120 * time.Millisecond))
+	if _, err := conn.Write([]byte(respReceiptCmd("GET", "cassy:rshort:"+code))); err != nil {
+		return uuid.Nil, uuid.Nil, time.Time{}, false
+	}
+	r := bufio.NewReader(conn)
+	hdr, err := r.ReadString('\n')
+	if err != nil || !strings.HasPrefix(hdr, "$") || strings.HasPrefix(hdr, "$-1") {
+		return uuid.Nil, uuid.Nil, time.Time{}, false
+	}
+	val, err := r.ReadString('\n')
+	if err != nil {
+		return uuid.Nil, uuid.Nil, time.Time{}, false
+	}
+	parts := strings.Split(strings.TrimSpace(val), "|")
+	if len(parts) != 3 {
+		return uuid.Nil, uuid.Nil, time.Time{}, false
+	}
+	storeID, err1 := uuid.Parse(parts[0])
+	orderID, err2 := uuid.Parse(parts[1])
+	expUnix, err3 := strconv.ParseInt(parts[2], 10, 64)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return uuid.Nil, uuid.Nil, time.Time{}, false
+	}
+	return storeID, orderID, time.Unix(expUnix, 0).UTC(), true
+}
+
+func (s *ReceiptService) cacheShortLink(code string, storeID, orderID uuid.UUID, expires time.Time) {
+	if s.redisAddr == "" || code == "" {
+		return
+	}
+	ttl := int64(time.Until(expires).Seconds())
+	if ttl <= 0 {
+		return
+	}
+	conn, err := net.DialTimeout("tcp", s.redisAddr, 120*time.Millisecond)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(120 * time.Millisecond))
+	val := fmt.Sprintf("%s|%s|%d", storeID, orderID, expires.UTC().Unix())
+	_, _ = conn.Write([]byte(respReceiptCmd("SETEX", "cassy:rshort:"+code, strconv.FormatInt(ttl, 10), val)))
+}
+
+func respReceiptCmd(args ...string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "*%d\r\n", len(args))
+	for _, a := range args {
+		fmt.Fprintf(&b, "$%d\r\n%s\r\n", len(a), a)
+	}
+	return b.String()
+}
 
 // Public resolves a digital receipt token (store.id.secret; the store only routes, the secret
 // authorizes) to the sale receipt, plus the refund state the order has today.

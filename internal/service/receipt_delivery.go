@@ -170,7 +170,9 @@ func (s *ReceiptDeliveryService) send(ctx context.Context, storeID, orderID uuid
 			if berr != nil {
 				return berr
 			}
-			err = s.email.EnqueueTx(ctx, tx, storeID, mailer.TemplateReceipt, to, "", ref, receiptEmailData(r, link))
+			d := receiptEmailData(r, link)
+			d.PublicBaseURL = s.receipts.PublicURL()
+			err = s.email.EnqueueTx(ctx, tx, storeID, mailer.TemplateReceipt, to, "", ref, d)
 		case "whatsapp":
 			// Template parameters, one per line: {{1}} store, {{2}} order number, {{3}} link.
 			err = s.messages.EnqueueWhatsAppTx(ctx, tx, storeID, to, "receipt", order.StoreName+"\n"+order.OrderNumber+"\n"+link.URL, ref)
@@ -201,9 +203,13 @@ func (s *ReceiptDeliveryService) send(ctx context.Context, storeID, orderID uuid
 // receiptEmailData fills the receipt email from the stored receipt, so lines and totals match the paper
 // receipt. The link opens the web receipt page, which also shows the order's current status (PRD v3 N8).
 func receiptEmailData(r *Receipt, link *ReceiptLink) mailer.Data {
-	pdfURL := ""
-	if strings.Contains(link.URL, "/receipts/") {
-		pdfURL = strings.Replace(strings.TrimRight(link.URL, "/"), "/receipts/", "/api/v1/public/receipts/", 1) + "/pdf"
+	pdfURL := strings.TrimSpace(link.PDFURL)
+	if pdfURL == "" {
+		if strings.Contains(link.URL, "/r/") {
+			pdfURL = strings.Replace(strings.TrimRight(link.URL, "/"), "/r/", "/api/v1/public/receipts/short/", 1) + "/pdf"
+		} else if strings.Contains(link.URL, "/receipts/") {
+			pdfURL = strings.Replace(strings.TrimRight(link.URL, "/"), "/receipts/", "/api/v1/public/receipts/", 1) + "/pdf"
+		}
 	}
 	d := mailer.Data{
 		ActionURL: link.URL, ActionLabel: "Lihat struk dan status pesanan", PDFURL: pdfURL,

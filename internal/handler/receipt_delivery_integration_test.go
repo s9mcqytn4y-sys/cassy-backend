@@ -150,7 +150,7 @@ func TestReceiptDeliveryIntegration(t *testing.T) {
 			return tx.GetContext(ctx, &mail, `SELECT subject, text_body FROM email_outbox WHERE store_id = $1 AND to_email = $2 AND template = 'receipt'`,
 				storeID, strings.ToLower(email))
 		})
-		if !strings.Contains(mail.Subject, "RCPT-") || !strings.Contains(mail.Text, "https://demo.kafe.test/receipts/") || !strings.Contains(mail.Text, "Rp46.200") {
+		if !strings.Contains(mail.Subject, "RCPT-") || !strings.Contains(mail.Text, "https://demo.kafe.test/r/") || !strings.Contains(mail.Text, "Rp46.200") {
 			t.Fatalf("receipt email must carry order number, total and link: %+v", mail)
 		}
 		var stored string
@@ -232,7 +232,7 @@ func TestReceiptDeliveryIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		wa, text := waOut.to(phone), smsOut.to(phone)
-		if len(wa) != 1 || len(strings.Split(wa[0].Body, "\n")) != 3 || !strings.HasPrefix(strings.Split(wa[0].Body, "\n")[2], "https://demo.kafe.test/receipts/") {
+		if len(wa) != 1 || len(strings.Split(wa[0].Body, "\n")) != 3 || !strings.HasPrefix(strings.Split(wa[0].Body, "\n")[2], "https://demo.kafe.test/r/") {
 			t.Fatalf("whatsapp must get one template message with three parameters, got %+v", wa)
 		}
 		if len(text) != 1 || !strings.Contains(text[0].Body, "Struk RCPT-") {
