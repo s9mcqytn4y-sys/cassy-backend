@@ -1,25 +1,17 @@
-# Peta Distribusi Folder Workspace & Ekosistem Produk AzureDevID
+# Peta Distribusi Folder Workspace & Ekosistem Cassy
 
-Dokumen ini menjadi acuan tunggal bagi seluruh AI Agent (Antigravity, Claude Code, Codex) dan Engineer manusia agar tidak terjadi tabrakan perubahan antar-direktori maupun antar-worktree.
+Dokumen ini menjadi acuan tunggal AI Agent (Antigravity, Claude Code, Codex, Hermes, OpenCode) dan Engineer manusia di workstation Windows 11.
 
-## 1. Direktori Aktif Ekosistem MyCaffe (Produk Pertama AzureDevID)
+## 1. Direktori Aktif Ekosistem Cassy (`C:\Projects\CassyWorkspace`)
 
-| Path Absolut | Peran & Cakupan | Status | Aturan Agent & Docker |
-| :--- | :--- | :--- | :--- |
-| `C:\Projects\myCaffe-backend` | Repository backend Go, migrasi PostgreSQL 18 RLS, Midtrans Core API, bridge WhatsApp (`cmd/wa-bridge`), print agent, dan Docker Compose (`deploy/docker/`). Rencana nama: `CassyBackend` (AL10). | Aktif (`main`) | Kerjakan di branch pendek. Worktree opsional untuk kerja paralel. |
-| `C:\Projects\CassyWorktree` | Worktree repo backend pada branch `feat/cassy-rebrand` yang sudah di-merge. Bukan repo terpisah. | Akan dilepas (AL10) | Jangan dianggap sumber bridge WhatsApp. |
-| `C:\Projects\MyCaffeClient` | Unified Frontend & Native Monorepo (`com.azuredevid.cassy`): Next.js 15 Responsive/Tablet/iPad PWA (`apps/web`), Android Native Jetpack Compose (`apps/android`), iOS Hardware Bridge (`apps/ios`), dan Shared TS SDK (`packages/shared`). | Aktif (`main`) | Memiliki `.vscode/` dan `Dockerfile` multi-stage tersendiri untuk Next.js standalone container. |
-| `WSL Ubuntu-24.04: /opt/mycaffe` | Live Demo Stack (`https://demo.abbdullaziz.online`) di balik Cloudflare Named Tunnel (`mycaffe-demo`), menjalankan `mycaffe-postgres` (PG 18), `mycaffe-api`, `mycaffe-nginx`, `mycaffe-wa-bridge`, dan Next.js PWA. | Live Demo Runtime | Digunakan untuk verifikasi aktual E2E sebelum klien membeli VPS produksi sendiri. |
+| Path Absolut | Repo GitHub | Peran & Cakupan | Status |
+|---|---|---|---|
+| `C:\Projects\CassyWorkspace\CassyBackend` | `s9mcqytn4y-sys/cassy-backend` | Backend Go 1.27, PostgreSQL 18 RLS (65 migrasi), Midtrans Core API, `wa-bridge`, `print-agent` | Aktif (`main`) |
+| `C:\Projects\CassyWorkspace\CassyClient` | `s9mcqytn4y-sys/cassy-client` | Monorepo client: Guest QR PWA (`apps/web`), Android POS (`apps/android`), iOS Bridge (`apps/ios`), `packages/design-tokens` | Aktif (`main`) |
+| `C:\Projects\CassyWorkspace\Docker` | `s9mcqytn4y-sys/cassy-docker` (private) | Docker Compose Dev/Demo/Prod, `VpsGateway` (`CassyVpsRedis`, `CassyVpsN8n`, `CassyVpsHermesGateway`), Nginx, PostgreSQL init, Monitoring | Aktif (`main`) |
+| `C:\Projects\CassyWorkspace\Worktrees` | Sub-worktree lokal | Worktree terpisah (`cassy-backend-agy`, `cassy-backend-claude`, `cassy-client-agy`, `cassy-client-claude`) untuk eksperimen dan verifikasi paralel | Aktif |
+| `C:\Projects\CassyWorkspace\Scripts` | Lokal | Skrip utilitas sinkronisasi workspace dan worktree | Aktif |
 
-## 2. Brankas Dokumen Bisnis, Legalitas, & Aset Brand Resmi
+## 2. Brankas Bisnis & Identitas (`C:\Users\Acer\OneDrive\Documents\AzureDevId`)
 
-| Path Absolut | Peran & Keamanan | Konvensi Penamaan |
-| :--- | :--- | :--- |
-| `C:\Users\Acer\OneDrive\Documents\AzureDevId` | Brankas tunggal dokumen bisnis resmi **AzureDevID** (`BrandAssetsLogo`, `LegalAndBrandGuidelines`, `LegalitasPerizinan`, `MerchantPaymentGateway`, `ProductSpecCompetitor`, `SecurityRecovery`, `Metadata.json`). | Pure `PascalCase` ketat (tanpa awalan angka `01..06`, tanpa `_` atau `-`). `LegalitasPerizinan` & `SecurityRecovery` dikunci dengan NTFS ACL khusus akun pemilik Windows. |
-| `C:\Users\Acer\Downloads` | Folder unduhan yang telah dikelompokkan rapi (`InstallersAndDrivers`, `CareerAndResume`, `MedicalCheckup`, `DatabaseAndReports`, `ProjectArchivesAndDesign`, `GameDevAndThreeD`). | Pure `PascalCase` tanpa karakter `_` atau `-`. |
-
-## 3. Proyek Lain di `C:\Projects` (Non-MyCaffe, Pure `PascalCase`)
-
-Seluruh proyek non-aktif di `C:\Projects` telah distandardisasi ke `PascalCase` murni disertai konfigurasi `.vscode/`:
-- `ArisparisSuratDigital`, `BlenderMcp`, `CryptoBanningTools`, `Hris`, `McuApp`, `MerchandiseStore`, `MerchandiseStoreNext`, `PeepsFrontend`, `RobloxGame`, `StarterLaravel`, `VoidSupply`, `ZeeOs`.
-- Skrip `C:\Projects\RenameMyCaffeWorkspace.ps1` sudah tidak sesuai: masih menargetkan `MyCaffeBackend` dan worktree yang sudah tidak ada. Jangan dijalankan sebelum diperbarui mengikuti AL10.
+Direktori ini berisi aset merek resmi (`BrandAssetsLogo`, `LegalAndBrandGuidelines`), legalitas (`LegalitasPerizinan`), analisis produk/kompetitor (`ProductSpecCompetitor`), serta dokumen gateway/keamanan (`MerchantPaymentGateway`, `SecurityRecovery`). Semua agent memiliki akses baca untuk keperluan audit dan pengembangan, dengan larangan mutlak mencetak, menyalin ke log, atau meng-commit kredensial dan kode pemulihan.

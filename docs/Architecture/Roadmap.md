@@ -2,8 +2,8 @@
 
 Reviewed 2026-11-07 against `staging` through migration **000051** (v0.8 money & operations, v0.9 cafe floor,
 v0.10 per-device offline sync, v0.11 promotions/bundles/inventory/purchasing/sales-channels, and v0.12
-multi-tenant SaaS governance & BYOK). Master QR Table Order release plan:
-[ReleasePlanQrTableOrderV1.md](../Product/ReleasePlanQrTableOrderV1.md); competitor benchmarks:
+multi-tenant SaaS governance & BYOK). Master QR Table Order plan (archive):
+[ReleasePlanQrTableOrderV1.md](../Archive/ReleasePlanQrTableOrderV1.md); competitor benchmarks:
 [CompetitorAnalysisMajoo.md](../Product/CompetitorAnalysisMajoo.md) and
 [CompetitorAnalysisInterActive.md](../Product/CompetitorAnalysisInterActive.md); SaaS governance ADR:
 [Adr009MultiTenantSaasGovernanceAndByok.md](Adr009MultiTenantSaasGovernanceAndByok.md). Status uses the four-tier classification from `AGENTS.md`; a module counts as done

@@ -1,4 +1,4 @@
-# Architecture & Executive Decisions (`memory/DECISIONS.md`)
+# Architecture & Executive Decisions (`memory/Decisions.md`)
 
 ## Re-alignment terbaru
 AL1 sampai AL11 (2026-11-09) ada di `docs/Architecture/DecisionRegister.md` dan mengalahkan ringkasan di bawah bila bertentangan.
@@ -20,5 +20,5 @@ AL1 sampai AL11 (2026-11-09) ada di `docs/Architecture/DecisionRegister.md` dan 
    - Owner email (`abdulaziz543333@gmail.com`) is preserved on `a0000001-0000-4000-8000-000000000001`.
 5. **Agent Context Budget Policy (3-Tier Skill Curation)**:
    - Consolidate multi-disciplinary workflows into 6 auto-invoked master skills (`vibe-coder-pro`, `blender-roblox-pipeline`, `human-writer-content`, `bizdev-client-hunter`, `netops-cloudflare-docker`, `claude-artifact-builder`).
-   - Keep heavy standalone frameworks/apps indexed in `memory/TOOLCHAIN_CATALOG.md` rather than injecting all 48 repos into every session's system prompt.
+   - Keep heavy standalone frameworks/apps indexed in `memory/ToolchainCatalog.md` rather than injecting all 48 repos into every session's system prompt.
 

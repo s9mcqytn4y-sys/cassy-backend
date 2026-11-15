@@ -20,9 +20,10 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-$DevCompose = 'deploy/docker/docker-compose.yml'
-$DemoCompose = 'deploy/docker/docker-compose.demo.yml'
-$TestContainer = 'mycaffe-pg-integration'
+$DockerRoot = Join-Path (Split-Path -Parent $Root) 'Docker'
+$DevCompose = Join-Path $DockerRoot 'Core/DockerComposeDev.yml'
+$DemoCompose = Join-Path $DockerRoot 'Core/DockerComposeDemo.yml'
+$TestContainer = 'cassy-pg-integration'
 $TestPort = 55432
 
 function Write-Step([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
@@ -145,7 +146,7 @@ switch ($Command) {
         if ($existing -contains $TestContainer) {
             docker rm -f $TestContainer | Out-Null
         }
-        $initScript = (Resolve-Path 'deploy/postgres/00-init-roles.sh').Path
+        $initScript = (Resolve-Path (Join-Path $DockerRoot 'Postgres/00-init-roles.sh')).Path
         Invoke-Native docker @('run', '-d', '--name', $TestContainer,
             '-e', 'POSTGRES_PASSWORD=it_super', '-e', 'POSTGRES_DB=cassy_test',
             '-e', 'DB_MIGRATOR_USER=cassy_migrator', '-e', 'DB_MIGRATOR_PASSWORD=it_migrator',

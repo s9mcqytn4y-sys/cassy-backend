@@ -1,90 +1,61 @@
-# MyCaffe Core POS: Backend API
+# Cassy Core POS: Backend API
 
-Backend RESTful API dan Realtime Hub untuk platform white-label multi-tenant QR Table Ordering, Point of Sale (POS), Kitchen Display System (KDS), dan TV Queue Display untuk kafe dan restoran. Lihat [Brand Guidelines, Merk, dan Product Knowledge](docs/Product/BrandAndProductKnowledge.md) untuk identitas merek resmi, token desain visual (*Espresso & Crema*), format penomoran entitas, serta aturan bisnis produk.
+Backend RESTful API dan Realtime Hub untuk platform white-label multi-tenant QR Table Ordering, Point of Sale (POS), Kitchen Display System (KDS), dan Queue Display untuk bisnis F&B. Lihat [Brand Guidelines dan Product Knowledge](docs/Product/BrandAndProductKnowledge.md) serta dokumen desain klien untuk sistem visual **Pandan & Kunyit** (`#1F5F52`, `#E9A23B`, `#F7F5F0`, `#17211E`).
 
 ## Tech Stack
+
 - **Language**: Go 1.27.4
 - **Web Framework**: Gin Gonic (`v1.12.0`)
-- **Database Driver**: `jackc/pgx/v5` & `jmoiron/sqlx`
-- **Database Engine**: PostgreSQL 18-alpine (Native Row-Level Security & Triple-Role Isolation)
-- **Infrastructure**: Docker Compose (`docker-compose.yml` & `docker-compose.prod.yml`) & Nginx Reverse Proxy (Hostinger KVM 2 / Ubuntu 24.04 LTS)
-- **Payment Gateway**: Midtrans Core API Custom UI (`qris`, `bank_transfer`, `gopay`, `shopeepay`, `card`, `cstore`) + Cashier Offline (`cash`, `static_qris`, `edc`)
-- **Realtime Hub**: Gorilla WebSocket (`internal/realtime`)
-- **Cloudflare R2 Storage**: Triple-Bucket (`mycaffe-media` di `https://cdn.abbdullaziz.online` untuk CDN gambar katalog publik, `mycaffe-private-media` untuk presigned GET 15m QRIS statis/dokumen, & `mycaffe-backups` untuk backup `pg_dump` terenkripsi GPG AES256+SHA512)
-- **Monitoring & Error Tracking**: Sentry Go SDK (dengan middleware panic/5xx recovery & PII scrubbing) + Prometheus `/metrics` (`:9091`) & Grafana Alloy
-
----
+- **Database Driver**: `jackc/pgx/v5` dan `jmoiron/sqlx`
+- **Database Engine**: PostgreSQL 18-alpine (Native Row-Level Security & Triple-Role Isolation: `postgres`, `cassy_migrator`, `cassy_app` `NOBYPASSRLS`)
+- **Infrastructure**: Repo terpisah [`cassy-docker`](https://github.com/s9mcqytn4y-sys/cassy-docker) (`C:\Projects\CassyWorkspace\Docker`) untuk stack dev, demo, prod, dan VPS Gateway
+- **Payment Gateway**: Midtrans Core API (`qris`, `bank_transfer`, `gopay`, `shopeepay`, `card`, `cstore`) + Cashier Offline (`cash`, `static_qris`, `edc`)
+- **Realtime Hub**: Gorilla WebSocket (`internal/realtime`) dengan outbox relay transaksional
+- **Cloudflare R2 Storage**: Triple-bucket untuk media publik (`https://cdn.abbdullaziz.online`), media privat presigned, dan backup terenkripsi
+- **Monitoring & Error Tracking**: Sentry Go SDK (panic/5xx recovery & PII scrubbing) + Prometheus `/metrics` (`:9091`) & Grafana Alloy
 
 ## Security & Architecture Guarantees
-1. **Multi-Tenant Scoping**: Setiap query, mutasi database (`database.WithTenantTx`), dan event WebSocket di-scope ketat berdasarkan `store_id` (tenant UUID) yang terautentikasi.
-2. **Payment Integrity**: Harga produk, opsi modifier, 1-level sub-addon, diskon, service charge, dan pajak dihitung ulang sepenuhnya di sisi server dari katalog resmi menggunakan integer Rupiah (`int64` / PostgreSQL `BIGINT`) dan Basis Points (`BPS`).
-3. **Order Idempotency & Atomic Stock Locking**: Pembuatan pesanan di `OrderService` mengunci baris stok produk dan opsi modifier secara terurut (`SELECT ... ORDER BY id ASC FOR UPDATE`), memvalidasi `idempotency_key` beserta `orders.request_hash` (SHA-256), mengalokasikan nomor urut harian (`store_daily_sequences`), dan menulis event ke `outbox_events` dalam satu transaksi ACID.
-4. **Webhook Verification**: Webhook Midtrans diverifikasi menggunakan signature key resmi SHA-512:
-   $$\text{SHA512}(\text{order\_id} + \text{status\_code} + \text{gross\_amount} + \text{ServerKey})$$
-5. **Fail-Closed Operations**: Startup server ditolak (`log.Fatalf`) bila `DATABASE_URL` kosong atau bila `JWT_SECRET_KEY` lemah/placeholder di `staging` maupun `production` (L-1..L-3 tertutup). Endpoint publik (QR tamu, tracker, struk) memakai token bertanda tangan dan resolver `SECURITY DEFINER` yang sempit; fitur tanpa konfigurasi (mis. R2/SMS) menjawab `503`.
-6. **Zero In-Place Coding on Production VPS**: Dilarang mengedit kode sumber, mengubah migrasi SQL, atau menjalankan `go build` langsung di server VPS produksi. Seluruh perubahan wajib melalui branch pendek, CI, merge ke `main` dengan persetujuan Owner, lalu image GHCR bertag `v*`.
 
----
+1. **Multi-Tenant Scoping**: Setiap query dan mutasi berjalan melalui `database.WithTenantTx` menggunakan PostgreSQL 18 RLS dengan role runtime non-owner `cassy_app` (`NOBYPASSRLS`).
+2. **Payment Integrity**: Harga produk, opsi modifier, diskon, service charge, dan pajak dihitung ulang sepenuhnya di server memakai integer Rupiah (`int64` / `BIGINT`) dan Basis Points (`BPS`).
+3. **Order Idempotency & Atomic Stock Locking**: `OrderService` mengunci stok terurut (`FOR UPDATE`), memeriksa `idempotency_key` + `orders.request_hash` (SHA-256), mengalokasikan nomor urut harian, dan menulis `outbox_events` dalam satu transaksi ACID.
+4. **Webhook Verification**: Notifikasi Midtrans diverifikasi memakai signature SHA-512 resmi sebelum transisi status bayar.
+5. **Fail-Closed Operations**: Startup ditolak bila `DATABASE_URL` kosong atau `JWT_SECRET_KEY` lemah di lingkungan non-dev. Endpoint publik memakai token bertanda tangan dan resolver `SECURITY DEFINER` yang sempit.
+6. **Zero In-Place Coding on Production VPS**: Seluruh perubahan wajib melalui branch pendek, PR hijau CI, merge ke `main`, lalu deploy digest image GHCR melalui `cassy-docker`.
 
 ## Feature Status
 
-Status saat ini: **v0.8 (PR 8.5b — 29 migrasi PostgreSQL 18, 42 tabel)**. Status per modul (empat kategori `AGENTS.md`) dipelihara di
-satu tempat saja, yaitu [docs/Architecture/Roadmap.md](docs/Architecture/Roadmap.md). Kontrak untuk
-frontend ada di
-[docs/Architecture/FrontendIntegrationContract.md](docs/Architecture/FrontendIntegrationContract.md).
-
----
+Status per modul dan rilis dipelihara terpusat di [Project Management Source of Truth](docs/ProjectManagement/README.md), [Roadmap Arsitektur](docs/Architecture/Roadmap.md), dan [Kontrak Integrasi Frontend](docs/Architecture/FrontendIntegrationContract.md). Skema database saat ini berada di 65 migrasi (`db/migrations/000001` s.d. `000065`).
 
 ## Local Development Setup (Windows)
 
-Prasyarat: Go 1.27.4, Docker Desktop. Semua perintah ada di `scripts/dev.ps1`
-(detail: [docs/Setup/WindowsDevEnvironment.md](docs/Setup/WindowsDevEnvironment.md)).
+Prasyarat: Go 1.27.4, Docker Desktop. Perintah harian tersedia di `scripts/dev.ps1` (detail: [WindowsDevEnvironment.md](docs/Setup/WindowsDevEnvironment.md)).
 
 ```powershell
 ./scripts/dev.ps1 setup      # .env dari template, PostgreSQL 18 lokal, migrasi, seed
 ./scripts/dev.ps1 run        # API di http://localhost:8080
-./scripts/dev.ps1 login      # uji login staf dengan PIN dev 482913
-./scripts/dev.ps1 test-int   # tes integrasi PostgreSQL 18 (sama seperti CI)
+./scripts/dev.ps1 login      # uji login staf dengan PIN dev
+./scripts/dev.ps1 test-int   # tes integrasi PostgreSQL 18 (setara CI)
 ./scripts/dev.ps1 check      # gofmt, vet, mod tidy, govulncheck, tes
 ./scripts/dev.ps1 demo-up    # demo publik lewat Cloudflare Quick Tunnel
 ```
 
-`dev.ps1` selalu memakai PostgreSQL Docker lokal, walaupun `DATABASE_URL` di `.env` menunjuk host lain.
-
-## Dokumentasi
+## Ekosistem & Dokumentasi
 
 | Topik | Dokumen |
-|-------|---------|
-| Indeks docs | [docs/README.md](docs/README.md) |
-| Assessment owner, kontrak frontend, checklist demo, draf PRD v2 | [OwnerOperationalAssessment.md](docs/Product/OwnerOperationalAssessment.md), [FrontendIntegrationContract.md](docs/Architecture/FrontendIntegrationContract.md), [DemoReadinessChecklist.md](docs/Setup/DemoReadinessChecklist.md), [PrdV2Brainstorm.md](docs/Product/PrdV2Brainstorm.md) |
-| Keputusan owner (semua sesi wawancara) | [docs/Architecture/DecisionRegister.md](docs/Architecture/DecisionRegister.md) |
-| Roadmap & status sub-task | [docs/Architecture/Roadmap.md](docs/Architecture/Roadmap.md) |
-| Use case, alur & sequence per peran | [docs/Architecture/PosUseCasesAndSequences.md](docs/Architecture/PosUseCasesAndSequences.md) |
-| Evaluasi operasional POS 2026-10 (arsip) | [docs/Archive/PosOperationsEvaluation2026-10.md](docs/Archive/PosOperationsEvaluation2026-10.md) |
-| Register risiko keamanan | [docs/Architecture/SecurityRiskRegister.md](docs/Architecture/SecurityRiskRegister.md) |
-| Katalog, varian, BOM, inventaris, media | [docs/Architecture/CatalogInventoryDesign.md](docs/Architecture/CatalogInventoryDesign.md) |
-| Kebutuhan owner, staf, pelanggan | [docs/Product/RequirementsOwnerStaffCustomer.md](docs/Product/RequirementsOwnerStaffCustomer.md) |
-| Auth, sesi & RBAC | [docs/Architecture/Adr003StaffAuthenticationSessionAndRbac.md](docs/Architecture/Adr003StaffAuthenticationSessionAndRbac.md) |
-| Modernisasi Skema Menu & Modifier (ADR-004) | [docs/Architecture/Adr004CatalogSchemaModernization.md](docs/Architecture/Adr004CatalogSchemaModernization.md) |
-| Rencana Split Bill Iterasi 4c-2 (arsip) | [docs/Archive/Iteration4c2SplitBillPlan.md](docs/Archive/Iteration4c2SplitBillPlan.md) |
-| Topologi VPS & Skalabilitas Data (ADR-002, ADR-008) | [docs/Architecture/Adr002SingleVpsDockerTopology.md](docs/Architecture/Adr002SingleVpsDockerTopology.md), [docs/Architecture/Adr008DataPlatformAndScaling.md](docs/Architecture/Adr008DataPlatformAndScaling.md) |
-| Kontrak database & ledger pembayaran | [Phase01DatabaseContract.md](docs/Architecture/Phase01DatabaseContract.md), [Phase01PaymentLedgerSpec.md](docs/Architecture/Phase01PaymentLedgerSpec.md) |
-| Email, SMS/OTP, Demo (`abbdullaziz.online`), Monitoring, Onboarding | [docs/Setup/Email.md](docs/Setup/Email.md), [docs/Setup/Sms.md](docs/Setup/Sms.md), [docs/Setup/DemoStagingEnvironment.md](docs/Setup/DemoStagingEnvironment.md), [docs/Setup/Monitoring.md](docs/Setup/Monitoring.md), [docs/Setup/FirstClientOnboardingRunbook.md](docs/Setup/FirstClientOnboardingRunbook.md) |
-| Kontrak API & standar CRUD/error | [docs/Api/OpenApi.yaml](docs/Api/OpenApi.yaml), [docs/Architecture/ApiConventions.md](docs/Architecture/ApiConventions.md) |
+|---|---|
+| Indeks Dokumentasi | [docs/README.md](docs/README.md) |
+| Project Management (PM SoT) | [docs/ProjectManagement/README.md](docs/ProjectManagement/README.md) |
+| Keputusan Owner & Roadmap | [DecisionRegister.md](docs/Architecture/DecisionRegister.md), [Roadmap.md](docs/Architecture/Roadmap.md) |
+| Keamanan & Kontrak API | [SecurityRiskRegister.md](docs/Architecture/SecurityRiskRegister.md), [OpenApi.yaml](docs/Api/OpenApi.yaml) |
+| Operasional & Setup | [WorkspaceDirectoryMap.md](docs/Setup/WorkspaceDirectoryMap.md), [DemoReadinessChecklist.md](docs/Setup/DemoReadinessChecklist.md) |
 
-## Client Applications & Ecosystem Map
-
-Sistem MyCaffe by AzureDevID mencakup backend dan suite aplikasi client multi-platform:
-- **`MyCaffeClient` Monorepo** (`https://github.com/s9mcqytn4y-sys/mycaffe-client`):
-  - **`apps/android`**: Cassy POS Native Android Tablet application (`com.azuredevid.cassy`) dengan CameraX store pairing, ESC/POS Port 9100 KDS ticket routing, dan ZXing dynamic QRIS.
-  - **`apps/web`**: Guest QR Table Ordering & Owner Backoffice PWA berbasis Next.js 15 App Router dan real-time WebSocket.
-  - **`apps/ios`**: iOS Hardware HAL dan printer driver serial/network.
-  - **`packages/design-tokens`**: Master token visual *Espresso & Crema* dan AzureDevID Control Plane.
-- **`AzureDevId` Vault**: Dokumen legalitas (HAKI, PSE), panduan brand vector resmi, kontrak payment gateway Midtrans, dan kunci security recovery.
-
----
+Repositori terkait dalam `C:\Projects\CassyWorkspace`:
+- **`cassy-client`** (`C:\Projects\CassyWorkspace\CassyClient`): Guest QR PWA (`apps/web`), Cassy POS Android (`apps/android`), iOS Hardware Bridge (`apps/ios`), dan Design Tokens (`packages/design-tokens`).
+- **`cassy-docker`** (`C:\Projects\CassyWorkspace\Docker`): Konfigurasi Compose Dev/Demo/Prod, Nginx, PostgreSQL role init, Monitoring, dan VPS Gateway.
+- **`AzureDevId`** (`C:\Users\Acer\OneDrive\Documents\AzureDevId`): Dokumen legalitas, merek, recovery, dan payment gateway.
 
 ## Git Branching & Release Strategy
-- `main`: Branch produksi yang dilindungi. Setiap merge ke `main` memicu workflow rilis image kontainer bertanda versi ke GitHub Container Registry (`ghcr.io`).
-- Tidak ada branch `staging`. Demo memakai `main`, produksi memakai image bertag `v*`. Lihat [Git Workflow](docs/Engineering/GitWorkflowAndReleases.md).
-- `feat/*`, `fix/*`, `docs/*`, `chore/*`: Branch pendek dari `main`, diajukan lewat Pull Request ke `main`.
+
+- `main`: Branch tunggal terproteksi dengan konvensi Trunk-Based Development. Lihat [GitWorkflowAndReleases.md](docs/Engineering/GitWorkflowAndReleases.md).
+- Branch pendek (`feat/*`, `fix/*`, `docs/*`, `chore/*`) digabung melalui Pull Request setelah seluruh gerbang CI hijau.

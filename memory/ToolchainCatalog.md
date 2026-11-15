@@ -1,4 +1,4 @@
-# Curated 48-Repo Toolchain & Skill Catalog (`memory/TOOLCHAIN_CATALOG.md`)
+# Curated 48-Repo Toolchain & Skill Catalog (`memory/ToolchainCatalog.md`)
 
 Dokumen ini mengindeks 48+ repository dan skill pilihan Direktur berdasarkan **3-Tier Context Budget Policy** serta audit keamanan `/007` (`audit-skills`).
 

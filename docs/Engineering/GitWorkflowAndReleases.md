@@ -1,6 +1,17 @@
 # Git Workflow and Release Policy
 
-Keputusan AL11 (2026-11-09): trunk-based. Berlaku untuk `mycaffe-backend` dan `mycaffe-client`. Branch `staging` sudah tidak ada dan tidak dihidupkan lagi.
+Keputusan AL11 (2026-11-09): trunk-based. Berlaku seragam untuk `cassy-backend`, `cassy-client`, dan `cassy-docker`. Branch `staging` sudah dihapus dan tidak dihidupkan lagi.
+
+## Konvensi Penamaan Cabang, Tag, PR, dan CI
+
+| Elemen | Standar Wajib | Contoh |
+|---|---|---|
+| Cabang utama | `main` (dilindungi, hanya via PR) | `main` |
+| Cabang kerja | `<type>/<kebab-case-ringkas>` (`feat/*`, `fix/*`, `docs/*`, `chore/*`) | `feat/pwa-seo-e2e` |
+| Commit | Conventional Commits tanpa emoji | `fix(web): remove nested main landmark` |
+| Tag rilis | SemVer per repo `vX.Y.Z` (`-rc.N` untuk prerelease) | `v0.13.0` |
+| Judul PR | Conventional Commit ringkas + lingkup | `docs: standardize ProjectManagement source of truth` |
+| Workflow CI | `permissions: contents: read` minimal + `concurrency` group | `.github/workflows/*.yml` |
 
 ## 1. Alur
 
