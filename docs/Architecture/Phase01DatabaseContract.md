@@ -1,6 +1,8 @@
 # Phase 01: Database & Transactional Architecture Contract
 
-MyCaffe Core POS: Multi-Tenant POS, QR Table Ordering, Kitchen Display System (KDS), and Queue Platform
+> **Catatan Pembaruan (`v2.5.0`):** Kontrak ini mendokumentasikan desain fondasi Phase 01 (saat masih bernama `MyCaffe` dengan 17 tabel awal). Sejak migrasi aditif `000001..000065`, nama resmi platform adalah **Cassy Core POS**, role database runtime/migrasi utama adalah `cassy_app` (`NOBYPASSRLS`) & `cassy_migrator` (alias `mycaffe_*` `NOLOGIN` dipertahankan untuk kompatibilitas replay migrasi historis `000001..000064`), init script berada di [InitCassyRoles.sh](file:///C:/Projects/CassyWorkspace/Docker/Postgres/InitCassyRoles.sh), dan total skema saat ini mencakup **91 tabel SQL** lintas 8 bounded context (dipetakan lengkap di [CassyUnifiedUmlAndRoadmap.md](file:///C:/Projects/CassyWorkspace/Docs/CassyUnifiedUmlAndRoadmap.md)).
+
+Cassy Core POS: Multi-Tenant POS, QR Table Ordering, Kitchen Display System (KDS), and Queue Platform
 
 ---
 

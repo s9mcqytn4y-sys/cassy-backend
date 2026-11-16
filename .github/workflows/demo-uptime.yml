@@ -19,11 +19,13 @@ jobs:
     name: Demo API, web and Midtrans webhook reachable
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    env:
+      VPS_STRICT_UPTIME: ${{ vars.VPS_STRICT_UPTIME }}
     steps:
       - name: API ready
         run: |
           status=$(curl -s -o /tmp/ready.json -w '%{http_code}' --retry 2 --retry-delay 15 --max-time 15 https://demo.abbdullaziz.online/health/ready || echo "000")
-          if [ "$status" = "530" ] && [ "${{ vars.VPS_STRICT_UPTIME }}" != "true" ]; then
+          if [ "$status" = "530" ] && [ "${VPS_STRICT_UPTIME:-false}" != "true" ]; then
             echo "Demo tunnel is offline (HTTP 530 - local WSL asleep); skipping failure noise until VPS 24/7 cutover."
             exit 0
           fi
@@ -34,7 +36,7 @@ jobs:
       - name: Guest web serves
         run: |
           status=$(curl -s -o /dev/null -w '%{http_code}' --retry 2 --retry-delay 15 --max-time 15 https://demo.abbdullaziz.online/ || echo "000")
-          if [ "$status" = "530" ] && [ "${{ vars.VPS_STRICT_UPTIME }}" != "true" ]; then
+          if [ "$status" = "530" ] && [ "${VPS_STRICT_UPTIME:-false}" != "true" ]; then
             echo "Demo web tunnel offline (HTTP 530); skipping."
             exit 0
           fi
@@ -46,7 +48,7 @@ jobs:
           code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -X POST -H 'Content-Type: application/json' \
             -d '{}' https://demo.abbdullaziz.online/api/v1/payments/midtrans/webhook/central-cafe)
           echo "webhook probe: $code"
-          if [ "$code" = "530" ] && [ "${{ vars.VPS_STRICT_UPTIME }}" != "true" ]; then
+          if [ "$code" = "530" ] && [ "${VPS_STRICT_UPTIME:-false}" != "true" ]; then
             echo "Demo webhook tunnel offline (HTTP 530); skipping."
             exit 0
           fi
