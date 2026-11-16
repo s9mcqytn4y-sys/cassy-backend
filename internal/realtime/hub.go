@@ -292,8 +292,9 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request, sub Subscription) 
 		CheckOrigin: func(req *http.Request) bool {
 			origin := req.Header.Get("Origin")
 			if origin == "" {
-				// Reject originless browser requests if Origin header is expected
-				return false
+				// Browsers always send Origin on a WebSocket upgrade, so a missing one means a native client
+				// (Android POS, KDS). Cross-site hijacking needs a browser; the single-use ticket is the auth.
+				return true
 			}
 			for _, allowed := range h.allowedOrigins {
 				if strings.EqualFold(strings.TrimRight(allowed, "/"), strings.TrimRight(origin, "/")) {
