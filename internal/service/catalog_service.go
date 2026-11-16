@@ -16,6 +16,7 @@ import (
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/database"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/redispool"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/repository/postgres"
+	"golang.org/x/sync/singleflight"
 )
 
 // Catalog management (iteration 3 & 4a; catalog C1–C3; owner decisions K1, K3, P1). Products and variants
@@ -36,6 +37,8 @@ type CatalogService struct {
 	order   *postgres.OrderRepository
 	pool    *redispool.Pool
 	nowFunc func() time.Time
+	// publicFlight coalesces concurrent public menu loads per slug (PM-E6).
+	publicFlight singleflight.Group
 }
 
 func NewCatalogService(db *sqlx.DB) *CatalogService {
@@ -158,8 +161,35 @@ func (s *CatalogService) StaffCatalog(ctx context.Context, actor *AuthenticatedS
 
 // PublicCatalog is the guest menu for a store slug: inactive categories and stock counts hidden,
 // unavailable items kept but flagged sold out (guests see "habis" instead of a missing item).
+// PublicCatalog serves the guest menu. Concurrent requests for one slug share a single in-flight
+// load (PM-E6: a cafe full of phones opening the menu at once costs one query, not one per phone).
+// Nothing is cached after the load returns, so an archived product or sold-out toggle is visible to
+// the next request. The returned view is shared between callers and must be treated as read-only.
+// The shared load runs detached from any single caller's cancellation, bounded by publicCatalogTimeout;
+// each caller still stops waiting when its own context ends.
 func (s *CatalogService) PublicCatalog(ctx context.Context, slug string) (*CatalogView, error) {
-	storeID, active, err := s.authRep.ResolveStoreForLogin(ctx, s.db, strings.ToLower(strings.TrimSpace(slug)))
+	key := strings.ToLower(strings.TrimSpace(slug))
+	ch := s.publicFlight.DoChan(key, func() (any, error) {
+		loadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), publicCatalogTimeout)
+		defer cancel()
+		return s.loadPublicCatalog(loadCtx, key)
+	})
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-ch:
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		return res.Val.(*CatalogView), nil
+	}
+}
+
+// publicCatalogTimeout bounds a shared public menu load.
+const publicCatalogTimeout = 10 * time.Second
+
+func (s *CatalogService) loadPublicCatalog(ctx context.Context, slug string) (*CatalogView, error) {
+	storeID, active, err := s.authRep.ResolveStoreForLogin(ctx, s.db, slug)
 	if errors.Is(err, postgres.ErrStoreNotFound) || (err == nil && !active) {
 		return nil, ErrCatalogNotFound
 	}

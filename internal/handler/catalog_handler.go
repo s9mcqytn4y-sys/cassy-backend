@@ -95,8 +95,9 @@ func pathID(c *gin.Context, name string) (uuid.UUID, bool) {
 }
 
 // writeCatalog sends the view with a content ETag (generated_at excluded) and honours If-None-Match.
-func writeCatalog(c *gin.Context, view *service.CatalogView, cacheControl string) {
-	generated := view.GeneratedAt
+// It works on a shallow copy: the public view may be shared by concurrent requests.
+func writeCatalog(c *gin.Context, shared *service.CatalogView, cacheControl string) {
+	view := *shared
 	view.GeneratedAt = time.Time{}
 	stable, err := json.Marshal(view)
 	if err != nil {
@@ -111,8 +112,7 @@ func writeCatalog(c *gin.Context, view *service.CatalogView, cacheControl string
 		c.Status(http.StatusNotModified)
 		return
 	}
-	view.GeneratedAt = generated
-	c.JSON(http.StatusOK, view)
+	c.JSON(http.StatusOK, shared)
 }
 
 // StaffCatalog handles GET /api/v1/pos/catalog.
@@ -132,7 +132,9 @@ func (h *CatalogHandler) PublicCatalog(c *gin.Context) {
 		writeServiceError(c, err)
 		return
 	}
-	writeCatalog(c, view, "public, max-age=30")
+	// Browsers and the Next.js rewrite may reuse a 30 s menu and serve it for 30 s more while they
+	// revalidate with If-None-Match, which answers 304 when nothing changed.
+	writeCatalog(c, view, "public, max-age=30, stale-while-revalidate=30")
 }
 
 func (h *CatalogHandler) CreateCategory(c *gin.Context) {
