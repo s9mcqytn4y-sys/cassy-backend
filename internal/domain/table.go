@@ -8,13 +8,16 @@ import (
 
 // Table is a dine-in table with a printed QR (decision QR1: opaque token, rotated by the owner).
 type Table struct {
-	ID          uuid.UUID  `json:"id" db:"id"`
-	StoreID     uuid.UUID  `json:"-" db:"store_id"`
-	TableNumber string     `json:"table_number" db:"table_number"`
-	Label       string     `json:"label" db:"label"`
-	Section     string     `json:"section" db:"section"`
-	Capacity    int        `json:"capacity" db:"capacity"`
-	QRToken     string     `json:"qr_token,omitempty" db:"qr_token"`
+	ID          uuid.UUID `json:"id" db:"id"`
+	StoreID     uuid.UUID `json:"-" db:"store_id"`
+	TableNumber string    `json:"table_number" db:"table_number"`
+	Label       string    `json:"label" db:"label"`
+	Section     string    `json:"section" db:"section"`
+	Capacity    int       `json:"capacity" db:"capacity"`
+	QRToken     string    `json:"qr_token,omitempty" db:"qr_token"`
+	// QRURL is the guest ordering link printed as the table QR (<APP_PUBLIC_URL>/order/<qr_token>). It is
+	// set only when QRToken is visible to the caller and the public URL is configured.
+	QRURL       string     `json:"qr_url,omitempty" db:"-"`
 	QRRotatedAt time.Time  `json:"qr_rotated_at" db:"qr_rotated_at"`
 	IsActive    bool       `json:"is_active" db:"is_active"`
 	ArchivedAt  *time.Time `json:"archived_at,omitempty" db:"archived_at"`

@@ -142,3 +142,40 @@ func TestHubClosesConnectionWhenSessionEnds(t *testing.T) {
 		t.Fatal("expected the connection to close once the session ended")
 	}
 }
+
+// TestHubOriginCheck: a native client (no Origin header) may upgrade, because cross-site hijacking needs
+// a browser and browsers always send Origin; a browser from a foreign origin is still refused.
+func TestHubOriginCheck(t *testing.T) {
+	hub := realtime.NewHub([]string{"http://localhost:3000"})
+	go hub.Run()
+	t.Cleanup(hub.Shutdown)
+	alive := &atomic.Bool{}
+	alive.Store(true)
+	srv := serveTestWS(t, hub, alive)
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/?store=origin-store&ip=10.0.0.9"
+
+	for name, tc := range map[string]struct {
+		header http.Header
+		ok     bool
+	}{
+		"native client without Origin": {http.Header{}, true},
+		"allowed browser origin":       {http.Header{"Origin": {"http://localhost:3000"}}, true},
+		"foreign browser origin":       {http.Header{"Origin": {"https://evil.example"}}, false},
+	} {
+		conn, resp, err := websocket.DefaultDialer.Dial(url, tc.header)
+		if tc.ok {
+			if err != nil {
+				t.Fatalf("%s: expected upgrade, got %v", name, err)
+			}
+			_ = conn.Close()
+			continue
+		}
+		if err == nil {
+			_ = conn.Close()
+			t.Fatalf("%s: expected refusal", name)
+		}
+		if resp == nil || resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("%s: expected 403, got %+v", name, resp)
+		}
+	}
+}

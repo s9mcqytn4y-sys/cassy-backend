@@ -46,7 +46,9 @@ func TestTablesIteration5aIntegration(t *testing.T) {
 		MaxSessions: 3, PINMaxFailures: 5, PINLockout: 15 * time.Minute, MaxConcurrentHashes: 8,
 	})
 	ah := handler.NewAuthHandler(authSvc)
-	th := handler.NewTableHandler(service.NewTableService(db))
+	tableService := service.NewTableService(db)
+	tableService.PublicURL = "https://pos.kafe.test/"
+	th := handler.NewTableHandler(tableService)
 	sh := handler.NewShiftHandler(service.NewShiftService(db))
 
 	r := gin.New()
@@ -227,6 +229,15 @@ func TestTablesIteration5aIntegration(t *testing.T) {
 		if code, _ := resolve(rotated.QRToken); code != http.StatusOK {
 			t.Fatalf("new token must resolve, got %d", code)
 		}
+		if want := "https://pos.kafe.test/order/" + rotated.QRToken; rotated.QRURL != want {
+			t.Fatalf("qr_url must be the guest link on APP_PUBLIC_URL: got %q want %q", rotated.QRURL, want)
+		}
+		if e := board(owner)[table.ID]; e.QRURL != rotated.QRURL {
+			t.Fatalf("board must carry the same qr_url for table.qr.manage, got %q", e.QRURL)
+		}
+		if e := board(cashier)[table.ID]; e.QRToken != "" || e.QRURL != "" {
+			t.Fatalf("staff without table.qr.manage must see neither token nor qr_url, got %+v", e.Table)
+		}
 		table = rotated
 	})
 
@@ -247,6 +258,12 @@ func TestTablesIteration5aIntegration(t *testing.T) {
 		}
 		if res := call("POST", fmt.Sprintf("/pos/tables/%s/archive", table.ID), owner, nil); res.Code != http.StatusConflict || !strings.Contains(res.Body.String(), "TABLE_SESSION_OPEN") {
 			t.Fatalf("archiving an occupied table must be 409, got %d: %s", res.Code, res.Body.String())
+		}
+		if res := call("POST", fmt.Sprintf("/pos/tables/%s/rotate-qr", table.ID), owner, nil); res.Code != http.StatusConflict || !strings.Contains(res.Body.String(), "TABLE_SESSION_OPEN") {
+			t.Fatalf("rotating the QR of an occupied table must be 409, got %d: %s", res.Code, res.Body.String())
+		}
+		if code, _ := resolve(table.QRToken); code != http.StatusOK {
+			t.Fatalf("a refused rotation must keep the seated guest's QR working, got %d", code)
 		}
 
 		// An unpaid order on the session blocks "Kosongkan meja".

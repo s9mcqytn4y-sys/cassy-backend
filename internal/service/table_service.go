@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
 	"time"
 
@@ -44,6 +45,18 @@ type TableService struct {
 	nowFunc  func() time.Time
 	// GuestSplit mirrors GUEST_SPLIT_ENABLED so the guest page offers bill splitting only when the routes exist.
 	GuestSplit bool
+	// PublicURL is APP_PUBLIC_URL, the guest web origin used to build qr_url. Empty leaves qr_url unset.
+	PublicURL string
+}
+
+// withQRURL fills t.QRURL from the visible QR token, so clients print the same link the backend
+// uses for guest ordering instead of guessing the web origin from the API host.
+func (s *TableService) withQRURL(t *domain.Table) {
+	t.QRURL = ""
+	if t.QRToken == "" || s.PublicURL == "" {
+		return
+	}
+	t.QRURL = strings.TrimRight(s.PublicURL, "/") + "/order/" + url.PathEscape(t.QRToken)
 }
 
 func NewTableService(db *sqlx.DB) *TableService {
@@ -106,10 +119,12 @@ func (s *TableService) ListTables(ctx context.Context, actor *AuthenticatedStaff
 		}
 		board = filtered
 	}
-	if !actor.Can(rbac.TableQRManage) {
-		for i := range board {
+	canSeeQR := actor.Can(rbac.TableQRManage)
+	for i := range board {
+		if !canSeeQR {
 			board[i].QRToken = ""
 		}
+		s.withQRURL(&board[i].Table)
 	}
 	return board, nil
 }
@@ -136,6 +151,9 @@ func (s *TableService) CreateTable(ctx context.Context, actor *AuthenticatedStaf
 		}
 		return s.audit(ctx, tx, actor, "TABLE_CREATE", "Meja baru dibuat", t.ID, map[string]any{"table_number": t.TableNumber})
 	})
+	if err == nil {
+		s.withQRURL(t)
+	}
 	return t, mapTableError(err)
 }
 
@@ -159,6 +177,9 @@ func (s *TableService) UpdateTable(ctx context.Context, actor *AuthenticatedStaf
 			"table_number": t.TableNumber, "is_active": t.IsActive, "capacity": t.Capacity,
 		})
 	})
+	if err == nil {
+		s.withQRURL(t)
+	}
 	return t, mapTableError(err)
 }
 
@@ -189,6 +210,9 @@ func (s *TableService) ArchiveTable(ctx context.Context, actor *AuthenticatedSta
 }
 
 // RotateQR issues a new token; the printed sticker with the old token stops resolving at once (QR1).
+// Refused with ErrTableSessionOpen while the table (or a session it is merged into) is open, so a seated
+// guest never loses their ordering link mid-visit. The table row and the session are locked, which
+// serialises this check with a guest opening a session on the same table.
 func (s *TableService) RotateQR(ctx context.Context, actor *AuthenticatedStaff, id uuid.UUID) (*domain.Table, error) {
 	if !actor.Can(rbac.TableQRManage) {
 		return nil, ErrForbidden
@@ -203,12 +227,22 @@ func (s *TableService) RotateQR(ctx context.Context, actor *AuthenticatedStaff, 
 		if t, err = s.repo.GetTable(ctx, tx, actor.Staff.Store.ID, id, true); err != nil {
 			return err
 		}
+		open, err := s.repo.GetOpenSessionForUpdate(ctx, tx, t.StoreID, t.ID)
+		if err != nil {
+			return err
+		}
+		if open != nil {
+			return ErrTableSessionOpen
+		}
 		t.QRToken, t.QRRotatedAt = token, s.nowFunc().UTC()
 		if err := s.repo.UpdateTable(ctx, tx, t); err != nil {
 			return err
 		}
 		return s.audit(ctx, tx, actor, "TABLE_QR_ROTATE", "QR meja diganti", t.ID, map[string]any{"table_number": t.TableNumber})
 	})
+	if err == nil {
+		s.withQRURL(t)
+	}
 	return t, mapTableError(err)
 }
 
