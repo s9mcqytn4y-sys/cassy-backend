@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -20,6 +21,7 @@ import (
 //	400 INVALID_JSON       malformed body
 //	401/403                authentication / permission (middleware or service)
 //	404 NOT_FOUND          id not in the caller's store
+//	402 PLAN_LIMIT_REACHED subscription plan quota full, {"resource", "limit", "plan_code"}
 //	409 CONFLICT           uniqueness clash, {"field": "..."}
 //	422 VALIDATION_FAILED  {"fields": {"name": "wajib diisi", ...}}
 //	503                    infrastructure failure (logged with request id)
@@ -35,7 +37,10 @@ func NewCatalogHandler(catalog *service.CatalogService) *CatalogHandler {
 func writeServiceError(c *gin.Context, err error) {
 	var validation *service.ValidationError
 	var conflict *service.ConflictError
+	var planLimit *service.PlanLimitError
 	switch {
+	case errors.As(err, &planLimit):
+		writePlanLimit(c, planLimit)
 	case errors.As(err, &validation):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "VALIDATION_FAILED", "error": "Periksa kembali isian yang ditandai.", "fields": validation.Fields})
 	case errors.As(err, &conflict):
@@ -50,6 +55,26 @@ func writeServiceError(c *gin.Context, err error) {
 		log.Printf("[API] request_id=%s %s %s error: %v", c.GetString(RequestIDHeader), c.Request.Method, c.FullPath(), err)
 		authError(c, http.StatusServiceUnavailable, "SERVICE_TEMPORARILY_UNAVAILABLE", "Layanan sedang bermasalah. Coba lagi.")
 	}
+}
+
+// planResourceLabels names each quota resource in owner-facing copy.
+var planResourceLabels = map[service.PlanResource]string{
+	service.PlanResourceProducts: "menu aktif",
+	service.PlanResourceStaff:    "staf aktif",
+	service.PlanResourceDevices:  "perangkat POS aktif",
+	service.PlanResourceTables:   "meja aktif",
+	service.PlanResourcePrinters: "printer aktif",
+}
+
+// writePlanLimit answers 402 so clients can show an upgrade prompt instead of a generic error.
+func writePlanLimit(c *gin.Context, e *service.PlanLimitError) {
+	c.JSON(http.StatusPaymentRequired, gin.H{
+		"code":      "PLAN_LIMIT_REACHED",
+		"error":     fmt.Sprintf("Paket Anda mencakup maksimal %d %s. Nonaktifkan yang tidak dipakai atau tingkatkan paket.", e.Limit, planResourceLabels[e.Resource]),
+		"resource":  e.Resource,
+		"limit":     e.Limit,
+		"plan_code": e.PlanCode,
+	})
 }
 
 func bindJSON(c *gin.Context, dst any) bool {

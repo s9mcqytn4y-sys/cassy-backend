@@ -135,6 +135,9 @@ func (s *AuthService) InviteStaff(ctx context.Context, actor *AuthenticatedStaff
 	user := &domain.User{ID: uuid.New(), StoreID: storeID, Email: email, FullName: name, Role: in.Role, IsActive: true}
 
 	err = database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
+		if err := ensurePlanQuota(ctx, tx, storeID, PlanResourceStaff); err != nil {
+			return err
+		}
 		if err := s.repo.InsertInvitedUser(ctx, tx, user); err != nil {
 			return err
 		}

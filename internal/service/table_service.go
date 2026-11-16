@@ -147,6 +147,9 @@ func (s *TableService) CreateTable(ctx context.Context, actor *AuthenticatedStaf
 	}
 	t.QRToken = token
 	err = s.tx(ctx, actor, func(tx *sqlx.Tx) error {
+		if err := ensurePlanQuota(ctx, tx, t.StoreID, PlanResourceTables); err != nil {
+			return err
+		}
 		if err := s.repo.InsertTable(ctx, tx, t); err != nil {
 			return err
 		}
