@@ -1,18 +1,18 @@
 # Windows 11 Laptop: Environments, Networking & Developer Workflow
 
 Until a production VPS and domain exist, this laptop runs **development and demo only** — no real
-cafe transactions (owner decision I1). Everything is driven by `scripts/dev.ps1` (decision I4).
+cafe transactions (owner decision I1). Everything is driven by `scripts/Invoke-CassyDev.ps1` (decision I4).
 
 ## 1. Environments
 
 | Environment | How it runs | `APP_ENV` | Database | Reachable from | Purpose |
 | ------------- | ------------- | ----------- | ---------- | ---------------- | --------- |
 | **dev** | `go run ./cmd/api` on Windows + PostgreSQL 18 in Docker | `development` | `mycaffe-postgres-dev` (`127.0.0.1:5432`), seed data | this laptop only | daily coding, debugging (VS Code F5), full order/payment simulation |
-| **test** | `dev.ps1 test-int`: throwaway PostgreSQL 18 container | `test` | `mycaffe-pg-integration` (`127.0.0.1:55432`), created and deleted per run | this laptop only | integration tests identical to CI |
-| **demo / staging** | `dev.ps1 demo-up`: whole stack in Docker + Cloudflare Named Tunnel (`mycaffe-demo`) | `staging` | `mycaffe-demo` volume, seed data | `https://demo.abbdullaziz.online` (HTTPS) | live client demo on tablets/phones, Midtrans Sandbox Core API webhooks |
+| **test** | `Invoke-CassyDev.ps1 test-int`: throwaway PostgreSQL 18 container | `test` | `mycaffe-pg-integration` (`127.0.0.1:55432`), created and deleted per run | this laptop only | integration tests identical to CI |
+| **demo / staging** | `Invoke-CassyDev.ps1 demo-up`: whole stack in Docker + Cloudflare Named Tunnel (`mycaffe-demo`) | `staging` | `mycaffe-demo` volume, seed data | `https://demo.abbdullaziz.online` (HTTPS) | live client demo on tablets/phones, Midtrans Sandbox Core API webhooks |
 | **production** | `deploy/docker/docker-compose.prod.yml` on client Hostinger KVM 2 VPS | `production` | VPS PostgreSQL | client production domain | ready for cutover once client provisions VPS |
 
-Run **one stack at a time** on 8 GB RAM: `dev.ps1 down` before `demo-up` and vice versa.
+Run **one stack at a time** on 8 GB RAM: `Invoke-CassyDev.ps1 down` before `demo-up` and vice versa.
 
 ## 2. Ports & bindings
 
@@ -28,7 +28,7 @@ Nothing listens on the Wi-Fi/LAN interface. Devices reach the demo only through 
 | 55432 | `127.0.0.1` | throwaway PostgreSQL | test |
 | — | outbound 443/7844 only | `cloudflared` → Cloudflare edge | demo |
 
-`./scripts/dev.ps1 doctor` lists what is listening and warns about firewall state.
+`./scripts/Invoke-CassyDev.ps1 doctor` lists what is listening and warns about firewall state.
 
 ## 3. Windows Firewall
 
@@ -74,19 +74,19 @@ Browser / tablet (HTTPS)
 ## 5. Daily workflow
 
 ```powershell
-./scripts/dev.ps1 setup      # once: .env from template, DB, migrations, seed
-./scripts/dev.ps1 run        # API on http://localhost:8080 (or F5 in VS Code)
-./scripts/dev.ps1 login      # smoke test: staff login + /me with the dev PIN
-./scripts/dev.ps1 test       # unit tests (-race)
-./scripts/dev.ps1 test-int   # PostgreSQL 18 integration tests (same as CI)
-./scripts/dev.ps1 check      # gofmt, vet, mod tidy -diff, govulncheck, tests
-./scripts/dev.ps1 reset-db   # wipe the DEV volume and re-seed
-./scripts/dev.ps1 demo-up    # demo stack + print the public URL
-./scripts/dev.ps1 demo-url   # print the current URL (changes when the tunnel restarts)
-./scripts/dev.ps1 demo-down
+./scripts/Invoke-CassyDev.ps1 setup      # once: .env from template, DB, migrations, seed
+./scripts/Invoke-CassyDev.ps1 run        # API on http://localhost:8080 (or F5 in VS Code)
+./scripts/Invoke-CassyDev.ps1 login      # smoke test: staff login + /me with the dev PIN
+./scripts/Invoke-CassyDev.ps1 test       # unit tests (-race)
+./scripts/Invoke-CassyDev.ps1 test-int   # PostgreSQL 18 integration tests (same as CI)
+./scripts/Invoke-CassyDev.ps1 check      # gofmt, vet, mod tidy -diff, govulncheck, tests
+./scripts/Invoke-CassyDev.ps1 reset-db   # wipe the DEV volume and re-seed
+./scripts/Invoke-CassyDev.ps1 demo-up    # demo stack + print the public URL
+./scripts/Invoke-CassyDev.ps1 demo-url   # print the current URL (changes when the tunnel restarts)
+./scripts/Invoke-CassyDev.ps1 demo-down
 ```
 
-`dev.ps1 migrate|seed|run` always target the local Docker PostgreSQL: they build `DATABASE_URL` and
+`Invoke-CassyDev.ps1 migrate|seed|run` always target the local Docker PostgreSQL: they build `DATABASE_URL` and
 `DATABASE_MIGRATION_URL` from the `DB_*` values in `.env` with host `127.0.0.1` and ignore any
 remote URL in `.env`. VS Code F5 (`.vscode/launch.json`) loads `.env` as-is, so keep
 `DATABASE_URL` in `.env` pointing at `127.0.0.1` before debugging.
@@ -116,8 +116,8 @@ enabled, and every container uses `restart: unless-stopped`. On Windows, the own
 3. Sleep on battery off while the demo must stay reachable (on AC the laptop already never sleeps).
 
 Backups on the demo host: `/etc/mycaffe/backup.env` (mode 600, `DB_NAME=mycaffe_demo`, bucket
-`mycaffe-backups`, passphrase kept in the owner's vault) and `deploy/backup/mycaffe-backup-demo.cron` installed as
-`/etc/cron.d/mycaffe-backup`: hourly backup, monthly restore drill, daily purge through `compose.sh` so the
+`cassy-backups`, passphrase kept in the owner's vault) and `deploy/backup/mycaffe-backup-demo.cron` installed as
+`/etc/cron.d/mycaffe-backup`: hourly backup, monthly restore drill, daily purge through `InvokeCompose.sh` so the
 demo-vps override applies. `DEPLOY_SKIP_BACKUP` is no longer set, so every deploy backs up first.
 
 `.github/workflows/demo-uptime.yml` checks `/health/ready`, the home page and the Midtrans webhook every
@@ -140,7 +140,7 @@ go run ./cmd/migrate -action=reset-owner-pin -store-slug kopi-senja -owner-email
 ```
 
 In containers, override the migrate service entrypoint:
-`docker compose -f deploy/docker/docker-compose.prod.yml run --rm -it --entrypoint /app/mycaffe-migrate migrate -action=bootstrap-store ...`
+`docker compose -f deploy/docker/docker-compose.prod.yml run --rm -it --entrypoint /app/cassy-migrate migrate -action=bootstrap-store ...`
 
 ## 7. Client Monorepo & Mobile Toolchain (`C:\Projects\myCaffe-client`)
 

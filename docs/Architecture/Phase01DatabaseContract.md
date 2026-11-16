@@ -19,7 +19,7 @@ Dokumen ini mendefinisikan arsitektur data dan kontrak transaksional untuk **MyC
 
 ## 2. Multi-Tenant Isolation, Triple-Role Separation & Row-Level Security (RLS)
 
-### 2.1 Triple-Role Database Separation (`deploy/postgres/00-init-roles.sh`)
+### 2.1 Triple-Role Database Separation (`../Docker/Postgres/InitCassyRoles.sh`)
 
 1. **`postgres` (Container Bootstrap Superuser)**: Hanya digunakan saat inisialisasi container (`initdb`) untuk mengeksekusi `00-init-roles.sh`.
 2. **`mycaffe_migrator` (DDL / Schema Owner Role)**: Role non-superuser (`NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`) yang menjadi pemilik database dan skema `public`, digunakan khusus oleh CLI `cmd/migrate` (`DATABASE_MIGRATION_URL`) dengan penguncian `pg_advisory_lock`.
@@ -118,7 +118,7 @@ Fungsi `domain.CanTransitionPaymentStatus(from, to)` memastikan webhook yang dat
 
 Seluruh migrasi database dikelola oleh `cmd/migrate` (`internal/pkg/database/migrator.go`) yang mencatat versi dan checksum SHA-256 pada tabel `schema_migrations`. Pipeline CI menguji siklus penuh pada PostgreSQL 18:
 
-1. `sh deploy/postgres/00-init-roles.sh` (Inisialisasi non-superuser `mycaffe_migrator` dan `mycaffe_app`)
+1. `sh ../Docker/Postgres/InitCassyRoles.sh` (Inisialisasi non-superuser `mycaffe_migrator` dan `mycaffe_app`)
 2. `go run ./cmd/migrate -action=up` (Fresh Install sebagai `mycaffe_migrator`)
 3. `psql -f scripts/verify/verify_schema_constraints.sql` (Uji FK `RESTRICT`, Check Constraints, Idempotensi Queue, pencabutan `DELETE`, dan Isolasi RLS `mycaffe_app`)
 4. `go run ./cmd/migrate -action=down` (Rollback Teardown)

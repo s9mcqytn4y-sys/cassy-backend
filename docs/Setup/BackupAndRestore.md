@@ -6,8 +6,8 @@ Target: **RPO ≤ 1 hour, RTO ≤ 4 hours** (audit ticket P0-02). Status: script
 
 | Job | Schedule (UTC) | Script | Log |
 |-----|----------------|--------|-----|
-| Encrypted backup | every hour at :15 | `scripts/backup/backup_to_r2.sh` | `/var/log/mycaffe/backup.log` |
-| Restore drill | 2nd of month 20:30 (03:30 WIB) | `scripts/backup/restore_drill.sh` | `/var/log/mycaffe/restore-drill.log` |
+| Encrypted backup | every hour at :15 | `scripts/backup/BackupToR2.sh` | `/var/log/mycaffe/backup.log` |
+| Restore drill | 2nd of month 20:30 (03:30 WIB) | `scripts/backup/InvokeRestoreDrill.sh` | `/var/log/mycaffe/restore-drill.log` |
 
 Both are installed from [`deploy/backup/mycaffe-backup.cron`](../../deploy/backup/mycaffe-backup.cron) and share one `flock`, so a drill never overlaps a backup.
 
@@ -17,7 +17,7 @@ Both are installed from [`deploy/backup/mycaffe-backup.cron`](../../deploy/backu
 
 ## 2. One-time setup on a new VPS
 
-1. R2 bucket per client, e.g. `mycaffe-backups-<client>`, with an API token limited to that bucket (Object Read & Write).
+1. R2 bucket per client, e.g. `cassy-backups-<client>`, with an API token limited to that bucket (Object Read & Write).
 2. R2 lifecycle rules on that bucket (Cloudflare dashboard → R2 → bucket → Settings → Object lifecycle rules):
 
    | Prefix | Delete after |
@@ -34,7 +34,7 @@ Both are installed from [`deploy/backup/mycaffe-backup.cron`](../../deploy/backu
    DB_CONTAINER=mycaffe-postgres
    DB_NAME=mycaffe_prod
    R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
-   R2_BACKUP_BUCKET=mycaffe-backups-<client>
+   R2_BACKUP_BUCKET=cassy-backups-<client>
    R2_BACKUP_PREFIX=backups
    AWS_ACCESS_KEY_ID=<r2 token id>
    AWS_SECRET_ACCESS_KEY=<r2 token secret>
@@ -47,7 +47,7 @@ Both are installed from [`deploy/backup/mycaffe-backup.cron`](../../deploy/backu
 6. `install -m 644 /opt/mycaffe/deploy/backup/mycaffe-backup.cron /etc/cron.d/mycaffe-backup`
 7. As user `mycaffe`, run the two commands from the cron file once by hand and keep the drill's `RESULT PASS` line.
 
-The `mycaffe_backup` role is created by `deploy/postgres/00-init-roles.sh` on the first start of an empty data volume. On a volume initialised before this change, run that script once as the superuser (it is idempotent).
+The `mycaffe_backup` role is created by `../Docker/Postgres/InitCassyRoles.sh` on the first start of an empty data volume. On a volume initialised before this change, run that script once as the superuser (it is idempotent).
 
 ## 3. Disaster recovery (VPS lost)
 
@@ -57,7 +57,7 @@ The `mycaffe_backup` role is created by `deploy/postgres/00-init-roles.sh` on th
    ```bash
    set -a; . /etc/mycaffe/backup.env; set +a
    BACKUP_OBJECT=latest DB_MIGRATOR_USER=mycaffe_migrator APP_ENV=production CONFIRM_DESTRUCTIVE_RESTORE=true \
-     /opt/mycaffe/scripts/backup/restore_from_r2.sh
+     /opt/mycaffe/scripts/backup/RestoreFromR2.sh
    ```
 
    A specific backup: `BACKUP_OBJECT=daily/backup_mycaffe_prod_20261102_001500Z.dump.gpg`.

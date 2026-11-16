@@ -35,7 +35,7 @@ Nothing here claims the system is "secure"; it lists what is controlled and what
 | R5 | **Duplicate settlement only emits an event**; nobody is alerted yet | `flagDuplicateSettlementTx` | Open — owner email + refund queue UI |
 | R6 | Sentry captures startup errors only; **HTTP panics are not reported** | `internal/handler/middleware.go` | **Mitigated**: `SentryClientOptions` + `ScrubSentryEvent` (`BeforeSend` redacts headers/cookies/query/body) + `Recover()` & `AccessLog()` 5xx capture with `request_id`/`route`/`store_id` tags (`TestScrubSentryEventRedactsCredentialsAndPII`) |
 | R7 | **No metrics/tracing** (latency, error rate, worker lag, email backlog) | `internal/pkg/metrics` | **Mitigated (PR 8.3)**: Prometheus `/metrics` on internal port `:9091` + Grafana Alloy shipper |
-| R8 | **Media upload** | `internal/service/media_service.go`, `internal/pkg/imaging` | **Mitigated (B3 & R2 live)**: presigned PUT to `mycaffe-media` (`https://cdn.abbdullaziz.online`), magic-byte & dimension check, EXIF stripped, JPEG variants |
+| R8 | **Media upload** | `internal/service/media_service.go`, `internal/pkg/imaging` | **Mitigated (B3 & R2 live)**: presigned PUT to `cassy-media` (`https://cdn.abbdullaziz.online`), magic-byte & dimension check, EXIF stripped, JPEG variants |
 | R9 | **Email failures are invisible** to the owner (`email_outbox.status='failed'`) | `email_outbox` | Mitigated via `mycaffe_outbox_pending` / `mycaffe_outbox_failed` Prometheus metrics |
 | R10 | Production Nginx has no `client_max_body_size` override (nginx default 1 MB) and no CSP | `deploy/nginx/nginx.prod.conf` | Accepted for API-only host; add CSP on the frontend host |
 | R11 | **Guest ordering not authenticated yet** | `/api/v1/public/guest/*` | Mitigated (5b): signed table QR, guest session cookie, per-IP and per-guest limits, pay-first |
@@ -91,4 +91,4 @@ Nothing here claims the system is "secure"; it lists what is controlled and what
 | sentry-go | error reporting | HTTP panic & 5xx middleware + `BeforeSend` PII scrubbing (R6 mitigated) |
 | godotenv | local `.env` | never overrides set variables |
 
-No CGO dependencies; static binaries. Run `./scripts/dev.ps1 check` (includes `govulncheck`) before each PR.
+No CGO dependencies; static binaries. Run `./scripts/Invoke-CassyDev.ps1 check` (includes `govulncheck`) before each PR.

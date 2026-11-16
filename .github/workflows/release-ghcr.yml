@@ -15,14 +15,14 @@ concurrency:
 
 jobs:
   publish-ghcr:
-    name: Build & Push ghcr.io/s9mcqytn4y-sys/mycaffe-api
+    name: Build & Push ghcr.io/s9mcqytn4y-sys/cassy-api
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: write # GitHub Release for v* tags
       packages: write
     env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/mycaffe-api
+      IMAGE: ghcr.io/${{ github.repository_owner }}/cassy-api
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -63,7 +63,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      # Production deploys pin this digest (scripts/deploy/deploy.sh); tags are only for humans.
+      # Production deploys pin this digest (scripts/deploy/DeployRelease.sh); tags are only for humans.
       - name: Publish image digest to the run summary
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
@@ -74,7 +74,7 @@ jobs:
             echo
             echo "Digest: \`${DIGEST}\`"
             echo
-            echo "Deploy: \`scripts/deploy/deploy.sh ${DIGEST}\`"
+            echo "Deploy: \`scripts/deploy/DeployRelease.sh ${DIGEST}\`"
             echo
             echo "Tags:"
             echo "${TAGS}" | sed 's/^/- /'
@@ -88,14 +88,14 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          SBOM="mycaffe-api-${TAG}.spdx.json"
-          PROV="mycaffe-api-${TAG}.provenance.json"
+          SBOM="cassy-api-${TAG}.spdx.json"
+          PROV="cassy-api-${TAG}.provenance.json"
           docker buildx imagetools inspect "${IMAGE}@${DIGEST}" --format '{{ json .SBOM.SPDX }}' > "${SBOM}"
           docker buildx imagetools inspect "${IMAGE}@${DIGEST}" --format '{{ json .Provenance.SLSA }}' > "${PROV}"
           jq -e '.spdxVersion' "${SBOM}" >/dev/null
           jq -e '.buildDefinition' "${PROV}" >/dev/null
 
-          SECTION="$(printf '## Container image\n\n- Image: `%s@%s`\n- Deploy: `scripts/deploy/deploy.sh %s`\n- SBOM (SPDX) and SLSA provenance are attached and stored as attestations in GHCR (`docker buildx imagetools inspect %s@%s`).\n' \
+          SECTION="$(printf '## Container image\n\n- Image: `%s@%s`\n- Deploy: `scripts/deploy/DeployRelease.sh %s`\n- SBOM (SPDX) and SLSA provenance are attached and stored as attestations in GHCR (`docker buildx imagetools inspect %s@%s`).\n' \
             "${IMAGE}" "${DIGEST}" "${DIGEST}" "${IMAGE}" "${DIGEST}")"
 
           if gh release view "${TAG}" >/dev/null 2>&1; then
@@ -114,11 +114,11 @@ jobs:
 
   # Demo/development only (decision W12): the whatsmeow bridge is never deployed to production.
   publish-wa-bridge:
-    name: Build & Push ghcr.io/s9mcqytn4y-sys/mycaffe-wa-bridge
+    name: Build & Push ghcr.io/s9mcqytn4y-sys/cassy-wa-bridge
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/mycaffe-wa-bridge
+      IMAGE: ghcr.io/${{ github.repository_owner }}/cassy-wa-bridge
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

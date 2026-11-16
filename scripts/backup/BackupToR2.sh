@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# MyCaffe POS — Automated Offsite Database Backup to Cloudflare R2
+# Cassy POS - Automated Offsite Database Backup to Cloudflare R2
 # Authenticated encryption (GPG AES256 + SHA512 MDC) + SHA-256 checksum manifest
 # ==============================================================================
 set -euo pipefail
 
 # Required environment variables:
-# DB_CONTAINER (default: mycaffe-postgres)
-# DB_USER (default: cassy_backup — read-only BYPASSRLS role from 00-init-roles.sh, local socket only)
+# DB_CONTAINER (default: CassyPostgresProd)
+# DB_USER (default: cassy_backup - read-only BYPASSRLS role from InitCassyRoles.sh, local socket only)
 # DB_NAME (default: cassy_prod)
-# R2_BACKUP_BUCKET (default: mycaffe-backups)
+# R2_BACKUP_BUCKET (default: cassy-backups)
 # R2_ENDPOINT (e.g. https://<account_id>.r2.cloudflarestorage.com)
 # AWS_ACCESS_KEY_ID (R2 backup access token ID)
 # AWS_SECRET_ACCESS_KEY (R2 backup access token secret)
 # BACKUP_ENCRYPTION_PASSPHRASE (High-entropy passphrase for GPG symmetric AES256)
 
-DB_CONTAINER="${DB_CONTAINER:-mycaffe-postgres}"
+DB_CONTAINER="${DB_CONTAINER:-CassyPostgresProd}"
 DB_USER="${DB_USER:-cassy_backup}"
 DB_NAME="${DB_NAME:-cassy_prod}"
-R2_BACKUP_BUCKET="${R2_BACKUP_BUCKET:-${R2_BUCKET:-mycaffe-backups}}"
+R2_BACKUP_BUCKET="${R2_BACKUP_BUCKET:-${R2_BUCKET:-cassy-backups}}"
 R2_BACKUP_PREFIX="${R2_BACKUP_PREFIX:-backups}"
 TIMESTAMP="$(date -u +%Y%m%d_%H%M%SZ)"
-BACKUP_DIR="/tmp/mycaffe-backups"
+BACKUP_DIR="/tmp/cassy-backups"
 BACKUP_FILE="${BACKUP_DIR}/backup_${DB_NAME}_${TIMESTAMP}.dump.gpg"
 CHECKSUM_FILE="${BACKUP_FILE}.sha256"
 
@@ -89,7 +89,7 @@ echo "[BACKUP] Backup and integrity manifest uploaded successfully at $(date -u 
 
 # Freshness for the MyCaffeBackupStale alert (read by Alloy's textfile collector). Written via
 # rename so a scrape never sees a half-written file; a missing directory only skips the metric.
-METRICS_DIR="${METRICS_TEXTFILE_DIR:-/var/lib/mycaffe/metrics}"
+METRICS_DIR="${METRICS_TEXTFILE_DIR:-/var/lib/cassy/metrics}"
 if [[ -d "${METRICS_DIR}" ]]; then
     printf '# TYPE mycaffe_backup_last_success_timestamp_seconds gauge\nmycaffe_backup_last_success_timestamp_seconds %s\n# TYPE mycaffe_backup_last_size_bytes gauge\nmycaffe_backup_last_size_bytes %s\n' \
         "$(date -u +%s)" "${FILESIZE}" > "${METRICS_DIR}/backup.prom.$$" && mv "${METRICS_DIR}/backup.prom.$$" "${METRICS_DIR}/backup.prom"

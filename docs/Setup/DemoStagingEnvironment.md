@@ -22,7 +22,7 @@ docker compose --env-file .env.demo -f deploy/docker/docker-compose.demo.yml up 
 ## Public URL & Cloudflare Named Tunnel (`abbdullaziz.online`)
 
 - **Named Tunnel (`mycaffe-demo`)**: Configured with `CLOUDFLARE_TUNNEL_TOKEN` in `.env.demo`, routing `https://demo.abbdullaziz.online` directly to `http://nginx:80`. Unlike a Quick Tunnel, the hostname `https://demo.abbdullaziz.online` is permanent and never changes across restarts.
-- **R2 Public Media CDN**: Connected to custom domain `https://cdn.abbdullaziz.online` (`mycaffe-media` bucket) with strict CORS for `https://abbdullaziz.online` and `https://demo.abbdullaziz.online`.
+- **R2 Public Media CDN**: Connected to custom domain `https://cdn.abbdullaziz.online` (`cassy-media` bucket) with strict CORS for `https://abbdullaziz.online` and `https://demo.abbdullaziz.online`.
 - **Fallback Quick Tunnel**: If `CLOUDFLARE_TUNNEL_TOKEN` is omitted and `CLOUDFLARE_TUNNEL_COMMAND=--url http://nginx:80` is set, the `tunnel` container falls back to an ephemeral `https://*.trycloudflare.com` URL.
 
 ## Auto-recovery

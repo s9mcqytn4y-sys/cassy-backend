@@ -6,7 +6,7 @@
 - **Deployment Model**: Modular Monolith orchestrated with Docker Compose (`deploy/docker/docker-compose.prod.yml`):
   - `tunnel`: Named Cloudflare Tunnel, the only ingress (IN1, P0-07); TLS at the Cloudflare edge, no published ports.
   - `nginx`: Internal reverse proxy on port 80 (no published ports), visitor IP from `CF-Connecting-IP`, rate limiting (30 rps general, 10 rps webhook), WebSocket upgrades (`/ws`), and gzip compression.
-  - `migrate`: One-shot Go migration service (`/app/mycaffe-migrate -action=up`) running as non-superuser `mycaffe_migrator`.
+  - `migrate`: One-shot Go migration service (`/app/cassy-migrate -action=up`) running as non-superuser `mycaffe_migrator`.
   - `api`: Go backend service (`cmd/api`), exposed internally on port 8080, running as least-privilege `mycaffe_app` (`NOSUPERUSER NOBYPASSRLS`).
   - `web`: Standalone Next.js PWA, exposed internally on port 3000.
   - `postgres`: Native PostgreSQL 18-alpine, internal port 5432 with persistent volume `pgdata:/var/lib/postgresql`.
@@ -61,6 +61,6 @@
 
 ## 6. Backup & Disaster Recovery
 
-- **Offsite Storage Destination**: Dual-bucket Cloudflare R2 (`mycaffe-media` for public CDN assets and `mycaffe-backups` for private zero-egress database backups).
-- **Automated Script**: `scripts/backup/backup_to_r2.sh` executes `pg_dump`, compresses and encrypts the archive using GPG (`--cipher-algo AES256 --digest-algo SHA512`), generates a `.sha256` checksum manifest, and uploads both to `mycaffe-backups`.
-- **Restore Verification**: `scripts/backup/restore_from_r2.sh` downloads the encrypted backup and `.sha256` manifest, verifies checksum integrity before decryption, and restores into PostgreSQL 18.
+- **Offsite Storage Destination**: Dual-bucket Cloudflare R2 (`cassy-media` for public CDN assets and `cassy-backups` for private zero-egress database backups).
+- **Automated Script**: `scripts/backup/BackupToR2.sh` executes `pg_dump`, compresses and encrypts the archive using GPG (`--cipher-algo AES256 --digest-algo SHA512`), generates a `.sha256` checksum manifest, and uploads both to `cassy-backups`.
+- **Restore Verification**: `scripts/backup/RestoreFromR2.sh` downloads the encrypted backup and `.sha256` manifest, verifies checksum integrity before decryption, and restores into PostgreSQL 18.

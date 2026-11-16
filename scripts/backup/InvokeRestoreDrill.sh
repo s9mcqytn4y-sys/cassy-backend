@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# MyCaffe POS Platform - Monthly Restore Drill
+# Cassy POS Platform - Monthly Restore Drill
 # Restores the newest (or BACKUP_OBJECT) R2 backup into a throwaway PostgreSQL 18
 # container, proves the API role can read it, compares migrations and row counts
 # with the live database, prints one RESULT line, then removes the container.
 # Never touches the live database except for read-only counts as cassy_backup.
 #
-# Usage (on the VPS, same env as backup_to_r2.sh):
-#   ./scripts/backup/restore_drill.sh >> /var/log/mycaffe/restore-drill.log 2>&1
-# Optional: BACKUP_OBJECT (default latest), SOURCE_CONTAINER (default mycaffe-postgres),
+# Usage (on the VPS, same env as BackupToR2.sh):
+#   ./scripts/backup/InvokeRestoreDrill.sh >> /var/log/cassy/restore-drill.log 2>&1
+# Optional: BACKUP_OBJECT (default latest), SOURCE_CONTAINER (default CassyPostgresProd),
 #           SOURCE_DB (default DB_NAME or cassy_prod), PG_IMAGE (default postgres:18-alpine)
 # ==============================================================================
 set -euo pipefail
@@ -25,8 +25,8 @@ readonly STARTED_AT="$(date -u +%s)"
 TEMP_INIT_SCRIPT=""
 if [[ -n "${INIT_SCRIPT:-}" && -f "${INIT_SCRIPT}" ]]; then
   RESOLVED_INIT_SCRIPT="${INIT_SCRIPT}"
-elif [[ -f "${SCRIPT_DIR}/../../../Docker/Postgres/00-init-roles.sh" ]]; then
-  RESOLVED_INIT_SCRIPT="${SCRIPT_DIR}/../../../Docker/Postgres/00-init-roles.sh"
+elif [[ -f "${SCRIPT_DIR}/../../../Docker/Postgres/InitCassyRoles.sh" ]]; then
+  RESOLVED_INIT_SCRIPT="${SCRIPT_DIR}/../../../Docker/Postgres/InitCassyRoles.sh"
 else
   TEMP_INIT_SCRIPT="$(mktemp)"
   chmod 0755 "${TEMP_INIT_SCRIPT}"
@@ -100,7 +100,7 @@ docker exec "${DRILL_CONTAINER}" pg_isready -q -U cassy_migrator -d "${DRILL_DB}
 
 BACKUP_OBJECT="${BACKUP_OBJECT:-latest}" DB_CONTAINER="${DRILL_CONTAINER}" DB_NAME="${DRILL_DB}" \
   DB_MIGRATOR_USER=cassy_migrator APP_ENV=drill \
-  "${SCRIPT_DIR}/restore_from_r2.sh"
+  "${SCRIPT_DIR}/RestoreFromR2.sh"
 
 q() { # container, user, db, sql
   docker exec "$1" psql -X -q -t -A -v ON_ERROR_STOP=1 -U "$2" -d "$3" -c "$4"
@@ -132,7 +132,7 @@ DURATION=$(( $(date -u +%s) - STARTED_AT ))
 echo "RESULT ${STATUS} at=$(date -u +%Y-%m-%dT%H:%M:%SZ) object=${BACKUP_OBJECT:-latest} duration_s=${DURATION} migrations=${R_MIG} orders=${R_ORDERS}"
 
 # Only a passing drill moves the MyCaffeRestoreDrillStale clock (Alloy textfile collector).
-METRICS_DIR="${METRICS_TEXTFILE_DIR:-/var/lib/mycaffe/metrics}"
+METRICS_DIR="${METRICS_TEXTFILE_DIR:-/var/lib/cassy/metrics}"
 if [[ "${STATUS}" == "PASS" && -d "${METRICS_DIR}" ]]; then
   printf '# TYPE mycaffe_restore_drill_last_success_timestamp_seconds gauge\nmycaffe_restore_drill_last_success_timestamp_seconds %s\n' \
     "$(date -u +%s)" > "${METRICS_DIR}/restore_drill.prom.$$" && mv "${METRICS_DIR}/restore_drill.prom.$$" "${METRICS_DIR}/restore_drill.prom"

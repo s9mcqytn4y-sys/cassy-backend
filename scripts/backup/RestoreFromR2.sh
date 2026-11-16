@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# MyCaffe POS Platform - Offsite Encrypted PostgreSQL 18 Restore Script (R2)
+# Cassy POS Platform - Offsite Encrypted PostgreSQL 18 Restore Script (R2)
 # Downloads GPG-encrypted backup + SHA-256 manifest from Cloudflare R2
-# (mycaffe-backups), verifies checksum integrity, decrypts via file descriptor,
+# (cassy-backups), verifies checksum integrity, decrypts via file descriptor,
 # and restores into PostgreSQL 18.
 #
 # Usage:
-#   BACKUP_OBJECT="daily/backup_cassy_prod_20261028_190000Z.dump.gpg" ./scripts/backup/restore_from_r2.sh
-#   BACKUP_OBJECT=latest ./scripts/backup/restore_from_r2.sh   # newest object in hourly/
+#   BACKUP_OBJECT="daily/backup_cassy_prod_20261028_190000Z.dump.gpg" ./scripts/backup/RestoreFromR2.sh
+#   BACKUP_OBJECT=latest ./scripts/backup/RestoreFromR2.sh   # newest object in hourly/
 #
 # Target: set DB_CONTAINER to restore through `docker exec` (pg_restore 18 inside the
 # container, local socket, no password). Otherwise DB_HOST/DB_PORT/DB_MIGRATOR_PASSWORD
 # are used with a host pg_restore, which must be version 18.
-# The target database must already have the mycaffe_* roles (deploy/postgres/00-init-roles.sh):
+# The target database must already have the cassy_* roles (Docker/Postgres/InitCassyRoles.sh):
 # GRANTs to cassy_app are restored from the dump, so the API works right after a restore.
 # ==============================================================================
 set -euo pipefail
@@ -70,7 +70,7 @@ if [[ "${OBJECT}" == "latest" ]]; then
   fi
 fi
 
-readonly WORK_DIR="$(mktemp -d -t mycaffe-restore-XXXXXXXXXX)"
+readonly WORK_DIR="$(mktemp -d -t cassy-restore-XXXXXXXXXX)"
 readonly ENC_FILE="${WORK_DIR}/$(basename "${OBJECT}")"
 readonly SHA_FILE="${ENC_FILE}.sha256"
 readonly DUMP_FILE="${WORK_DIR}/restored.dump"
@@ -98,14 +98,14 @@ gpg --batch --yes --quiet --decrypt \
 
 # Privileges are restored on purpose: dropping them (--no-privileges) leaves cassy_app
 # without its GRANTs and the API fails with "permission denied" after a restore.
-# Extensions are skipped: they belong to the superuser (00-init-roles.sh creates them), and
+# Extensions are skipped: they belong to the superuser (InitCassyRoles.sh creates them), and
 # --clean would try to drop them as cassy_migrator and abort the whole restore.
 RESTORE_ARGS=(-U "${DB_MIGRATOR_USER}" -d "${DB_NAME}" --clean --if-exists --no-owner --single-transaction --exit-on-error)
 LIST_FILTER="pg_restore -l \"\$1\" | grep -v ' EXTENSION ' > \"\$1.list\""
 
 if [[ -n "${DB_CONTAINER:-}" ]]; then
   echo "[RESTORE] Restoring database ${DB_NAME} in container ${DB_CONTAINER} as ${DB_MIGRATOR_USER}..."
-  readonly IN_CONTAINER="/tmp/mycaffe-restore-$$.dump"
+  readonly IN_CONTAINER="/tmp/cassy-restore-$$.dump"
   docker cp "${DUMP_FILE}" "${DB_CONTAINER}:${IN_CONTAINER}"
   restore_status=0
   docker exec "${DB_CONTAINER}" sh -c "${LIST_FILTER}" sh "${IN_CONTAINER}" \

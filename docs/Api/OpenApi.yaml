@@ -4,7 +4,7 @@ info:
   version: 0.4.1
   summary: Multi-tenant QR Table Ordering, POS Cashier, Kitchen Display System (KDS), and Payment Reconciliation API
   description: |
-    Official OpenAPI 3.1 contract for **Cassy by AzureDevID** backend (`mycaffe-backend` / `com.azuredevid.cassy`).
+    Official OpenAPI 3.1 contract for **Cassy by AzureDevID** backend (`cassy-backend` / `com.azuredevid.cassy`).
     All monetary values are represented as whole integer Indonesian Rupiah (`int64`, e.g. `24000` = Rp 24.000) without floating-point numbers.
     Percentage rates (PB1 tax, service charge, QRIS MDR) are represented in Basis Points (`1% = 100 bps`).
   contact:
@@ -59,7 +59,21 @@ paths:
       security: []
       tags: [Health]
       operationId: getLiveness
-      summary: Liveness probe
+      summary: Readiness and health check
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatusResponse"
+
+  /health/live:
+    get:
+      security: []
+      tags: [Health]
+      operationId: getHealthLive
+      summary: Process liveness probe
       responses:
         "200":
           description: Process is alive
@@ -67,6 +81,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatusResponse"
+
+  /api/v1/health:
+    get:
+      security: []
+      tags: [Health]
+      operationId: getApiHealth
+      summary: API v1 readiness probe
+      responses:
+        "200":
+          description: Database connection pool is healthy and ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatusResponse"
+        "503":
+          description: Database connection is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /health/ready:
     get:
@@ -5345,6 +5379,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/mobile/bootstrap:
+    get:
+      tags: [Store]
+      operationId: getMobileBootstrap
+      summary: Consolidated tablet POS and KDS runtime bootstrap configuration
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      responses:
+        "200":
+          description: Consolidated branding, layout, hardware, payment gateway, and staff session bootstrap
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileBootstrapResponse"
+        "401":
+          description: Unauthenticated staff request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/v1/public/receipts/{token}:
     get:
       security: []
@@ -5366,6 +5422,77 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Receipt"
+        "404":
+          description: RECEIPT_LINK_INVALID
+
+  /api/v1/public/receipts/{token}/pdf:
+    get:
+      security: []
+      tags: [Receipts]
+      operationId: getPublicReceiptPdf
+      summary: Digital receipt PDF download behind a link token
+      x-implementation-status: implemented
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PDF receipt attachment
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: RECEIPT_LINK_INVALID
+
+  /api/v1/public/receipts/short/{code}:
+    get:
+      security: []
+      tags: [Receipts]
+      operationId: getPublicReceiptByShortCode
+      summary: Digital receipt resolved by short code
+      x-implementation-status: implemented
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Receipt"
+        "404":
+          description: RECEIPT_LINK_INVALID
+
+  /api/v1/public/receipts/short/{code}/pdf:
+    get:
+      security: []
+      tags: [Receipts]
+      operationId: getPublicReceiptPdfByShortCode
+      summary: Digital receipt PDF resolved by short code
+      x-implementation-status: implemented
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PDF receipt attachment
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
         "404":
           description: RECEIPT_LINK_INVALID
 
@@ -8357,7 +8484,7 @@ components:
           example: ok
         service:
           type: string
-          example: mycaffe-api
+          example: cassy-api
 
     Receipt:
       type: object
@@ -9707,3 +9834,66 @@ components:
               type: string
             quote:
               $ref: "#/components/schemas/QuoteSummary"
+
+    MobileBootstrapResponse:
+      type: object
+      required: [store_id, store_slug, store_name, app_brand, pos_layout, hardware, payment_gateway, staff_session]
+      properties:
+        store_id:
+          type: string
+          format: uuid
+        store_slug:
+          type: string
+        store_name:
+          type: string
+        app_brand:
+          type: object
+          required: [display_name, monogram_text, bundle_id, vector_monogram_url, vector_logo_url, vector_icon_url]
+          properties:
+            display_name: {type: string}
+            monogram_text: {type: string}
+            bundle_id: {type: string}
+            vector_monogram_url: {type: string}
+            vector_logo_url: {type: string}
+            vector_icon_url: {type: string}
+        pos_layout:
+          type: object
+          required: [tablet_orientation, layout_mode, auto_lock_seconds, tabular_numbers_enforced, min_touch_target_px]
+          properties:
+            tablet_orientation: {type: string}
+            layout_mode: {type: string}
+            auto_lock_seconds: {type: integer}
+            tabular_numbers_enforced: {type: boolean}
+            min_touch_target_px: {type: integer}
+        hardware:
+          type: object
+          required: [default_printer_interface, default_printer_port, cash_drawer_kick_on_cash, cash_drawer_pulse_hex, kds_auto_refresh_seconds, kds_sound_alert_enabled]
+          properties:
+            default_printer_interface: {type: string}
+            default_printer_port: {type: integer}
+            cash_drawer_kick_on_cash: {type: boolean}
+            cash_drawer_pulse_hex: {type: string}
+            kds_auto_refresh_seconds: {type: integer}
+            kds_sound_alert_enabled: {type: boolean}
+        payment_gateway:
+          type: object
+          required: [provider, environment, client_key, merchant_id, is_enabled, validation_status, fallback_static_qris_enabled]
+          properties:
+            provider: {type: string}
+            environment: {type: string}
+            client_key: {type: string}
+            merchant_id: {type: string}
+            is_enabled: {type: boolean}
+            validation_status: {type: string}
+            fallback_static_qris_enabled: {type: boolean}
+        staff_session:
+          type: object
+          required: [user_id, full_name, role, email, permissions]
+          properties:
+            user_id: {type: string, format: uuid}
+            full_name: {type: string}
+            role: {type: string}
+            email: {type: string}
+            permissions:
+              type: array
+              items: {type: string}

@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-  MyCaffe backend developer commands for Windows (owner decision I4: Go native + PostgreSQL in Docker).
+  Cassy backend developer commands for Windows (owner decision I4: Go native + PostgreSQL in Docker).
 
 .EXAMPLE
-  ./scripts/dev.ps1 setup      # first time: .env, database, migrations, seed
-  ./scripts/dev.ps1 run        # API on http://localhost:8080
-  ./scripts/dev.ps1 login      # smoke-test staff login with the dev PIN
-  ./scripts/dev.ps1 test-int   # PostgreSQL 18 integration tests in a throwaway container
-  ./scripts/dev.ps1 demo-up    # public demo through a Cloudflare Quick Tunnel
+  ./scripts/Invoke-CassyDev.ps1 setup      # first time: .env, database, migrations, seed
+  ./scripts/Invoke-CassyDev.ps1 run        # API on http://localhost:8080
+  ./scripts/Invoke-CassyDev.ps1 login      # smoke-test staff login with the dev PIN
+  ./scripts/Invoke-CassyDev.ps1 test-int   # PostgreSQL 18 integration tests in a throwaway container
+  ./scripts/Invoke-CassyDev.ps1 demo-up    # public demo through a Cloudflare Quick Tunnel
 #>
 param(
     [Parameter(Position = 0)]
@@ -55,9 +55,9 @@ function Set-LocalDatabaseEnv {
     $get = { param($key, $default) if ($vars[$key]) { $vars[$key] } else { $default } }
     $db = & $get 'DB_NAME' 'cassy_dev'
     $migUser = & $get 'DB_MIGRATOR_USER' 'cassy_migrator'
-    $migPass = [uri]::EscapeDataString((& $get 'DB_MIGRATOR_PASSWORD' 'mycaffe_local_migrator_password'))
+    $migPass = [uri]::EscapeDataString((& $get 'DB_MIGRATOR_PASSWORD' 'cassy_local_migrator_password'))
     $appUser = & $get 'DB_APP_USER' 'cassy_app'
-    $appPass = & $get 'DB_APP_PASSWORD' 'mycaffe_local_app_password'
+    $appPass = & $get 'DB_APP_PASSWORD' 'cassy_local_app_password'
     $port = & $get 'DB_PORT' '5432'
     $env:DB_APP_USER = $appUser
     $env:DB_APP_PASSWORD = $appPass
@@ -65,7 +65,7 @@ function Set-LocalDatabaseEnv {
     $env:DATABASE_URL = "postgres://${appUser}:$([uri]::EscapeDataString($appPass))@127.0.0.1:${port}/${db}?sslmode=disable"
     if (-not $env:APP_ENV) { $env:APP_ENV = 'development' }
     if ($vars['DATABASE_URL'] -and $vars['DATABASE_URL'] -notmatch '@(localhost|127\.0\.0\.1)[:/]') {
-        Write-Host 'Catatan: DATABASE_URL di .env menunjuk ke host remote; dev.ps1 mengabaikannya dan memakai Postgres lokal.' -ForegroundColor Yellow
+        Write-Host 'Catatan: DATABASE_URL di .env menunjuk ke host remote; Invoke-CassyDev.ps1 mengabaikannya dan memakai Postgres lokal.' -ForegroundColor Yellow
     }
 }
 
@@ -102,7 +102,7 @@ switch ($Command) {
             Write-Host "PERINGATAN: profil Public mati (jaringan aktif: $category). Aktifkan sebagai Administrator:" -ForegroundColor Red
             Write-Host '  Set-NetFirewallProfile -Profile Public -Enabled True' -ForegroundColor Red
         }
-        Write-Step 'Port MyCaffe yang terbuka (harus 127.0.0.1, bukan 0.0.0.0)'
+        Write-Step 'Port Cassy yang terbuka (harus 127.0.0.1, bukan 0.0.0.0)'
         Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
             Where-Object { $_.LocalPort -in 80, 3000, 5432, 8080, 8088, $TestPort } |
             Sort-Object LocalPort | Format-Table LocalAddress, LocalPort -AutoSize | Out-Host
@@ -113,7 +113,7 @@ switch ($Command) {
         & $PSCommandPath db
         & $PSCommandPath migrate
         & $PSCommandPath seed
-        Write-Host 'Siap. Jalankan: ./scripts/dev.ps1 run' -ForegroundColor Green
+        Write-Host 'Siap. Jalankan: ./scripts/Invoke-CassyDev.ps1 run' -ForegroundColor Green
     }
 
     'db' {
@@ -146,7 +146,7 @@ switch ($Command) {
         if ($existing -contains $TestContainer) {
             docker rm -f $TestContainer | Out-Null
         }
-        $initScript = (Resolve-Path (Join-Path $DockerRoot 'Postgres/00-init-roles.sh')).Path
+        $initScript = (Resolve-Path (Join-Path $DockerRoot 'Postgres/InitCassyRoles.sh')).Path
         Invoke-Native docker @('run', '-d', '--name', $TestContainer,
             '-e', 'POSTGRES_PASSWORD=it_super', '-e', 'POSTGRES_DB=cassy_test',
             '-e', 'DB_MIGRATOR_USER=cassy_migrator', '-e', 'DB_MIGRATOR_PASSWORD=it_migrator',
@@ -206,7 +206,7 @@ switch ($Command) {
 
     'demo-url' {
         $url = Get-DemoUrl
-        if (-not $url) { throw 'URL tunnel belum muncul; cek: ./scripts/dev.ps1 demo-logs' }
+        if (-not $url) { throw 'URL tunnel belum muncul; cek: ./scripts/Invoke-CassyDev.ps1 demo-logs' }
         Write-Host "Demo publik : $url" -ForegroundColor Green
         Write-Host "Health      : $url/health/live"
         Write-Host "Webhook     : $url/api/v1/payments/midtrans/webhook (set di dashboard Midtrans sandbox)"

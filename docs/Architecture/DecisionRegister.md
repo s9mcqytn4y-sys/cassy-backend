@@ -28,7 +28,7 @@ Earlier decisions live in [DecisionsBeforeCode.md](../Archive/DecisionsBeforeCod
 | I1 | Role of the Windows laptop before a VPS exists | **Dev + demo only**, no real cafe transactions | Production waits for Hostinger KVM 2 + domain |
 | I2 | How devices reach the demo | **Cloudflare Tunnel HTTPS only**; zero inbound ports, no LAN exposure | All compose ports bound to `127.0.0.1` |
 | I3 | Origin layout in the demo | **One origin**: Nginx routes `/api`, `/ws`, `/health` to Go and everything else to Next.js on the host | Makes the `SameSite=Strict` refresh cookie (O2) testable without a domain |
-| I4 | Developer workflow | **Go native on Windows + PostgreSQL in Docker**, driven by `scripts/dev.ps1` | No new tooling required |
+| I4 | Developer workflow | **Go native on Windows + PostgreSQL in Docker**, driven by `scripts/Invoke-CassyDev.ps1` | No new tooling required |
 | I5 | First store/owner in production | **Operator CLI** `cmd/migrate -action=bootstrap-store`, PIN via hidden prompt, audited `STORE_BOOTSTRAP` | No public sign-up endpoint |
 | I6 | Owner PIN recovery | **Another owner resets it**; break-glass `-action=reset-owner-pin` (operator only) revokes all sessions and audits `STAFF_PIN_RESET` | No email/SMS dependency |
 | I7 | 02.01-B implementation plan | **Approved** as one PR: migration 000005, resolver, login/refresh/logout/me, CLI, tests | Security boundary change approved by the owner |
@@ -68,7 +68,7 @@ Full evaluation and ordered backlog: [PosOperationsEvaluation2026-10.md](../Arch
 | K6 | Loyalty | Digital stamp card ("buy N get 1"), customer identified by a verified email (**amended by X16: verified phone**), one stamp per paid order, reward = audited 100% item discount |
 | K7 | Promo & bundling | Owner-defined automatic promos (percent/amount, product/category, happy hour, period, quota), fixed-price bundles, cashier discount within O4; one best promo per line, no stacking; vouchers later |
 | K8 | Static QRIS fallback | Automatic after 2 consecutive Midtrans failures or forced by the owner; cashier confirms with a reference; auto-return to dynamic QRIS after 10 minutes |
-| K9 | Media storage & backups | **Cloudflare R2 Triple-Bucket Architecture**: `mycaffe-media` (public read via CDN / dev-url, presigned PUT), `mycaffe-private-media` (private signed URL TTL 15m for static QRIS & sensitive documents), and `mycaffe-backups` (strictly private, GPG AES256 encrypted pg_dump, relative path sha256 checksums, non-destructive restore guard). **B3 (2026-11-04):** product image variants are JPEG q80 200/600/1200 instead of WebP (no CGO), no blurhash yet; see api-conventions §4. |
+| K9 | Media storage & backups | **Cloudflare R2 Triple-Bucket Architecture**: `cassy-media` (public read via CDN / dev-url, presigned PUT), `cassy-private-media` (private signed URL TTL 15m for static QRIS & sensitive documents), and `cassy-backups` (strictly private, GPG AES256 encrypted pg_dump, relative path sha256 checksums, non-destructive restore guard). **B3 (2026-11-04):** product image variants are JPEG q80 200/600/1200 instead of WebP (no CGO), no blurhash yet; see api-conventions §4. |
 | C-scope | Phase 02.01-C | Approved and implemented: RBAC matrix, `store_settings`, token-bound POS routes, `/me.permissions`, removal of client-supplied store/actor and of `/ws?token=` |
 
 Designs: [CatalogInventoryDesign.md](CatalogInventoryDesign.md), requirements:
@@ -221,8 +221,8 @@ permissions to shell, `curl` and `.env*` files.
 | ID | Decision | Approved option |
 |----|----------|-----------------|
 | W1 | PR #65 (Cloudflare, Sentry, SMS bridges, `routes.go`) | **Rebased onto `staging` and cleaned** by the agent: v0.8 routes moved into `routes.go`, demo PINs removed from `.env.demo.example` and rotated in the local `.env.demo` |
-| W2 | Where the public demo runs | **WSL Ubuntu 24.04 as a VPS stand-in**: Docker Engine, ufw, GHCR images by digest through `deploy.sh`, cron, Named Tunnel `demo.abbdullaziz.online`. Docker Desktop stays for development and integration tests |
-| W3 | Frontend absent | **API-only demo**; the `web` service becomes an optional compose profile, enabled by `deploy.sh` when a web digest is given; Nginx answers a status page while it is absent |
+| W2 | Where the public demo runs | **WSL Ubuntu 24.04 as a VPS stand-in**: Docker Engine, ufw, GHCR images by digest through `DeployRelease.sh`, cron, Named Tunnel `demo.abbdullaziz.online`. Docker Desktop stays for development and integration tests |
+| W3 | Frontend absent | **API-only demo**; the `web` service becomes an optional compose profile, enabled by `DeployRelease.sh` when a web digest is given; Nginx answers a status page while it is absent |
 | W4 | OTP delivery in the demo | **`SMS_DRIVER=email`** to the owner's Gmail; production stays `disabled` until an SMS aggregator is chosen. The owner pastes a new Google App Password into `.env.demo` himself |
 | W5 | Merge tables | **One shared session**: the merged table's session links to the main session, its orders move there, both QR codes order into it; split unlinks; move transfers the whole session to an empty table. Audited and published on the POS channel |
 | W6 | Table timer | **Warnings only**: `table.timer_warning` (default 10 minutes before) and `table.timer_expired`; `ends_at` in the database scanned every 30 s; extensions audited; orders stay open after expiry |

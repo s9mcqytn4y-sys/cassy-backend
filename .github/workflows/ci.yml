@@ -230,7 +230,7 @@ jobs:
           TEST_APP_DATABASE_URL: postgres://cassy_app:cassy_app_password@localhost:55432/cassy_test?sslmode=disable
           TEST_MIGRATOR_DATABASE_URL: postgres://cassy_migrator:cassy_migrator_password@localhost:55432/cassy_test?sslmode=disable
         run: |
-          # Same command as ./scripts/dev.ps1 test-int: every package, so a new integration test cannot be left out.
+          # Same command as ./scripts/Invoke-CassyDev.ps1 test-int: every package, so a new integration test cannot be left out.
           set -o pipefail
           go test -v -race -count=1 -p 1 -timeout 10m ./... | tee go-test.log
           # With a database available, a skipped DB test means its env wiring broke: fail instead of passing silently.
@@ -264,14 +264,14 @@ jobs:
           PG="${{ job.services.postgres.id }}"
 
           # Two backups of the integration-test database: both land in hourly/, only the first is promoted.
-          DB_CONTAINER="$PG" DB_NAME=cassy_test ./scripts/backup/backup_to_r2.sh
+          DB_CONTAINER="$PG" DB_NAME=cassy_test ./scripts/backup/BackupToR2.sh
           sleep 2
-          DB_CONTAINER="$PG" DB_NAME=cassy_test ./scripts/backup/backup_to_r2.sh
+          DB_CONTAINER="$PG" DB_NAME=cassy_test ./scripts/backup/BackupToR2.sh
           count() { aws --endpoint-url "$R2_ENDPOINT" s3 ls "s3://$R2_BACKUP_BUCKET/backups/$1/" | grep -c '\.dump\.gpg$' || true; }
           test "$(count hourly)" = 2 && test "$(count daily)" = 1 && test "$(count monthly)" = 1
 
           # Drill: restore the newest backup into a throwaway PG18, prove cassy_app can read it, compare with the source.
-          SOURCE_CONTAINER="$PG" SOURCE_DB=cassy_test ./scripts/backup/restore_drill.sh | tee drill.log
+          SOURCE_CONTAINER="$PG" SOURCE_DB=cassy_test ./scripts/backup/InvokeRestoreDrill.sh | tee drill.log
           grep -q '^RESULT PASS' drill.log
 
           # Both scripts leave textfile metrics for the backup/drill freshness alerts.
@@ -280,7 +280,7 @@ jobs:
 
           # Restoring over a non-disposable database without explicit confirmation must be refused.
           if DB_CONTAINER="$PG" DB_NAME=cassy_prod DB_MIGRATOR_USER=cassy_migrator BACKUP_OBJECT=latest \
-               ./scripts/backup/restore_from_r2.sh; then
+               ./scripts/backup/RestoreFromR2.sh; then
             echo "Restore guard did not block a production-named database." >&2
             exit 1
           fi

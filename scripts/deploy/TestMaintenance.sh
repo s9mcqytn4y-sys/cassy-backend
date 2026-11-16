@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Exercises the nginx maintenance switch (N3) against nginx.prod.conf with stub api/web upstreams.
-# Usage: scripts/deploy/test_maintenance.sh (needs Docker). Exits non-zero on the first wrong answer.
+# Usage: scripts/deploy/TestMaintenance.sh (needs Docker). Exits non-zero on the first wrong answer.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+DOCKER_ROOT="$(cd "${ROOT}/../Docker" 2>/dev/null && pwd || true)"
+NGINX_CONF="${DOCKER_ROOT}/Nginx/NginxProd.conf"
+MAINT_SRC="${DOCKER_ROOT}/Nginx/Maintenance"
 NET="cassy-maint-test-$$"
 PAGES="$(mktemp -d)"
-cp "${ROOT}"/deploy/nginx/maintenance/_maintenance.* "${PAGES}/"
+cp "${MAINT_SRC}"/_maintenance.* "${PAGES}/"
 chmod 755 "${PAGES}"; chmod 644 "${PAGES}"/*
 
 cleanup() {
@@ -22,7 +25,7 @@ for s in api web; do
     sh -c "echo '${STUB}' > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'" >/dev/null
 done
 docker run -d --name "${NET}-nginx" --network "${NET}" \
-  -v "${ROOT}/deploy/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro" \
+  -v "${NGINX_CONF}:/etc/nginx/nginx.conf:ro" \
   -v "${PAGES}:/etc/nginx/maintenance:ro" nginx:1.27-alpine >/dev/null
 sleep 2
 

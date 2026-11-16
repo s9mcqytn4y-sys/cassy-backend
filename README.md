@@ -29,15 +29,15 @@ Status per modul dan rilis dipelihara terpusat di [Project Management Source of 
 
 ## Local Development Setup (Windows)
 
-Prasyarat: Go 1.27.4, Docker Desktop. Perintah harian tersedia di `scripts/dev.ps1` (detail: [WindowsDevEnvironment.md](docs/Setup/WindowsDevEnvironment.md)).
+Prasyarat: Go 1.27.4, Docker Desktop. Perintah harian tersedia di `scripts/Invoke-CassyDev.ps1` (detail: [WindowsDevEnvironment.md](docs/Setup/WindowsDevEnvironment.md)).
 
 ```powershell
-./scripts/dev.ps1 setup      # .env dari template, PostgreSQL 18 lokal, migrasi, seed
-./scripts/dev.ps1 run        # API di http://localhost:8080
-./scripts/dev.ps1 login      # uji login staf dengan PIN dev
-./scripts/dev.ps1 test-int   # tes integrasi PostgreSQL 18 (setara CI)
-./scripts/dev.ps1 check      # gofmt, vet, mod tidy, govulncheck, tes
-./scripts/dev.ps1 demo-up    # demo publik lewat Cloudflare Quick Tunnel
+./scripts/Invoke-CassyDev.ps1 setup      # .env dari template, PostgreSQL 18 lokal, migrasi, seed
+./scripts/Invoke-CassyDev.ps1 run        # API di http://localhost:8080
+./scripts/Invoke-CassyDev.ps1 login      # uji login staf dengan PIN dev
+./scripts/Invoke-CassyDev.ps1 test-int   # tes integrasi PostgreSQL 18 (setara CI)
+./scripts/Invoke-CassyDev.ps1 check      # gofmt, vet, mod tidy, govulncheck, tes
+./scripts/Invoke-CassyDev.ps1 demo-up    # demo publik lewat Cloudflare Quick Tunnel
 ```
 
 ## Ekosistem & Dokumentasi

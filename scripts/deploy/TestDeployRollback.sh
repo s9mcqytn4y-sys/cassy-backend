@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# CI test for deploy.sh: deploy two good digests, prove a broken image and a missing digest roll back
-# automatically, then prove `deploy.sh rollback`. Uses a throwaway registry on 127.0.0.1:5005.
+# CI test for DeployRelease.sh: deploy two good digests, prove a broken image and a missing digest roll back
+# automatically, then prove `DeployRelease.sh rollback`. Uses a throwaway registry on 127.0.0.1:5005.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,38 +31,38 @@ docker pull -q busybox:1.37.0 >/dev/null
 docker pull -q busybox:1.36.1 >/dev/null
 printf 'FROM busybox:1.37.0\nRUN touch /unhealthy\n' | docker build -q -t deploytest-broken - >/dev/null
 
-GOOD1="$(push busybox:1.36.1 mycaffe-api:good1)"
-GOOD2="$(push busybox:1.37.0 mycaffe-api:good2)"
-BROKEN="$(push deploytest-broken mycaffe-api:broken)"
-WEB="$(push busybox:1.37.0 mycaffe-web:good)"
+GOOD1="$(push busybox:1.36.1 cassy-api:good1)"
+GOOD2="$(push busybox:1.37.0 cassy-api:good2)"
+BROKEN="$(push deploytest-broken cassy-api:broken)"
+WEB="$(push busybox:1.37.0 cassy-web:good)"
 MISSING="sha256:$(printf '0%.0s' $(seq 1 64))"
 
 running_api() { docker inspect -f '{{.Config.Image}}' "$(docker compose -f "${DEPLOY_COMPOSE_FILE}" ps -q api)" | cut -d@ -f2; }
 state() { grep "^$2=" "${DEPLOY_STATE_DIR}/$1.env" | cut -d= -f2; }
 expect() { [[ "$2" == "$3" ]] || { echo "FAIL: $1: got '$2', want '$3'" >&2; exit 1; }; echo "ok: $1"; }
 
-if "${HERE}/deploy.sh" not-a-digest; then echo "FAIL: invalid digest accepted" >&2; exit 1; fi
-if "${HERE}/deploy.sh" "${GOOD1}" not-a-digest; then echo "FAIL: invalid web digest accepted" >&2; exit 1; fi
+if "${HERE}/DeployRelease.sh" not-a-digest; then echo "FAIL: invalid digest accepted" >&2; exit 1; fi
+if "${HERE}/DeployRelease.sh" "${GOOD1}" not-a-digest; then echo "FAIL: invalid web digest accepted" >&2; exit 1; fi
 echo "ok: invalid arguments rejected"
 
-"${HERE}/deploy.sh" "${GOOD1}" "${WEB}"
-"${HERE}/deploy.sh" "${GOOD2}"
+"${HERE}/DeployRelease.sh" "${GOOD1}" "${WEB}"
+"${HERE}/DeployRelease.sh" "${GOOD2}"
 expect "second deploy runs good2" "$(running_api)" "${GOOD2}"
 expect "previous is good1" "$(state previous API_IMAGE_DIGEST)" "${GOOD1}"
 
-set +e; "${HERE}/deploy.sh" "${BROKEN}"; rc=$?; set -e
+set +e; "${HERE}/DeployRelease.sh" "${BROKEN}"; rc=$?; set -e
 expect "unhealthy image exits 1" "${rc}" 1
 expect "unhealthy image rolled back" "$(running_api)" "${GOOD2}"
 expect "current still good2" "$(state current API_IMAGE_DIGEST)" "${GOOD2}"
 
-set +e; "${HERE}/deploy.sh" "${MISSING}"; rc=$?; set -e
+set +e; "${HERE}/DeployRelease.sh" "${MISSING}"; rc=$?; set -e
 expect "missing digest exits 1" "${rc}" 1
 expect "missing digest rolled back" "$(running_api)" "${GOOD2}"
 
-"${HERE}/deploy.sh" rollback
+"${HERE}/DeployRelease.sh" rollback
 expect "manual rollback runs good1" "$(running_api)" "${GOOD1}"
 expect "current is good1" "$(state current API_IMAGE_DIGEST)" "${GOOD1}"
 expect "web unchanged" "$(state current WEB_IMAGE_DIGEST)" "${WEB}"
 
 grep -c 'FAILED.*rolled back' "${DEPLOY_STATE_DIR}/history.log" | grep -qx 2 || { echo "FAIL: history.log" >&2; cat "${DEPLOY_STATE_DIR}/history.log" >&2; exit 1; }
-echo "PASS: deploy.sh digest deploy and automatic rollback"
+echo "PASS: DeployRelease.sh digest deploy and automatic rollback"

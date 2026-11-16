@@ -1,11 +1,11 @@
 # Production Deploy and Rollback (P0-05)
 
-Production runs images pinned by digest (`ghcr.io/...@sha256:...`), never by a mutable tag. `scripts/deploy/deploy.sh` is the only way new images reach a VPS.
+Production runs images pinned by digest (`ghcr.io/...@sha256:...`), never by a mutable tag. `scripts/deploy/DeployRelease.sh` is the only way new images reach a VPS.
 
 ## 1. Get the digest
 
 1. A merge to `main` (or a `v*.*.*` tag) runs **Release - Publish Immutable Container Image to GHCR**.
-2. The run summary shows `Digest: sha256:...` and the exact `deploy.sh` command. Copy the digest from there, not from a tag.
+2. The run summary shows `Digest: sha256:...` and the exact `DeployRelease.sh` command. Copy the digest from there, not from a tag.
 3. For a `v*` tag the GitHub Release lists the same digest, with the SBOM and SLSA provenance attached.
 4. The web image digest comes from the frontend repository's release run the same way.
 
@@ -21,8 +21,8 @@ Cloudflare, so there is no Certbot and no certificate volume. The firewall and p
 On the VPS, as user `mycaffe`, from `/opt/mycaffe` (the released tag's `deploy/` and `scripts/`, see [BackupAndRestore.md](BackupAndRestore.md) §2):
 
 ```bash
-scripts/deploy/deploy.sh sha256:<api digest>                      # web keeps its running digest; API-only while none was given
-scripts/deploy/deploy.sh sha256:<api digest> sha256:<web digest>  # adds or updates the optional web frontend (profile `web`, W3)
+scripts/deploy/DeployRelease.sh sha256:<api digest>                      # web keeps its running digest; API-only while none was given
+scripts/deploy/DeployRelease.sh sha256:<api digest> sha256:<web digest>  # adds or updates the optional web frontend (profile `web`, W3)
 ```
 
 What it does, in order:
@@ -39,7 +39,7 @@ Migrations stay additive (AGENTS.md), so the previous image keeps working on a s
 ## 3. Rollback by hand
 
 ```bash
-scripts/deploy/deploy.sh rollback
+scripts/deploy/DeployRelease.sh rollback
 ```
 
 Redeploys `previous.env` (with a backup first). Running it twice returns to where you started.
@@ -47,27 +47,27 @@ Redeploys `previous.env` (with a backup first). Running it twice returns to wher
 ## 3a. Maintenance page (N3)
 
 ```bash
-scripts/deploy/maintenance.sh on      # guests see a static 503 page, POS/KDS get 503 {"code":"MAINTENANCE"}
-scripts/deploy/maintenance.sh status
-scripts/deploy/maintenance.sh off
+scripts/deploy/SetMaintenance.sh on      # guests see a static 503 page, POS/KDS get 503 {"code":"MAINTENANCE"}
+scripts/deploy/SetMaintenance.sh status
+scripts/deploy/SetMaintenance.sh off
 ```
 
 Nginx checks `deploy/nginx/maintenance/maintenance.on` on every request, so there is no reload. Every 503
 carries `Retry-After: 120` and `Cache-Control: no-store`. Midtrans webhooks (`/api/v1/payments/midtrans/webhook`
 and `/webhook/<store_slug>`) and `/health*` always pass through, so payments made before the switch still
-settle. The page makes no API calls and loads no fonts. `scripts/deploy/test_maintenance.sh` checks all of
+settle. The page makes no API calls and loads no fonts. `scripts/deploy/TestMaintenance.sh` checks all of
 this against `nginx.prod.conf` in CI.
 
-The first time this ships, the nginx container needs the new mount: `scripts/deploy/compose.sh up -d nginx`.
+The first time this ships, the nginx container needs the new mount: `scripts/deploy/InvokeCompose.sh up -d nginx`.
 
 ## 4. Other compose commands
 
 The compose file requires the digests, so use the wrapper that reads `current.env`:
 
 ```bash
-scripts/deploy/compose.sh ps
-scripts/deploy/compose.sh logs --tail 200 api
-scripts/deploy/compose.sh up -d alloy
+scripts/deploy/InvokeCompose.sh ps
+scripts/deploy/InvokeCompose.sh logs --tail 200 api
+scripts/deploy/InvokeCompose.sh up -d alloy
 ```
 
 ## 5. Daily purge of technical rows (P0-08)
@@ -94,15 +94,15 @@ deployed digest from `/var/lib/mycaffe/deploy/current.env`.
 
 ## 6. If the rollback also fails (exit code 2)
 
-1. `cat /var/lib/mycaffe/deploy/history.log` and `scripts/deploy/compose.sh logs --tail 300 migrate api`.
+1. `cat /var/lib/mycaffe/deploy/history.log` and `scripts/deploy/InvokeCompose.sh logs --tail 300 migrate api`.
 2. A migration that broke the old image is a migration bug: restore the pre-deploy backup ([BackupAndRestore.md](BackupAndRestore.md) §3), then deploy the last good digest.
 3. Never edit files or rebuild images on the VPS (ADR-002 §4).
 
 ## 7. Limits
 
-- Only `api` health decides success. A broken `web` image is not rolled back automatically (it has no healthcheck yet); fix forward or run `deploy.sh rollback`.
-- `postgres`, `nginx`, `certbot` and `alloy` images are not managed by `deploy.sh`.
-- Tested in CI with a local registry (`scripts/deploy/test_deploy_rollback.sh`). The first run on a real VPS still needs a manual check.
+- Only `api` health decides success. A broken `web` image is not rolled back automatically (it has no healthcheck yet); fix forward or run `DeployRelease.sh rollback`.
+- `postgres`, `nginx`, `certbot` and `alloy` images are not managed by `DeployRelease.sh`.
+- Tested in CI with a local registry (`scripts/deploy/TestDeployRollback.sh`). The first run on a real VPS still needs a manual check.
 
 ## 8. Demo host (WSL Ubuntu, decision W2)
 
@@ -140,6 +140,6 @@ The demo sends WhatsApp receipts through `cmd/wa-bridge` (whatsmeow, unofficial;
 API refuses `WHATSAPP_DRIVER=bridge` in production). The override `docker-compose.demo-vps.yml` adds the
 `wa-bridge` container and points the API at it. On the demo host, `/etc/mycaffe/prod.env` needs
 `WA_BRIDGE_IMAGE_DIGEST` (from the `mycaffe-wa-bridge` release run summary) and `WHATSAPP_BRIDGE_TOKEN`
-(`openssl rand -hex 32`). Pair once with a dedicated demo number: `scripts/deploy/compose.sh logs -f wa-bridge`,
+(`openssl rand -hex 32`). Pair once with a dedicated demo number: `scripts/deploy/InvokeCompose.sh logs -f wa-bridge`,
 then WhatsApp > Linked devices > Link a device and scan the QR. The session stays in the `wa-bridge-data` volume;
 the phone number is never stored in the repository or the environment.

@@ -12,8 +12,8 @@ AL1 sampai AL11 (2026-11-09) ada di `docs/Architecture/DecisionRegister.md` dan 
    - `payments.id.String()` is used as both `provider_order_id` and Midtrans `Idempotency-Key`.
    - Demo & development environments use Midtrans Sandbox (`MIDTRANS_IS_PRODUCTION=false`).
 3. **Media & Backup Storage (Cloudflare R2 Dual-Bucket)**:
-   - Public catalog/store media: `mycaffe-media` served via custom domain `https://cdn.abbdullaziz.online` (`1:1` and `4:3` `.webp` for menu items, `1:1` for variants/addons/logos, `16:9` for onboarding banners).
-   - Private encrypted DB backups: `mycaffe-backups` (GPG AES256+SHA512).
+   - Public catalog/store media: `cassy-media` served via custom domain `https://cdn.abbdullaziz.online` (`1:1` and `4:3` `.webp` for menu items, `1:1` for variants/addons/logos, `16:9` for onboarding banners).
+   - Private encrypted DB backups: `cassy-backups` (GPG AES256+SHA512).
 4. **Seeder Policy (`db/seeds/development.sql`)**:
    - Zero pre-seeded transactions (`orders`, `order_items`, `payments`, `store_daily_sequences` must be empty on fresh seed).
    - Preserve core entity UUIDs (`11111111-...`, `22222222-...`, `a0000001-...` to `a0000005-...`, `d0000001-...` to `d0000006-...`, `10000001-...` to `10000003-...`, `20000001-...` to `20000006-...`) so integration test suites remain deterministic.

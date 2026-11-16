@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    MyCaffe Workstation & Network Doctor (Windows 11 + Cloudflare WARP + WSL2 + Docker + Named Tunnel)
+    Cassy Workstation & Network Doctor (Windows 11 + Cloudflare WARP + WSL2 + Docker + Named Tunnel)
 .DESCRIPTION
     Memeriksa kesehatan jaringan laptop Windows 11, resolusi DNS Cloudflare, konektivitas R2 CDN & Demo Tunnel,
     port lokal PostgreSQL/API, serta menyediakan opsi menjalankan Cloudflare Named Tunnel `mycaffe-demo`.
@@ -15,7 +15,7 @@ param(
 $ErrorActionPreference = 'Continue'
 
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "  MYCAFFE WORKSTATION & NETWORK DOCTOR (WINDOWS 11)             " -ForegroundColor Cyan
+Write-Host "  CASSY WORKSTATION & NETWORK DOCTOR (WINDOWS 11)               " -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 
 # 1. Active Interfaces & DNS Servers
@@ -46,7 +46,7 @@ foreach ($hostName in @("abbdullaziz.online", "demo.abbdullaziz.online", "cdn.ab
 Write-Host "`n[3/5] Local Development Ports (localhost):" -ForegroundColor Yellow
 foreach ($portInfo in @(
     @{ Port = 5432; Service = "PostgreSQL 18" },
-    @{ Port = 8080; Service = "MyCaffe Go API" }
+    @{ Port = 8080; Service = "Cassy Go API" }
 )) {
     $tcp = Get-NetTCPConnection -LocalPort $portInfo.Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($tcp) {
@@ -85,6 +85,6 @@ if ($StartTunnel) {
     Write-Host "  Starting Cloudflare Tunnel mycaffe-demo -> http://localhost:8080 ..." -ForegroundColor Cyan
     cloudflared tunnel --config "$PSScriptRoot\..\deploy\cloudflare\config.demo.yml" run mycaffe-demo
 } else {
-    Write-Host "  Ready. Run '.\scripts\dev-network-doctor.ps1 -StartTunnel' to expose http://localhost:8080 at https://demo.abbdullaziz.online" -ForegroundColor Cyan
+    Write-Host "  Ready. Run '.\scripts\Test-CassyNetwork.ps1 -StartTunnel' to expose http://localhost:8080 at https://demo.abbdullaziz.online" -ForegroundColor Cyan
 }
 

@@ -1,12 +1,12 @@
 # ==============================================================================
-# MyCaffe POS - Cloudflare R2 Provisioning Script
+# Cassy POS - Cloudflare R2 Provisioning Script
 # Idempotent provisioning of R2 buckets (media, private-media, backups) and CORS
 # ==============================================================================
 [CmdletBinding()]
 param(
-    [string]$MediaBucket = "mycaffe-media",
-    [string]$PrivateMediaBucket = "mycaffe-private-media",
-    [string]$BackupBucket = "mycaffe-backups",
+    [string]$MediaBucket = "cassy-media",
+    [string]$PrivateMediaBucket = "cassy-private-media",
+    [string]$BackupBucket = "cassy-backups",
     [string]$CorsFile = "config/cloudflare/r2-media-cors.json"
 )
 

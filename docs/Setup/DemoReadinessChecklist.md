@@ -101,7 +101,7 @@ simulator Midtrans dashboard ke `<host>/api/v1/payments/midtrans/webhook`.
 | TLS / domain | Cloudflare edge (Quick Tunnel) | Blocked: domain belum dibeli |
 | Backup | Tidak perlu | Skrip siap; drill di VPS belum |
 | Monitoring | `docker compose logs` | Alloy → Grafana Cloud siap; akun belum dibuat |
-| Deploy | `up -d --build` | `deploy.sh <digest>` dengan rollback; belum pernah dijalankan di VPS |
+| Deploy | `up -d --build` | `DeployRelease.sh <digest>` dengan rollback; belum pernah dijalankan di VPS |
 | Uptime | Bergantung pada laptop menyala | VPS KVM 2 |
 
 ## 8. Strategi server demo

@@ -1,5 +1,15 @@
 {
   "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:\\Projects\\CassyWorkspace\\CassyBackend",
+        "C:\\Projects\\CassyWorkspace\\Docker",
+        "C:\\Users\\Acer\\OneDrive\\Documents\\AzureDevId"
+      ]
+    },
     "sequential-thinking": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-sequential-thinking@2.1.1"]
@@ -7,6 +17,18 @@
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp@0.0.85"]
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"]
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
     }
   }
 }

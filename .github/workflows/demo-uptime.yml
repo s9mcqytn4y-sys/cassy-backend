@@ -1,7 +1,7 @@
 name: Ops - Demo Uptime Check
 
 # A failed run is the alert: GitHub emails the owner when a scheduled workflow fails.
-# Supplemented by the host-side cron health check in deploy/backup/mycaffe-backup-demo.cron and deploy/monitoring.
+# Supplemented by the host-side cron health check in ../Docker/Backup/CassyBackupDemo.cron and ../Docker/Monitoring/.
 on:
   schedule:
     - cron: "*/5 * * * *"

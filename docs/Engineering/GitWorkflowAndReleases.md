@@ -22,7 +22,7 @@ feat/* fix/* docs/* chore/*  (branch pendek dari main, 1 sampai 2 hari)
 main  ──▶ demo (https://demo.abbdullaziz.online)
     │  tag vX.Y.Z, persetujuan Owner
     ▼
-image GHCR immutable ──▶ produksi (scripts/deploy/deploy.sh <digest>)
+image GHCR immutable ──▶ produksi (scripts/deploy/DeployRelease.sh <digest>)
 ```
 
 Status: deploy `main` ke demo masih manual. Demo berjalan di workstation Owner, jadi otomasinya perlu runner atau skrip lokal dan belum dibangun.

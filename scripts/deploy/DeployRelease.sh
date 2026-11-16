@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Deploy pinned image digests with a pre-deploy backup and automatic rollback (P0-05).
 #
-#   deploy.sh <api-digest> [web-digest]   deploy; web keeps the running digest when omitted, and stays off
-#                                         while no web digest was ever given (API-only, decision W3)
-#   deploy.sh rollback                    redeploy the previous recorded digests
+#   DeployRelease.sh <api-digest> [web-digest]   deploy; web keeps the running digest when omitted, and stays off
+#                                                while no web digest was ever given (API-only, decision W3)
+#   DeployRelease.sh rollback                    redeploy the previous recorded digests
 #
 # A digest is sha256:<64 hex>, printed in the summary of the "Release - Publish" workflow run.
 # Steps: backup -> pull -> up (migrate runs first) -> wait for a healthy api -> record digests.
@@ -12,12 +12,13 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-COMPOSE_FILE="${DEPLOY_COMPOSE_FILE:-${REPO_DIR}/deploy/docker/docker-compose.prod.yml}"
-# Optional second compose file, e.g. deploy/docker/docker-compose.demo-vps.yml on the demo host.
+DOCKER_ROOT="$(cd "${REPO_DIR}/../Docker" 2>/dev/null && pwd || true)"
+COMPOSE_FILE="${DEPLOY_COMPOSE_FILE:-${DOCKER_ROOT}/Core/DockerComposeProd.yml}"
+# Optional second compose file, e.g. ../Docker/Core/DockerComposeDemoVps.yml on the demo host.
 DEPLOY_COMPOSE_OVERRIDE="${DEPLOY_COMPOSE_OVERRIDE:-}"
-STATE_DIR="${DEPLOY_STATE_DIR:-/var/lib/mycaffe/deploy}"
+STATE_DIR="${DEPLOY_STATE_DIR:-/var/lib/cassy/deploy}"
 HEALTH_TIMEOUT_S="${DEPLOY_HEALTH_TIMEOUT_S:-180}"
-BACKUP_ENV_FILE="${BACKUP_ENV_FILE:-/etc/mycaffe/backup.env}"
+BACKUP_ENV_FILE="${BACKUP_ENV_FILE:-/etc/cassy/backup.env}"
 DIGEST_RE='^sha256:[0-9a-f]{64}$'
 
 log() { echo "[DEPLOY] $*"; }
@@ -45,7 +46,7 @@ else
   NEW_API="${1:-}"
   NEW_WEB="${2:-${CUR_WEB}}"
 fi
-[[ "${NEW_API}" =~ ${DIGEST_RE} ]] || die "Usage: deploy.sh <api sha256:digest> [web sha256:digest] | rollback (got api='${NEW_API}')."
+[[ "${NEW_API}" =~ ${DIGEST_RE} ]] || die "Usage: DeployRelease.sh <api sha256:digest> [web sha256:digest] | rollback (got api='${NEW_API}')."
 [[ -z "${NEW_WEB}" || "${NEW_WEB}" =~ ${DIGEST_RE} ]] || die "Invalid web digest (got web='${NEW_WEB}')."
 
 wait_healthy() { # expected api digest
@@ -78,8 +79,8 @@ if [[ "${DEPLOY_SKIP_BACKUP:-false}" == "true" ]]; then
 else
   log "Pre-deploy backup ..."
   # Same lock as the hourly cron, so the two never overlap.
-  flock /tmp/mycaffe-backup.lock bash -c 'set -a; . "$1"; set +a; exec "$2"' _ \
-    "${BACKUP_ENV_FILE}" "${REPO_DIR}/scripts/backup/backup_to_r2.sh" || die "Backup failed; nothing was deployed."
+  flock /tmp/cassy-backup.lock bash -c 'set -a; . "$1"; set +a; exec "$2"' _ \
+    "${BACKUP_ENV_FILE}" "${REPO_DIR}/scripts/backup/BackupToR2.sh" || die "Backup failed; nothing was deployed."
 fi
 
 if apply "${NEW_API}" "${NEW_WEB}"; then

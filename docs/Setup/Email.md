@@ -16,7 +16,7 @@ HTTP handlers never block on an external SMTP server: they enqueue a row inside 
 
 1. **MX & SPF Records**: Enabled on Cloudflare Zone `abbdullaziz.online` (`c4d1c304cb402f372016fb554df434c2`). Ensure any legacy registrar MX records (`mx1.hostinger.com`, `mx2.hostinger.com`) are removed if Cloudflare reports `misconfigured/locked`.
 2. **Destination Verification**: Click the confirmation link in the email from Cloudflare (`"Verify your email address for Cloudflare Email Routing"`) sent to your Gmail inbox.
-3. **Custom Addresses**: Once verified, run `./scripts/cloudflare-setup.ps1` (or add in Cloudflare Dashboard -> **Email** -> **Email Routing**) to route `noreply@abbdullaziz.online`, `owner@abbdullaziz.online`, and `support@abbdullaziz.online` to your verified Gmail address.
+3. **Custom Addresses**: Once verified, run `./scripts/Initialize-CassyCloudflare.ps1` (or add in Cloudflare Dashboard -> **Email** -> **Email Routing**) to route `noreply@abbdullaziz.online`, `owner@abbdullaziz.online`, and `support@abbdullaziz.online` to your verified Gmail address.
 
 ## Environment Variables (`.env` / `.env.demo`)
 

@@ -1,8 +1,12 @@
-# MyCaffe POS - Cloudflare Free Plan Setup Script (abbdullaziz.online)
+# Cassy POS - Cloudflare Free Plan Setup Script (abbdullaziz.online)
 # Configures:
 #   1. Named Tunnel DNS CNAME: demo.abbdullaziz.online -> mycaffe-demo (85b97ba7-79d7-48d7-b045-b62645435708)
-#   2. R2 Media Custom Domain: cdn.abbdullaziz.online -> mycaffe-media (+ CORS policy)
+#   2. R2 Media Custom Domain: cdn.abbdullaziz.online -> $MediaBucket (+ CORS policy)
 #   3. Email Routing Rules: noreply@, owner@, support@, and catch-all *@abbdullaziz.online -> Owner Gmail
+
+param(
+    [string]$MediaBucket = "cassy-media"
+)
 
 $ErrorActionPreference = "Stop"
 $ZoneId   = "c4d1c304cb402f372016fb554df434c2"
@@ -16,9 +20,9 @@ if (-not (Test-Path $certPath)) {
 }
 cloudflared tunnel route dns $TunnelId demo.abbdullaziz.online
 
-Write-Host "=== [2/3] R2 Bucket CORS & Custom Domain (cdn.abbdullaziz.online) ===" -ForegroundColor Cyan
-npx wrangler r2 bucket cors set mycaffe-media --file config/cloudflare/r2-media-cors.json --force
-npx wrangler r2 bucket domain add mycaffe-media --domain cdn.abbdullaziz.online --zone-id $ZoneId --force
+Write-Host "=== [2/3] R2 Bucket CORS & Custom Domain (cdn.abbdullaziz.online -> $MediaBucket) ===" -ForegroundColor Cyan
+npx wrangler r2 bucket cors set $MediaBucket --file config/cloudflare/r2-media-cors.json --force
+npx wrangler r2 bucket domain add $MediaBucket --domain cdn.abbdullaziz.online --zone-id $ZoneId --force
 
 Write-Host "=== [3/3] Cloudflare Email Routing Rules (*@abbdullaziz.online) ===" -ForegroundColor Cyan
 $wranglerCfg = Get-Content "$env:APPDATA\xdg.config\.wrangler\config\default.toml" -Raw

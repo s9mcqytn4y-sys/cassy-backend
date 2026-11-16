@@ -15,32 +15,32 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -trimpath \
     -ldflags="-w -s -extldflags '-static'" \
-    -o /build/mycaffe-api ./cmd/api
+    -o /build/cassy-api ./cmd/api
 
 # Compile Migration CLI binary statically
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -trimpath \
     -ldflags="-w -s -extldflags '-static'" \
-    -o /build/mycaffe-migrate ./cmd/migrate
+    -o /build/cassy-migrate ./cmd/migrate
 
 # Stage 2: Minimal runtime image
 FROM alpine:3.21
 
 RUN apk add --no-cache ca-certificates tzdata curl \
-    && adduser -D -u 10001 mycaffe
+    && adduser -D -u 10001 cassy
 
 WORKDIR /app
 
-COPY --from=builder /build/mycaffe-api /app/mycaffe-api
-COPY --from=builder /build/mycaffe-migrate /app/mycaffe-migrate
+COPY --from=builder /build/cassy-api /app/cassy-api
+COPY --from=builder /build/cassy-migrate /app/cassy-migrate
 COPY --from=builder /build/db/migrations /app/db/migrations
 
 # Run as non-root user
-USER mycaffe:mycaffe
+USER cassy:cassy
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=20s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health/ready || exit 1
 
-ENTRYPOINT ["/app/mycaffe-api"]
+ENTRYPOINT ["/app/cassy-api"]

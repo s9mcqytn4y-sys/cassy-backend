@@ -73,7 +73,10 @@ All agents adhere to `karpathy-guidelines` (installed across `agy`, `gemini-cli`
 - Offline UI caching does not make online payments or cross-device synchronization work while the internet is unavailable.
 
 ## Quality Gates
-- Format Go code with `gofmt`.
+- Format Go code with `gofmt` and document exported packages, interfaces, and concurrent helpers in `godoc` style (contracts, edge cases, concurrency bounds, never signature echo).
+- Go pointer and concurrency discipline: pass small immutable structs by value (`T`) and use pointers (`*T`) only for mutation, large structs, or explicit optionality (guard `nil` early via Fail Fast). Bind every goroutine to `context.Context`, stop tickers (`defer ticker.Stop()`), and avoid goroutine leaks.
+- Enforce engineering principles (`SOLID`, `DRY`, `KISS`, `YAGNI`, `WET`/`AHA`, `SoC`, `LoD`, `Composition`, `POLA`, `Fail Fast`, `Boy Scout Rule`) alongside `/antislop-code` and `/clean-code` with zero dead code.
+- PowerShell scripts in `scripts/` use `Verb-Noun` `PascalCase` filenames and functions (`4` spaces, UTF-8, `camelCase` locals); POSIX shell scripts use `PascalCase` (`2` spaces, `LF`, `set -eu`).
 - Run relevant tests and report exact results using `go test -v -race ./...` and `go vet ./...`.
 - Add tests for business rules, authorization boundaries, pricing, status transitions, concurrency, idempotency, and failure paths.
 - For database changes, verify both fresh-install (`db/migrations/*.up.sql`), constraints (`scripts/verify/`), teardown (`db/migrations/*.down.sql`), and seed idempotency (`db/seeds/development.sql`).
@@ -104,7 +107,7 @@ All agents adhere to `karpathy-guidelines` (installed across `agy`, `gemini-cli`
 ## Facts carried over from the old CLAUDE.md and GEMINI.md
 - Midtrans Core API runs in two phases: `payments.id.String()` is both `provider_order_id` and the `Idempotency-Key`; never hold a DB transaction or lock during the HTTP call; reconcile with `CheckTransaction`.
 - In `staging` and `production`, endpoints without full tenant binding or durable persistence fail closed with `503`. WebSockets (`internal/realtime/hub.go`) enforce origin checks, per-tenant channels, read limits, ping/pong deadlines and graceful shutdown.
-- Storage: R2 `mycaffe-media` (public, `https://cdn.abbdullaziz.online`) and `mycaffe-backups` (private, encrypted `pg_dump`), with separate credentials.
+- Storage: R2 `cassy-media` (public, `https://cdn.abbdullaziz.online`) and `cassy-backups` (private, encrypted `pg_dump`), with separate credentials.
 - Demo runs locally in WSL behind the `https://demo.abbdullaziz.online` tunnel; there is no VPS yet.
 - Before reporting completion also run `govulncheck ./...` and `gitleaks git --verbose` when dependencies or secrets-adjacent code change.
 

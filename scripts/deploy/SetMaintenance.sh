@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Usage: maintenance.sh on|off|status
+# Usage: SetMaintenance.sh on|off|status
 # Nginx checks the switch file on every request: guests get a static 503 page, POS/KDS get 503 JSON
 # (code MAINTENANCE), and Midtrans webhooks and /health keep passing through. No reload needed.
 set -euo pipefail
-SWITCH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/deploy/nginx/maintenance/maintenance.on"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SWITCH="${MAINTENANCE_SWITCH_FILE:-$(cd "${REPO_DIR}/../Docker" 2>/dev/null && pwd)/Nginx/Maintenance/maintenance.on}"
 
 case "${1:-status}" in
   on) date -u +%Y-%m-%dT%H:%M:%SZ > "${SWITCH}"; echo "[MAINTENANCE] on since $(cat "${SWITCH}")" ;;
