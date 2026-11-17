@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -10,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -19,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/database"
+	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/redispool"
 )
 
 // Receipts (B1, decision R1). Every amount comes from the order, item, option and payment snapshots;
@@ -119,7 +118,7 @@ type ReceiptLink struct {
 type ReceiptService struct {
 	db        *sqlx.DB
 	publicURL string
-	redisAddr string
+	pool      *redispool.Pool
 	nowFunc   func() time.Time
 }
 
@@ -128,7 +127,7 @@ func NewReceiptService(db *sqlx.DB, publicURL string) *ReceiptService {
 	return &ReceiptService{
 		db:        db,
 		publicURL: strings.TrimRight(publicURL, "/"),
-		redisAddr: strings.TrimSpace(os.Getenv("REDIS_ADDR")),
+		pool:      redispool.New(os.Getenv("REDIS_ADDR")),
 		nowFunc:   time.Now,
 	}
 }
@@ -266,25 +265,11 @@ func isValidShortCode(code string) bool {
 }
 
 func (s *ReceiptService) getCachedShortLink(code string) (uuid.UUID, uuid.UUID, time.Time, bool) {
-	if s.redisAddr == "" {
+	if s.pool == nil || code == "" {
 		return uuid.Nil, uuid.Nil, time.Time{}, false
 	}
-	conn, err := net.DialTimeout("tcp", s.redisAddr, 120*time.Millisecond)
-	if err != nil {
-		return uuid.Nil, uuid.Nil, time.Time{}, false
-	}
-	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(120 * time.Millisecond))
-	if _, err := conn.Write([]byte(respReceiptCmd("GET", "cassy:rshort:"+code))); err != nil {
-		return uuid.Nil, uuid.Nil, time.Time{}, false
-	}
-	r := bufio.NewReader(conn)
-	hdr, err := r.ReadString('\n')
-	if err != nil || !strings.HasPrefix(hdr, "$") || strings.HasPrefix(hdr, "$-1") {
-		return uuid.Nil, uuid.Nil, time.Time{}, false
-	}
-	val, err := r.ReadString('\n')
-	if err != nil {
+	val, ok := s.pool.Get("cassy:rshort:" + code)
+	if !ok {
 		return uuid.Nil, uuid.Nil, time.Time{}, false
 	}
 	parts := strings.Split(strings.TrimSpace(val), "|")
@@ -301,30 +286,15 @@ func (s *ReceiptService) getCachedShortLink(code string) (uuid.UUID, uuid.UUID, 
 }
 
 func (s *ReceiptService) cacheShortLink(code string, storeID, orderID uuid.UUID, expires time.Time) {
-	if s.redisAddr == "" || code == "" {
+	if s.pool == nil || code == "" {
 		return
 	}
 	ttl := int64(time.Until(expires).Seconds())
 	if ttl <= 0 {
 		return
 	}
-	conn, err := net.DialTimeout("tcp", s.redisAddr, 120*time.Millisecond)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(120 * time.Millisecond))
 	val := fmt.Sprintf("%s|%s|%d", storeID, orderID, expires.UTC().Unix())
-	_, _ = conn.Write([]byte(respReceiptCmd("SETEX", "cassy:rshort:"+code, strconv.FormatInt(ttl, 10), val)))
-}
-
-func respReceiptCmd(args ...string) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "*%d\r\n", len(args))
-	for _, a := range args {
-		fmt.Fprintf(&b, "$%d\r\n%s\r\n", len(a), a)
-	}
-	return b.String()
+	_ = s.pool.SetEX("cassy:rshort:"+code, ttl, val)
 }
 
 // Public resolves a digital receipt token (store.id.secret; the store only routes, the secret

@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/domain"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/database"
+	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/redispool"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/repository/postgres"
 )
 
@@ -24,18 +27,28 @@ var skuPattern = regexp.MustCompile(`^[A-Z0-9._-]{1,64}$`)
 
 var ErrCatalogNotFound = errors.New("catalog item not found")
 
+const publicCatalogCacheTTLSeconds int64 = 15
+
 type CatalogService struct {
 	db      *sqlx.DB
 	repo    *postgres.CatalogRepository
 	authRep *postgres.AuthRepository
 	order   *postgres.OrderRepository
+	pool    *redispool.Pool
 	nowFunc func() time.Time
 }
 
 func NewCatalogService(db *sqlx.DB) *CatalogService {
 	return &CatalogService{
 		db: db, repo: postgres.NewCatalogRepository(), authRep: postgres.NewAuthRepository(),
-		order: postgres.NewOrderRepository(), nowFunc: time.Now,
+		order: postgres.NewOrderRepository(), pool: redispool.New(os.Getenv("REDIS_ADDR")), nowFunc: time.Now,
+	}
+}
+
+// InvalidatePublicCatalog drops any cached guest menu for storeID after a catalog or policy mutation.
+func (s *CatalogService) InvalidatePublicCatalog(storeID uuid.UUID) {
+	if s != nil && s.pool != nil && storeID != uuid.Nil {
+		_ = s.pool.Del("cassy:pubcat:" + storeID.String())
 	}
 }
 
@@ -157,8 +170,17 @@ func (s *CatalogService) PublicCatalog(ctx context.Context, slug string) (*Catal
 }
 
 func (s *CatalogService) catalog(ctx context.Context, storeID uuid.UUID, staff bool) (*CatalogView, error) {
+	if !staff && s.pool != nil {
+		if raw, ok := s.pool.Get("cassy:pubcat:" + storeID.String()); ok {
+			var cached CatalogView
+			if err := json.Unmarshal([]byte(raw), &cached); err == nil {
+				cached.GeneratedAt = s.nowFunc().UTC()
+				return &cached, nil
+			}
+		}
+	}
 	var view *CatalogView
-	err := database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
+	err := database.WithReadOnlyTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
 		settings, err := postgres.NewSettingsRepository().GetStoreSettings(ctx, tx, storeID)
 		if err != nil {
 			return err
@@ -169,6 +191,11 @@ func (s *CatalogService) catalog(ctx context.Context, storeID uuid.UUID, staff b
 		view.GeneratedAt = s.nowFunc().UTC()
 		return nil
 	})
+	if err == nil && !staff && s.pool != nil && view != nil {
+		if encoded, mErr := json.Marshal(view); mErr == nil {
+			_ = s.pool.SetEX("cassy:pubcat:"+storeID.String(), publicCatalogCacheTTLSeconds, string(encoded))
+		}
+	}
 	return view, err
 }
 
@@ -304,7 +331,11 @@ func buildCatalogView(store *domain.Store, settings domain.StoreSettings, rows *
 }
 
 func (s *CatalogService) tx(ctx context.Context, actor *AuthenticatedStaff, fn func(tx *sqlx.Tx) error) error {
-	return database.WithTenantTx(ctx, s.db, actor.Staff.Store.ID, fn)
+	err := database.WithTenantTx(ctx, s.db, actor.Staff.Store.ID, fn)
+	if err == nil {
+		s.InvalidatePublicCatalog(actor.Staff.Store.ID)
+	}
+	return err
 }
 
 // mapConflict turns not-found and unique violations into the service's typed errors.

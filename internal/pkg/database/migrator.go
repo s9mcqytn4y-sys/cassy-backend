@@ -180,10 +180,16 @@ func (m *Migrator) DownOne(ctx context.Context, migrationsDir, appEnv string) (s
 	return latestVersion, nil
 }
 
-// Seed executes a development seed file. Strictly blocked in production.
+// Seed executes a development or test seed SQL script idempotently inside a transaction.
+// It fails closed in production, when APP_ENV is empty, or when test_fixtures.sql runs outside APP_ENV=test.
 func (m *Migrator) Seed(ctx context.Context, seedFilePath, appEnv string) error {
-	if strings.EqualFold(strings.TrimSpace(appEnv), "production") {
-		return errors.New("[SECURITY FAIL-CLOSED] development seed execution is strictly forbidden in production")
+	env := strings.ToLower(strings.TrimSpace(appEnv))
+	if env == "" || env == "production" || env == "prod" {
+		return errors.New("[SECURITY FAIL-CLOSED] development seed execution is strictly forbidden in production or unset APP_ENV")
+	}
+	base := filepath.Base(seedFilePath)
+	if strings.EqualFold(base, "test_fixtures.sql") && env != "test" {
+		return fmt.Errorf("[SECURITY FAIL-CLOSED] test_fixtures.sql is allowed only in APP_ENV=test (got %q)", appEnv)
 	}
 
 	content, err := os.ReadFile(seedFilePath)

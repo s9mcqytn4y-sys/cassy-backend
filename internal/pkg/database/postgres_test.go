@@ -67,6 +67,12 @@ func TestMigrator_ProductionGuards(t *testing.T) {
 	if err := migrator.Seed(context.Background(), "db/seeds/development.sql", "production"); err == nil {
 		t.Fatal("expected Seed to fail closed in production, got nil")
 	}
+	if err := migrator.Seed(context.Background(), "db/seeds/development.sql", ""); err == nil {
+		t.Fatal("expected Seed to fail closed when APP_ENV is empty, got nil")
+	}
+	if err := migrator.Seed(context.Background(), "db/seeds/test_fixtures.sql", "staging"); err == nil {
+		t.Fatal("expected test_fixtures.sql to fail closed outside APP_ENV=test, got nil")
+	}
 }
 
 func TestMigrator_ProvisionAppRole_RejectsInvalidIdentifier(t *testing.T) {

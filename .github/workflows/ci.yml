@@ -192,11 +192,21 @@ jobs:
           echo "Cleaning verification test fixtures before testing clean seed..."
           psql -h localhost -p 55432 -U cassy_migrator -d cassy_test -c "TRUNCATE stores CASCADE;"
 
-          echo "Executing Zero-Tenant Global Reference Seed (development.sql)..."
-          go run ./cmd/migrate -action=seed -seed-file=db/seeds/development.sql
+          echo "Executing Zero-Tenant Global Reference Seed (platform_reference.sql)..."
+          go run ./cmd/migrate -action=seed -seed-file=db/seeds/platform_reference.sql
           ZERO_TENANT_COUNT=$(psql -h localhost -p 55432 -U cassy_migrator -d cassy_test -t -A -c "SELECT COUNT(*) FROM stores;")
           if [ "$ZERO_TENANT_COUNT" != "0" ]; then
-            echo "Expected 0 dummy stores in db/seeds/development.sql, got $ZERO_TENANT_COUNT"
+            echo "Expected 0 dummy stores in db/seeds/platform_reference.sql, got $ZERO_TENANT_COUNT"
+            exit 1
+          fi
+
+          echo "Executing Active Single-Tenant Seed (development.sql - Idempotency Check)..."
+          go run ./cmd/migrate -action=seed -seed-file=db/seeds/development.sql
+          go run ./cmd/migrate -action=seed -seed-file=db/seeds/development.sql
+          DEV_STORE_COUNT=$(psql -h localhost -p 55432 -U cassy_migrator -d cassy_test -t -A -c "SELECT COUNT(*) FROM stores;")
+          DEV_USER_COUNT=$(psql -h localhost -p 55432 -U cassy_migrator -d cassy_test -t -A -c "SELECT COUNT(*) FROM users;")
+          if [ "$DEV_STORE_COUNT" != "1" ] || [ "$DEV_USER_COUNT" != "2" ]; then
+            echo "Expected 1 store and 2 RBAC users in development.sql, got stores=$DEV_STORE_COUNT users=$DEV_USER_COUNT"
             exit 1
           fi
 

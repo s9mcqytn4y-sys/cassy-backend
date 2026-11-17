@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -32,10 +33,25 @@ func (r *SettingsRepository) GetStoreSettings(ctx context.Context, tx *sqlx.Tx, 
 	var s domain.StoreSettings
 	err := tx.GetContext(ctx, &s, `SELECT `+storeSettingsColumns+` FROM store_settings WHERE store_id = $1`, storeID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.DefaultStoreSettings(storeID), nil
-	}
-	if err != nil {
+		s = domain.DefaultStoreSettings(storeID)
+	} else if err != nil {
 		return domain.StoreSettings{}, fmt.Errorf("failed to load store settings: %w", err)
+	}
+	var storeMeta struct {
+		MethodsJSON      string `db:"enabled_payment_methods"`
+		ValidationStatus string `db:"validation_status"`
+	}
+	metaErr := tx.GetContext(ctx, &storeMeta, `
+		SELECT st.enabled_payment_methods::text AS enabled_payment_methods,
+			COALESCE((SELECT spc.validation_status FROM store_payment_credentials spc WHERE spc.store_id = st.id), 'unverified') AS validation_status
+		FROM stores st
+		WHERE st.id = $1
+	`, storeID)
+	if metaErr == nil {
+		_ = json.Unmarshal([]byte(storeMeta.MethodsJSON), &s.EnabledPaymentMethods)
+		s.MidtransValidationStatus = storeMeta.ValidationStatus
+	} else if !errors.Is(metaErr, sql.ErrNoRows) {
+		return domain.StoreSettings{}, fmt.Errorf("failed to load store payment methods: %w", metaErr)
 	}
 	return s, nil
 }
@@ -80,4 +96,42 @@ func (r *SettingsRepository) UpsertStoreSettings(ctx context.Context, tx *sqlx.T
 		return fmt.Errorf("failed to save store settings: %w", err)
 	}
 	return nil
+}
+
+// UpdateStorePaymentMethods persists allowed store payment methods and clears stale store caches.
+func (r *SettingsRepository) UpdateStorePaymentMethods(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID, methods []string) error {
+	if tx == nil {
+		return ErrNilTransaction
+	}
+	encoded, err := json.Marshal(methods)
+	if err != nil {
+		return fmt.Errorf("failed to encode enabled payment methods: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE stores SET enabled_payment_methods = $2::jsonb, updated_at = NOW()
+		WHERE id = $1
+	`, storeID, string(encoded)); err != nil {
+		return fmt.Errorf("failed to update store payment methods: %w", err)
+	}
+	return nil
+}
+
+// HasVerifiedMidtransCredential reports whether a credential row exists and its validation status is "valid".
+func (r *SettingsRepository) MidtransCredentialStatus(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) (exists bool, valid bool, err error) {
+	var row struct {
+		ValidationStatus string `db:"validation_status"`
+		IsEnabled        bool   `db:"is_enabled"`
+	}
+	qErr := tx.GetContext(ctx, &row, `
+		SELECT validation_status, is_enabled
+		FROM store_payment_credentials
+		WHERE store_id = $1
+	`, storeID)
+	if errors.Is(qErr, sql.ErrNoRows) {
+		return false, false, nil
+	}
+	if qErr != nil {
+		return false, false, fmt.Errorf("failed to inspect midtrans credential status: %w", qErr)
+	}
+	return true, row.ValidationStatus == "valid" && row.IsEnabled, nil
 }

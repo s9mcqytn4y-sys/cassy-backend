@@ -8,12 +8,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/redispool"
 )
 
 func TestLoginFailureLimiterSlidingWindow(t *testing.T) {
 	now := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
 	l := newLoginFailureLimiter(3, 15*time.Minute)
-	l.redisAddr = ""
+	l.pool = nil
 	l.now = func() time.Time { return now }
 
 	for i := 0; i < 3; i++ {
@@ -93,7 +95,8 @@ func TestLoginFailureLimiterRedisRESP(t *testing.T) {
 	}()
 
 	l := newLoginFailureLimiter(2, 10*time.Minute)
-	l.redisAddr = ln.Addr().String()
+	l.pool = redispool.New(ln.Addr().String())
+	defer l.pool.Close()
 	if l.Blocked("192.0.2.10") {
 		t.Fatal("must not be blocked initially")
 	}

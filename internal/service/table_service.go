@@ -324,13 +324,13 @@ func (s *TableService) ResolveQR(ctx context.Context, token string) (*PublicTabl
 			return err
 		}
 		out = &PublicTable{StoreName: store.Name, StoreSlug: store.Slug, TableNumber: t.TableNumber, Label: t.Label,
-			OrderingOpen: reason == "", ClosedReason: reason, PaymentMethods: []string{}, ServiceMode: settings.QRServiceMode,
-			SplitEnabled: s.GuestSplit}
+			OrderingOpen: reason == "", ClosedReason: reason, PaymentMethods: []string{}, ServiceMode: settings.QRServiceMode}
 		features, err := loadFeatureFlagsTx(ctx, tx, storeID)
 		if err != nil {
 			return err
 		}
 		out.CallWaiterEnabled = features[FeatureCallWaiter]
+		out.SplitEnabled = s.GuestSplit && features[FeatureSplitBill]
 		for _, m := range []domain.PaymentMethod{domain.PaymentMethodQRIS, domain.PaymentMethodGoPay, domain.PaymentMethodShopeePay, domain.PaymentMethodBankTransfer} {
 			if isPaymentMethodEnabled(store.EnabledPaymentMethods, m) {
 				out.PaymentMethods = append(out.PaymentMethods, string(m))

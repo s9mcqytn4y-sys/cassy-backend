@@ -112,7 +112,9 @@ func wireHandlers(workerCtx context.Context, cfg *config.Config, db *sqlx.DB, hu
 	h.midtrans.SetGovernanceService(governanceService)
 	h.governance = handler.NewGovernanceHandler(governanceService, cfg.PlatformAdminAPIKey)
 
-	h.pos = handler.NewPOSHandler(orderService, paymentService, service.NewSettingsService(db))
+	settingsService := service.NewSettingsService(db)
+	settingsService.SetRequireVerifiedGateway(cfg.AppEnv == "production")
+	h.pos = handler.NewPOSHandler(orderService, paymentService, settingsService)
 	operationalService := service.NewOperationalService(
 		db,
 		orderRepo,
@@ -128,6 +130,7 @@ func wireHandlers(workerCtx context.Context, cfg *config.Config, db *sqlx.DB, hu
 
 	h.approval = handler.NewApprovalHandler(service.NewApprovalService(db, operationalService))
 	catalogService := service.NewCatalogService(db)
+	settingsService.SetOnSettingsChanged(catalogService.InvalidatePublicCatalog)
 	h.catalog = handler.NewCatalogHandler(catalogService)
 	h.inventory = handler.NewInventoryHandler(service.NewInventoryService(db))
 	h.invoice = handler.NewInvoiceHandler(service.NewInvoiceService(db))

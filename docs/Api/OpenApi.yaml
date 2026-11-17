@@ -8155,6 +8155,10 @@ components:
         updated_at:
           type: string
           format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          description: Deadline timestamp for pending unpaid orders.
     TableInput:
       type: object
       properties:
@@ -9881,6 +9885,16 @@ components:
           type: string
           enum: [pickup, table]
           description: How a QR order reaches the guest (PRD v3 Q3). pickup (default) collected at the bar; table brought by staff.
+        enabled_payment_methods:
+          type: array
+          items:
+            type: string
+            enum: [qris, bank_transfer, gopay, shopeepay, cash, static_qris, edc]
+          description: Active store payment channels; digital guest channels require verified Midtrans credentials.
+        midtrans_validation_status:
+          type: string
+          enum: [unverified, valid, invalid]
+          description: Current validation status of store Midtrans BYOK credentials.
 
     InitiatePaymentResponse:
       type: object

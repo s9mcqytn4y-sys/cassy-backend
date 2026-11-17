@@ -28,7 +28,10 @@ var featureDefaults = map[string]bool{
 }
 
 // FeatureCallWaiter gates guest service requests (W4.3).
-const FeatureCallWaiter = "call_waiter"
+const (
+	FeatureCallWaiter = "call_waiter"
+	FeatureSplitBill  = "split_bill"
+)
 
 // FeatureService reads and changes the flags of the caller's store.
 type FeatureService struct {
