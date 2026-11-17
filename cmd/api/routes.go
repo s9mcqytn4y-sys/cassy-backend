@@ -258,6 +258,8 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	pos.GET("/sales-channels", h.auth.RequirePermission(rbac.OrderPOSCreate), h.catalog.ListSalesChannels(true))
 	pos.GET("/business-customers", h.auth.RequirePermission(rbac.PaymentTenderDirect), h.invoice.ListChargeableCustomers)
 	pos.POST("/orders/:id/payments", h.auth.RequireStaff(), h.pos.InitiatePayment)
+	// Cashier bill split (PR 9): divide a pending pay-first order before anyone pays; independent of GUEST_SPLIT_ENABLED.
+	pos.POST("/orders/:id/splits", h.auth.RequirePermission(rbac.OrderPOSCreate), h.pos.DivideOrder)
 	pos.GET("/catalog", h.auth.RequireStaff(), h.catalog.StaffCatalog)
 
 	// Cash Drawers & Shifts (Iteration 4b)
