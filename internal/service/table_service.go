@@ -275,12 +275,13 @@ func (s *TableService) CloseSession(ctx context.Context, actor *AuthenticatedSta
 
 // PublicTable is what a scanned QR reveals: enough to show the menu header, nothing internal.
 type PublicTable struct {
-	StoreName    string `json:"store_name"`
-	StoreSlug    string `json:"store_slug"`
-	TableNumber  string `json:"table_number"`
-	Label        string `json:"label"`
-	OrderingOpen bool   `json:"ordering_open"`
-	ClosedReason string `json:"closed_reason,omitempty"`
+	StoreName      string          `json:"store_name"`
+	StoreSlug      string          `json:"store_slug"`
+	TableNumber    string          `json:"table_number"`
+	Label          string          `json:"label"`
+	OrderingOpen   bool            `json:"ordering_open"`
+	ClosedReason   string          `json:"closed_reason,omitempty"`
+	OperatingHours json.RawMessage `json:"operating_hours,omitempty"`
 	// PaymentMethods lists the guest methods (qris, gopay, shopeepay) this store has enabled, in that order.
 	PaymentMethods []string `json:"payment_methods"`
 	// CallWaiterEnabled shows the guest "Panggil Pelayan" entry (feature flag call_waiter, W4.3).
@@ -325,6 +326,10 @@ func (s *TableService) ResolveQR(ctx context.Context, token string) (*PublicTabl
 		}
 		out = &PublicTable{StoreName: store.Name, StoreSlug: store.Slug, TableNumber: t.TableNumber, Label: t.Label,
 			OrderingOpen: reason == "", ClosedReason: reason, PaymentMethods: []string{}, ServiceMode: settings.QRServiceMode}
+		var hoursRaw []byte
+		if err := tx.QueryRowxContext(ctx, `SELECT operating_hours FROM store_cms_settings WHERE store_id = $1`, storeID).Scan(&hoursRaw); err == nil && len(hoursRaw) > 0 && string(hoursRaw) != "{}" {
+			out.OperatingHours = json.RawMessage(hoursRaw)
+		}
 		features, err := loadFeatureFlagsTx(ctx, tx, storeID)
 		if err != nil {
 			return err

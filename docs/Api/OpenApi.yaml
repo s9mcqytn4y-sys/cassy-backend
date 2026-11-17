@@ -8302,6 +8302,10 @@ components:
         closed_reason:
           type: string
           enum: [paused, store_closed, table_inactive]
+        operating_hours:
+          type: object
+          additionalProperties: true
+          description: Optional per-day store operating hours configured in store CMS settings.
         payment_methods:
           type: array
           description: Guest payment methods the store has enabled, in this order.
