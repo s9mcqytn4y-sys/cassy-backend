@@ -508,3 +508,40 @@ func writeOperationalError(c *gin.Context, err error) {
 		})
 	}
 }
+
+// DivideOrder handles POST /api/v1/pos/orders/:id/splits {strategy, split_count | splits}: the cashier
+// splits a pending pay-first order into server-priced shares (Release One PR 9). Shares are paid with
+// POST /api/v1/pos/orders/:id/payments and split_id; the kitchen gets the order after the last share.
+func (h *POSHandler) DivideOrder(c *gin.Context) {
+	orderID, ok := pathID(c, "id")
+	if !ok {
+		return
+	}
+	var in service.CloseTabInput
+	if !bindJSON(c, &in) {
+		return
+	}
+	res, err := h.payments.DivideOrder(c.Request.Context(), currentStaff(c), orderID, in)
+	if err != nil {
+		divideOrderError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+func divideOrderError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrGuestSplitNotAllowed):
+		authError(c, http.StatusConflict, "SPLIT_NOT_ALLOWED", "Pesanan ini tidak bisa dibagi lagi. Pembayaran sudah dimulai, pesanan kedaluwarsa, atau sudah dibagi.")
+	case errors.Is(err, service.ErrInvalidSplitStrategy):
+		authError(c, http.StatusBadRequest, "INVALID_SPLIT_STRATEGY", "Cara bagi tagihan tidak dikenal.")
+	case errors.Is(err, service.ErrInvalidSplitCount):
+		authError(c, http.StatusUnprocessableEntity, "INVALID_SPLIT_COUNT", "Tagihan bisa dibagi untuk 2 sampai 20 orang.")
+	case errors.Is(err, service.ErrItemAllocationMismatch):
+		authError(c, http.StatusUnprocessableEntity, "ITEM_ALLOCATION_MISMATCH", "Setiap item harus dibagi tepat satu kali.")
+	case errors.Is(err, postgres.ErrOrderNotFound):
+		authError(c, http.StatusNotFound, "NOT_FOUND", "Pesanan tidak ditemukan.")
+	default:
+		writeServiceError(c, err)
+	}
+}

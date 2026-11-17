@@ -67,57 +67,17 @@ func (s *GuestService) ownsOrder(ctx context.Context, tx *sqlx.Tx, g *GuestIdent
 // CreateSplits divides an untouched pay-first order into per-person shares. It works once per order,
 // before any QR exists, so no guest can be charged against an amount that later changes.
 func (s *GuestService) CreateSplits(ctx context.Context, g *GuestIdentity, orderID uuid.UUID, in CloseTabInput) ([]GuestSplitLink, error) {
-	if in.Strategy != "equal" && in.Strategy != "by_item" {
-		return nil, fmt.Errorf("%w: %q", ErrInvalidSplitStrategy, in.Strategy)
-	}
-	f := fieldErrors{}
-	for i := range in.Splits {
-		in.Splits[i].Label = f.text("label", in.Splits[i].Label, 0, maxGuestSplitLabel)
-	}
-	if err := f.err(); err != nil {
+	if err := validateSplitInput(&in); err != nil {
 		return nil, err
 	}
-
 	var links []GuestSplitLink
 	err := database.WithTenantTx(ctx, s.db, g.StoreID, func(tx *sqlx.Tx) error {
 		if err := s.ownsOrder(ctx, tx, g, orderID); err != nil {
 			return err
 		}
-		order, existing, err := s.payments.orderRepo.GetOrderByIDForUpdate(ctx, tx, g.StoreID, orderID)
-		if err != nil {
-			return err
-		}
 		now := s.nowFunc().UTC()
-		if order.BillingMode != domain.BillingModePayFirst || order.Status != domain.OrderStatusPendingPayment ||
-			order.PaidAmount != 0 || order.ExpiresAt == nil || !now.Before(*order.ExpiresAt) ||
-			len(existing) != 1 || existing[0].Status != domain.SplitBillStatusUnpaid {
-			return ErrGuestSplitNotAllowed
-		}
-		active, err := s.payments.paymentRepo.GetActivePaymentForSplitForUpdate(ctx, tx, g.StoreID, existing[0].ID)
-		if err != nil && !errors.Is(err, postgres.ErrPaymentNotFound) {
-			return err
-		}
-		if active != nil {
-			return ErrGuestSplitNotAllowed
-		}
-
-		items, err := s.tabs.GetOrderItemsWithOptionsByOrder(ctx, tx, g.StoreID, orderID)
+		_, splits, err := dividePayFirstOrderTx(ctx, tx, s.payments.orderRepo, s.payments.paymentRepo, s.tabs, g.StoreID, orderID, in, now)
 		if err != nil {
-			return err
-		}
-		splits, splitItems, err := allocateSplits(order, items, in, in.Strategy, now)
-		if err != nil {
-			return err
-		}
-		if err := s.tabs.CancelPaymentSplitsTx(ctx, tx, g.StoreID, orderID); err != nil {
-			return err
-		}
-		if err := s.tabs.CreatePaymentSplitsTx(ctx, tx, splits, splitItems); err != nil {
-			return fmt.Errorf("failed to save payment splits: %w", err)
-		}
-		deadline := now.Add(guestSplitPayWindow)
-		order.ExpiresAt = &deadline
-		if err := s.payments.orderRepo.UpdateOrderStatusAndStock(ctx, tx, order); err != nil {
 			return err
 		}
 		links = make([]GuestSplitLink, len(splits))
@@ -137,6 +97,67 @@ func (s *GuestService) CreateSplits(ctx context.Context, g *GuestIdentity, order
 		return nil, err
 	}
 	return links, nil
+}
+
+// validateSplitInput checks the strategy and trims share labels; amounts are always computed later.
+func validateSplitInput(in *CloseTabInput) error {
+	if in.Strategy != "equal" && in.Strategy != "by_item" {
+		return fmt.Errorf("%w: %q", ErrInvalidSplitStrategy, in.Strategy)
+	}
+	f := fieldErrors{}
+	for i := range in.Splits {
+		in.Splits[i].Label = f.text("label", in.Splits[i].Label, 0, maxGuestSplitLabel)
+	}
+	return f.err()
+}
+
+// dividePayFirstOrderTx replaces the single unpaid share of a pending pay-first order with
+// server-priced shares (equal or by item) and gives them a fresh pay window. It refuses
+// (ErrGuestSplitNotAllowed) once any money or payment attempt is attached, the order expired, or it was
+// already divided, so no share is ever priced against an amount that later changes. The order row and
+// its active payment are locked. Kitchen tickets are not touched: a pay-first order reaches the KDS only
+// when the final share settles.
+func dividePayFirstOrderTx(
+	ctx context.Context, tx *sqlx.Tx,
+	orders *postgres.OrderRepository, payments *postgres.PaymentRepository, tabs *postgres.TabRepository,
+	storeID, orderID uuid.UUID, in CloseTabInput, now time.Time,
+) (*domain.Order, []domain.PaymentSplit, error) {
+	order, existing, err := orders.GetOrderByIDForUpdate(ctx, tx, storeID, orderID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if order.BillingMode != domain.BillingModePayFirst || order.Status != domain.OrderStatusPendingPayment ||
+		order.PaidAmount != 0 || order.ExpiresAt == nil || !now.Before(*order.ExpiresAt) ||
+		len(existing) != 1 || existing[0].Status != domain.SplitBillStatusUnpaid {
+		return nil, nil, ErrGuestSplitNotAllowed
+	}
+	active, err := payments.GetActivePaymentForSplitForUpdate(ctx, tx, storeID, existing[0].ID)
+	if err != nil && !errors.Is(err, postgres.ErrPaymentNotFound) {
+		return nil, nil, err
+	}
+	if active != nil {
+		return nil, nil, ErrGuestSplitNotAllowed
+	}
+	items, err := tabs.GetOrderItemsWithOptionsByOrder(ctx, tx, storeID, orderID)
+	if err != nil {
+		return nil, nil, err
+	}
+	splits, splitItems, err := allocateSplits(order, items, in, in.Strategy, now)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := tabs.CancelPaymentSplitsTx(ctx, tx, storeID, orderID); err != nil {
+		return nil, nil, err
+	}
+	if err := tabs.CreatePaymentSplitsTx(ctx, tx, splits, splitItems); err != nil {
+		return nil, nil, fmt.Errorf("failed to save payment splits: %w", err)
+	}
+	deadline := now.Add(guestSplitPayWindow)
+	order.ExpiresAt = &deadline
+	if err := orders.UpdateOrderStatusAndStock(ctx, tx, order); err != nil {
+		return nil, nil, err
+	}
+	return order, splits, nil
 }
 
 // ListSplits reports each live share of one of this guest's orders, without tokens.

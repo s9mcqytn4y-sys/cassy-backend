@@ -3808,6 +3808,82 @@ paths:
                     items:
                       $ref: "#/components/schemas/OrderRound"
 
+  /api/v1/pos/orders/{id}/splits:
+    post:
+      tags: [Orders]
+      operationId: divideOrderByCashier
+      summary: Cashier splits a pending pay-first order into server-priced shares (order.pos.create, Release One PR 9)
+      description: |
+        Divides an untouched pay-first order (no payment attempt, not expired, not divided before) into equal
+        or by-item shares priced on the server. Each share is then paid with
+        `POST /api/v1/pos/orders/{id}/payments` and its `split_id`. The order stays `partially_paid` until the
+        last share settles, and KDS tickets are created only then. Independent of `GUEST_SPLIT_ENABLED`.
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - strategy
+              properties:
+                strategy:
+                  type: string
+                  enum:
+                  - equal
+                  - by_item
+                split_count:
+                  type: integer
+                  minimum: 2
+                  maximum: 20
+                splits:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    additionalProperties: true
+      responses:
+        "200":
+          description: Order with its new shares
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [order, splits]
+                properties:
+                  order:
+                    $ref: "#/components/schemas/Order"
+                  splits:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PaymentSplit"
+        "400":
+          description: INVALID_JSON or INVALID_SPLIT_STRATEGY
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: SPLIT_NOT_ALLOWED (payment started, order expired or not pay-first pending, or already divided)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: INVALID_SPLIT_COUNT (2 to 20) or ITEM_ALLOCATION_MISMATCH (every line allocated exactly once)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/pos/tabs/{id}/close:
     post:
       tags: [POS Tabs]
