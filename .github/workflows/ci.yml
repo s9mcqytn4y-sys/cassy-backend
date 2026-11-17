@@ -200,20 +200,17 @@ jobs:
             exit 1
           fi
 
-          echo "Executing Active Single-Tenant Seed (development.sql - Isolated Idempotency Check)..."
-          PGPASSWORD=postgres_ci_password psql -h localhost -p 55432 -U postgres -d cassy_test -c "CREATE DATABASE cassy_dev_seed_check OWNER cassy_migrator;"
-          DEV_URL="postgres://cassy_migrator:cassy_migrator_password@localhost:55432/cassy_dev_seed_check?sslmode=disable"
-          DATABASE_URL="$DEV_URL" DATABASE_MIGRATION_URL="$DEV_URL" go run ./cmd/migrate -action=up
-          DATABASE_URL="$DEV_URL" DATABASE_MIGRATION_URL="$DEV_URL" go run ./cmd/migrate -action=seed -seed-file=db/seeds/platform_reference.sql
-          DATABASE_URL="$DEV_URL" DATABASE_MIGRATION_URL="$DEV_URL" go run ./cmd/migrate -action=seed -seed-file=db/seeds/development.sql
-          DATABASE_URL="$DEV_URL" DATABASE_MIGRATION_URL="$DEV_URL" go run ./cmd/migrate -action=seed -seed-file=db/seeds/development.sql
-          DEV_STORE_COUNT=$(psql -h localhost -p 55432 -U cassy_migrator -d cassy_dev_seed_check -t -A -c "SELECT COUNT(*) FROM stores;")
-          DEV_USER_COUNT=$(psql -h localhost -p 55432 -U cassy_migrator -d cassy_dev_seed_check -t -A -c "SELECT COUNT(*) FROM users;")
-          PGPASSWORD=postgres_ci_password psql -h localhost -p 55432 -U postgres -d cassy_test -c "DROP DATABASE cassy_dev_seed_check;"
+          echo "Executing Active Single-Tenant Seed (development.sql - Idempotency Check)..."
+          go run ./cmd/migrate -action=seed -seed-file=db/seeds/development.sql
+          go run ./cmd/migrate -action=seed -seed-file=db/seeds/development.sql
+          DEV_STORE_COUNT=$(psql -h localhost -p 55432 -U cassy_migrator -d cassy_test -t -A -c "SELECT COUNT(*) FROM stores;")
+          DEV_USER_COUNT=$(psql -h localhost -p 55432 -U cassy_migrator -d cassy_test -t -A -c "SELECT COUNT(*) FROM users;")
           if [ "$DEV_STORE_COUNT" != "1" ] || [ "$DEV_USER_COUNT" != "2" ]; then
             echo "Expected 1 store and 2 RBAC users in development.sql, got stores=$DEV_STORE_COUNT users=$DEV_USER_COUNT"
             exit 1
           fi
+          psql -h localhost -p 55432 -U cassy_migrator -d cassy_test -c "TRUNCATE stores, users CASCADE;"
+          go run ./cmd/migrate -action=seed -seed-file=db/seeds/platform_reference.sql
 
           echo "Executing Automated Test Fixtures Seed (Run 1)..."
           go run ./cmd/migrate -action=seed -seed-file=db/seeds/test_fixtures.sql
