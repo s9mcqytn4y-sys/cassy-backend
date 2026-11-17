@@ -34,11 +34,28 @@ const OfflineVerifierTTL = 72 * time.Hour
 
 var devicePrefixPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]{0,3}$`)
 
+// Device roles pick the mode the Android app opens in; the owner assigns them (Q5 2026-11-17).
+const (
+	DeviceRolePOS          = "pos"
+	DeviceRoleKDS          = "kds"
+	DeviceRoleQueueDisplay = "queue_display"
+	DeviceRoleBackoffice   = "backoffice"
+)
+
+func validDeviceRole(role string) bool {
+	switch role {
+	case DeviceRolePOS, DeviceRoleKDS, DeviceRoleQueueDisplay, DeviceRoleBackoffice:
+		return true
+	}
+	return false
+}
+
 // Device is a registered POS device; Credential is only returned when registered.
 type Device struct {
 	ID         uuid.UUID  `json:"id" db:"id"`
 	Name       string     `json:"name" db:"name"`
 	Prefix     string     `json:"prefix" db:"prefix"`
+	Role       string     `json:"role" db:"role"`
 	RevokedAt  *time.Time `json:"revoked_at,omitempty" db:"revoked_at"`
 	LastSeenAt *time.Time `json:"last_seen_at,omitempty" db:"last_seen_at"`
 	LastSyncAt *time.Time `json:"last_sync_at,omitempty" db:"last_sync_at"`
@@ -46,16 +63,18 @@ type Device struct {
 	Credential string     `json:"credential,omitempty" db:"-"`
 }
 
-const deviceColumns = `id, name, prefix, revoked_at, last_seen_at, last_sync_at, created_at`
+const deviceColumns = `id, name, prefix, role, revoked_at, last_seen_at, last_sync_at, created_at`
 
-// DeviceInput registers (name + prefix) or renames (name) a device.
+// DeviceInput registers (name + prefix, optional role) or updates (name and/or role) a device.
 type DeviceInput struct {
 	Name   *string `json:"name"`
 	Prefix *string `json:"prefix"`
+	Role   *string `json:"role"`
 }
 
 // DeviceCatalog is the POS catalog plus the version a device sends back with each offline order.
 type DeviceCatalog struct {
+	Role          string       `json:"device_role"`
 	Version       string       `json:"catalog_version"`
 	FirstServedAt time.Time    `json:"first_served_at"`
 	Catalog       *CatalogView `json:"catalog"`
@@ -88,7 +107,7 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, actor *Authenticated
 		return nil, err
 	}
 	f := fieldErrors{}
-	d := &Device{ID: uuid.New(), CreatedAt: s.nowFunc().UTC()}
+	d := &Device{ID: uuid.New(), Role: DeviceRolePOS, CreatedAt: s.nowFunc().UTC()}
 	if in.Name == nil {
 		f.add("name", "wajib diisi")
 	} else {
@@ -99,6 +118,11 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, actor *Authenticated
 	} else if d.Prefix = strings.ToUpper(strings.TrimSpace(*in.Prefix)); !devicePrefixPattern.MatchString(d.Prefix) {
 		f.add("prefix", "1-4 huruf/angka, diawali huruf (mis. X1)")
 	}
+	if in.Role != nil {
+		if d.Role = *in.Role; !validDeviceRole(d.Role) {
+			f.add("role", "pilih pos, kds, queue_display, atau backoffice")
+		}
+	}
 	if err := f.err(); err != nil {
 		return nil, err
 	}
@@ -108,14 +132,14 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, actor *Authenticated
 	}
 	storeID := actor.Staff.Store.ID
 	err = database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, store_id, name, prefix, credential_hash, registered_by, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`, d.ID, storeID, d.Name, d.Prefix, hash, actor.Staff.UserID, d.CreatedAt); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, store_id, name, prefix, role, credential_hash, registered_by, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`, d.ID, storeID, d.Name, d.Prefix, d.Role, hash, actor.Staff.UserID, d.CreatedAt); err != nil {
 			if c, ok := postgres.UniqueViolation(err); ok && c == "uq_devices_store_prefix" {
 				return &ConflictError{Field: "prefix", Message: "prefix sudah dipakai perangkat lain"}
 			}
 			return fmt.Errorf("failed to register device: %w", err)
 		}
-		return s.audit(ctx, tx, actor, "DEVICE_REGISTERED", "Perangkat POS didaftarkan", d.ID, map[string]any{"name": d.Name, "prefix": d.Prefix})
+		return s.audit(ctx, tx, actor, "DEVICE_REGISTERED", "Perangkat POS didaftarkan", d.ID, map[string]any{"name": d.Name, "prefix": d.Prefix, "role": d.Role})
 	})
 	if err != nil {
 		return nil, err
@@ -136,17 +160,22 @@ func (s *DeviceService) ListDevices(ctx context.Context, actor *AuthenticatedSta
 	return out, err
 }
 
-// RenameDevice changes the display name; the prefix is fixed because printed offline numbers carry it.
-func (s *DeviceService) RenameDevice(ctx context.Context, actor *AuthenticatedStaff, id uuid.UUID, in DeviceInput) (*Device, error) {
+// UpdateDevice changes the display name and/or role; the prefix is fixed because printed offline numbers
+// carry it. A role change takes effect the next time the device loads its catalog.
+func (s *DeviceService) UpdateDevice(ctx context.Context, actor *AuthenticatedStaff, id uuid.UUID, in DeviceInput) (*Device, error) {
 	if err := requireDeviceManage(actor); err != nil {
 		return nil, err
 	}
 	f := fieldErrors{}
+	if in.Name == nil && in.Role == nil {
+		f.add("name", "isi nama atau peran perangkat")
+	}
 	name := ""
-	if in.Name == nil {
-		f.add("name", "wajib diisi")
-	} else {
+	if in.Name != nil {
 		name = f.text("name", *in.Name, 1, 50)
+	}
+	if in.Role != nil && !validDeviceRole(*in.Role) {
+		f.add("role", "pilih pos, kds, queue_display, atau backoffice")
 	}
 	if in.Prefix != nil {
 		f.add("prefix", "tidak bisa diubah; daftarkan perangkat baru")
@@ -160,13 +189,26 @@ func (s *DeviceService) RenameDevice(ctx context.Context, actor *AuthenticatedSt
 		if err := loadDeviceForUpdate(ctx, tx, storeID, id, &d); err != nil {
 			return err
 		}
-		before := d.Name
-		d.Name = name
-		if _, err := tx.ExecContext(ctx, `UPDATE devices SET name = $3, updated_at = $4 WHERE store_id = $1 AND id = $2`,
-			storeID, id, name, s.nowFunc().UTC()); err != nil {
+		beforeName, beforeRole := d.Name, d.Role
+		if in.Name != nil {
+			d.Name = name
+		}
+		if in.Role != nil {
+			d.Role = *in.Role
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE devices SET name = $3, role = $4, updated_at = $5 WHERE store_id = $1 AND id = $2`,
+			storeID, id, d.Name, d.Role, s.nowFunc().UTC()); err != nil {
 			return err
 		}
-		return s.audit(ctx, tx, actor, "DEVICE_RENAMED", "Nama perangkat POS diubah", id, map[string]any{"before": before, "after": name})
+		if in.Name != nil {
+			if err := s.audit(ctx, tx, actor, "DEVICE_RENAMED", "Nama perangkat POS diubah", id, map[string]any{"before": beforeName, "after": d.Name}); err != nil {
+				return err
+			}
+		}
+		if in.Role != nil && d.Role != beforeRole {
+			return s.audit(ctx, tx, actor, "DEVICE_ROLE_CHANGED", "Peran perangkat diubah", id, map[string]any{"before": beforeRole, "after": d.Role})
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -215,7 +257,8 @@ func (s *DeviceService) Catalog(ctx context.Context, credential string) (*Device
 	var out *DeviceCatalog
 	err := database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
 		now := s.nowFunc().UTC()
-		if _, err := authenticateDeviceTx(ctx, tx, storeID, deviceID, secret, now); err != nil {
+		device, err := authenticateDeviceTx(ctx, tx, storeID, deviceID, secret, now)
+		if err != nil {
 			return err
 		}
 		settings, err := s.settings.GetStoreSettings(ctx, tx, storeID)
@@ -237,7 +280,7 @@ func (s *DeviceService) Catalog(ctx context.Context, credential string) (*Device
 			VALUES ($1, $2, $3, $4) ON CONFLICT (store_id, version) DO NOTHING`, storeID, version, snapshot, now); err != nil {
 			return fmt.Errorf("failed to store catalog snapshot: %w", err)
 		}
-		out = &DeviceCatalog{Version: version, Catalog: view}
+		out = &DeviceCatalog{Role: device.Role, Version: version, Catalog: view}
 		return tx.GetContext(ctx, &out.FirstServedAt, `SELECT first_served_at FROM catalog_versions WHERE store_id = $1 AND version = $2`, storeID, version)
 	})
 	if err != nil {
@@ -328,7 +371,7 @@ func authenticateDeviceTx(ctx context.Context, tx *sqlx.Tx, storeID, deviceID uu
 		Hash        string `db:"credential_hash"`
 		StoreActive bool   `db:"store_active"`
 	}
-	err := tx.GetContext(ctx, &row, `SELECT d.id, d.name, d.prefix, d.revoked_at, d.last_seen_at, d.last_sync_at, d.created_at,
+	err := tx.GetContext(ctx, &row, `SELECT d.id, d.name, d.prefix, d.role, d.revoked_at, d.last_seen_at, d.last_sync_at, d.created_at,
 			d.credential_hash, s.is_active AS store_active
 		FROM devices d JOIN stores s ON s.id = d.store_id WHERE d.store_id = $1 AND d.id = $2`, storeID, deviceID)
 	if errors.Is(err, sql.ErrNoRows) {

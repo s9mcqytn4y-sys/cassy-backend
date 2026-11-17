@@ -4720,6 +4720,8 @@ paths:
                   type: string
                   pattern: "^[A-Za-z][A-Za-z0-9]{0,3}$"
                   description: Upper-cased; printed on offline queue numbers (e.g. X1-007); fixed after registration.
+                role:
+                  $ref: "#/components/schemas/DeviceRole"
       responses:
         "201":
           description: Registered; credential shown once
@@ -4736,8 +4738,8 @@ paths:
   /api/v1/store/devices/{id}:
     patch:
       tags: [Devices]
-      operationId: renameDevice
-      summary: Rename a device; the prefix cannot change (device.manage, audited)
+      operationId: updateDevice
+      summary: Rename a device and/or change its role; the prefix cannot change (device.manage, audited)
       x-implementation-status: implemented
       security:
         - BearerStaffJWT: []
@@ -4754,14 +4756,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name]
+              description: At least one of name or role.
               properties:
                 name:
                   type: string
                   maxLength: 50
+                role:
+                  $ref: "#/components/schemas/DeviceRole"
       responses:
         "200":
-          description: Renamed
+          description: Updated
           content:
             application/json:
               schema:
@@ -4817,8 +4821,10 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [catalog_version, first_served_at, catalog]
+                required: [device_role, catalog_version, first_served_at, catalog]
                 properties:
+                  device_role:
+                    $ref: "#/components/schemas/DeviceRole"
                   catalog_version:
                     type: string
                     pattern: "^[0-9a-f]{64}$"
@@ -7527,9 +7533,13 @@ components:
         quota: {type: integer, minimum: 1}
         clear_quota: {type: boolean}
         is_active: {type: boolean}
+    DeviceRole:
+      type: string
+      enum: [pos, kds, queue_display, backoffice]
+      description: Mode the Android app opens in, assigned by the owner. Defaults to pos.
     Device:
       type: object
-      required: [id, name, prefix, created_at]
+      required: [id, name, prefix, role, created_at]
       properties:
         id:
           type: string
@@ -7539,6 +7549,8 @@ components:
         prefix:
           type: string
           description: Printed on offline queue numbers (e.g. X1-007).
+        role:
+          $ref: "#/components/schemas/DeviceRole"
         revoked_at:
           type: string
           format: date-time

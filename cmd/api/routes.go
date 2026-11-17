@@ -326,7 +326,7 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	devices := v1.Group("/store/devices", h.auth.RequirePermission(rbac.DeviceManage))
 	devices.GET("", h.device.ListDevices)
 	devices.POST("", h.device.RegisterDevice)
-	devices.PATCH("/:id", h.device.RenameDevice)
+	devices.PATCH("/:id", h.device.UpdateDevice)
 	devices.POST("/:id/revoke", h.device.RevokeDevice)
 	v1.GET("/device/catalog", h.device.Catalog)
 	// Offline order sync (v0.10 PR 10.2): one result per order; rejected orders wait in the owner review queue.
