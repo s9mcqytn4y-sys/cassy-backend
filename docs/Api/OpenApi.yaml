@@ -5890,6 +5890,237 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "422":
           $ref: "#/components/responses/ValidationFailed"
+  /api/v1/store/service-request-templates:
+    get:
+      tags: [Staff]
+      operationId: listServiceRequestTemplates
+      summary: Call-waiter templates of the store, active first (any staff)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [templates]
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ServiceRequestTemplate"
+    post:
+      tags: [Staff]
+      operationId: createServiceRequestTemplate
+      summary: Add a call-waiter template (store.settings.manage, at most 12 active)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequestTemplateInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequestTemplate"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Too many active templates
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/store/service-request-templates/{id}:
+    patch:
+      tags: [Staff]
+      operationId: updateServiceRequestTemplate
+      summary: Rename, reorder or (de)activate a template; templates are never deleted
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequestTemplateInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequestTemplate"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Too many active templates
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/store/service-requests:
+    get:
+      tags: [Staff]
+      operationId: listServiceRequests
+      summary: Guest service requests by status, oldest first (order.read.store); realtime service_request.created and service_request.updated reach the pos channel
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, acknowledged, done, cancelled]
+            default: open
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service_requests]
+                properties:
+                  service_requests:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ServiceRequest"
+  /api/v1/store/service-requests/{id}/acknowledge:
+    post:
+      tags: [Staff]
+      operationId: acknowledgeServiceRequest
+      summary: Mark an open request as being handled (order.read.store)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Not open
+  /api/v1/store/service-requests/{id}/done:
+    post:
+      tags: [Staff]
+      operationId: finishServiceRequest
+      summary: Mark an open or acknowledged request as done (order.read.store)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Already done or cancelled
+  /api/v1/public/guest/service-request-templates:
+    get:
+      tags: [Guest]
+      operationId: guestServiceRequestTemplates
+      summary: Active call-waiter templates for the guest store (guest cookie, 403 CALL_WAITER_DISABLED when off)
+      x-implementation-status: implemented
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [templates]
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ServiceRequestTemplate"
+        "403":
+          description: Call waiter disabled
+  /api/v1/public/guest/service-requests:
+    get:
+      tags: [Guest]
+      operationId: guestListServiceRequests
+      summary: Requests of this guest session only, newest first (max 20)
+      x-implementation-status: implemented
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service_requests]
+                properties:
+                  service_requests:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ServiceRequest"
+    post:
+      tags: [Guest]
+      operationId: guestCreateServiceRequest
+      summary: Call a waiter from the guest table (guest cookie and X-CSRF-Protection)
+      description: >-
+        Requires feature flag call_waiter and an open table session. A repeat for a template that is still
+        open or acknowledged at the same table returns that request. At most 5 requests per guest session in
+        10 minutes (429). The note is trimmed, control characters are removed, max 80 characters.
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template_id]
+              properties:
+                template_id: {type: string, format: uuid}
+                note: {type: string, maxLength: 80}
+      responses:
+        "201":
+          description: Created, or the live request for this template and table
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+        "403":
+          description: Call waiter disabled
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "429":
+          description: Too many requests in the window
   /api/v1/store/settings:
     get:
       tags: [Staff]
@@ -7594,6 +7825,37 @@ components:
         quota: {type: integer, minimum: 1}
         clear_quota: {type: boolean}
         is_active: {type: boolean}
+    ServiceRequestTemplate:
+      type: object
+      required: [id, label, sort_order, is_active]
+      properties:
+        id: {type: string, format: uuid}
+        label: {type: string, maxLength: 40}
+        sort_order: {type: integer, minimum: 0, maximum: 999}
+        is_active: {type: boolean}
+    ServiceRequestTemplateInput:
+      type: object
+      description: label is required on create, any field on update.
+      properties:
+        label: {type: string, maxLength: 40}
+        sort_order: {type: integer, minimum: 0, maximum: 999}
+        is_active: {type: boolean}
+    ServiceRequest:
+      type: object
+      required: [id, table_id, table_number, template_id, label, status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        table_id: {type: string, format: uuid}
+        table_number: {type: string}
+        template_id: {type: string, format: uuid}
+        label: {type: string, description: Template label at the time of the request.}
+        note: {type: string, maxLength: 80}
+        status:
+          type: string
+          enum: [open, acknowledged, done, cancelled]
+        created_at: {type: string, format: date-time}
+        acknowledged_at: {type: string, format: date-time}
+        done_at: {type: string, format: date-time}
     FeatureFlags:
       type: object
       description: >-

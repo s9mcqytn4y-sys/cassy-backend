@@ -42,6 +42,7 @@ type handlerSet struct {
 	print      *handler.PrintHandler
 	device     *handler.DeviceHandler
 	feature    *handler.FeatureHandler
+	svcRequest *handler.ServiceRequestHandler
 	inventory  *handler.InventoryHandler
 	invoice    *handler.InvoiceHandler
 	offline    *handler.OfflineHandler
@@ -134,6 +135,7 @@ func wireHandlers(workerCtx context.Context, cfg *config.Config, db *sqlx.DB, hu
 	go service.NewInvoiceReminderService(db, emailService, messageService).StartWorker(workerCtx, time.Hour)
 	h.device = handler.NewDeviceHandler(service.NewDeviceService(db, catalogService))
 	h.feature = handler.NewFeatureHandler(service.NewFeatureService(db))
+	h.svcRequest = handler.NewServiceRequestHandler(service.NewServiceRequestService(db))
 
 	shiftService := service.NewShiftService(db)
 	shiftService.SetPINPolicy(authPolicy, emailService)
@@ -253,6 +255,12 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	store.PATCH("/settings", h.auth.RequirePermission(rbac.StoreSettingsManage), h.pos.UpdateSettings)
 	store.GET("/features", h.auth.RequireStaff(), h.feature.ListFeatures)
 	store.PUT("/features/:key", h.auth.RequirePermission(rbac.StoreSettingsManage), h.feature.SetFeature)
+	store.GET("/service-request-templates", h.auth.RequireStaff(), h.svcRequest.ListTemplates)
+	store.POST("/service-request-templates", h.auth.RequirePermission(rbac.StoreSettingsManage), h.svcRequest.CreateTemplate)
+	store.PATCH("/service-request-templates/:id", h.auth.RequirePermission(rbac.StoreSettingsManage), h.svcRequest.UpdateTemplate)
+	store.GET("/service-requests", h.auth.RequirePermission(rbac.OrderReadStore), h.svcRequest.ListForStaff)
+	store.POST("/service-requests/:id/acknowledge", h.auth.RequirePermission(rbac.OrderReadStore), h.svcRequest.Acknowledge)
+	store.POST("/service-requests/:id/done", h.auth.RequirePermission(rbac.OrderReadStore), h.svcRequest.Done)
 
 	// POS (ADR-003 D8 "staff" class): store and actor come from the access token only.
 	pos := v1.Group("/pos")
@@ -391,6 +399,9 @@ func registerTableAndGuestRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	guest.POST("/orders", h.guest.CreateOrder)
 	guest.POST("/orders/:id/payments", h.guest.InitiatePayment)
 	guest.POST("/orders/:id/receipt/send", h.receiptOut.SendByGuest)
+	guest.GET("/service-request-templates", h.svcRequest.GuestTemplates)
+	guest.GET("/service-requests", h.svcRequest.ListForGuest)
+	guest.POST("/service-requests", handler.LimitBody(4<<10), h.svcRequest.CreateForGuest)
 	if h.guestSplit { // stays off until the Android cashier can settle a share a guest leaves unpaid
 		guest.POST("/orders/:id/splits", h.guest.CreateSplits)
 		guest.GET("/orders/:id/splits", h.guest.ListSplits)
