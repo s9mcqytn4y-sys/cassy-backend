@@ -1,0 +1,57 @@
+-- Per-tenant feature flags (W4.2, 2026-11-17). A row exists only when the owner changed a flag;
+-- defaults live in Go (service/feature_flags.go). Package pricing is layered on top later.
+CREATE TABLE IF NOT EXISTS store_feature_flags (
+    store_id   UUID NOT NULL REFERENCES stores(id) ON DELETE RESTRICT,
+    flag_key   VARCHAR(40) NOT NULL,
+    enabled    BOOLEAN NOT NULL,
+    updated_by UUID NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (store_id, flag_key),
+    CONSTRAINT chk_store_feature_flags_key CHECK (flag_key IN (
+        'call_waiter', 'kds', 'queue_display', 'dual_screen', 'open_bill', 'split_bill', 'stock', 'whatsapp'))
+);
+
+ALTER TABLE store_feature_flags ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS p_store_feature_flags_tenant_isolation ON store_feature_flags;
+CREATE POLICY p_store_feature_flags_tenant_isolation ON store_feature_flags FOR ALL TO cassy_app
+    USING (store_id = current_store_id()) WITH CHECK (store_id = current_store_id());
+GRANT SELECT, INSERT, UPDATE ON store_feature_flags TO cassy_app;
+
+ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS chk_audit_logs_action;
+ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (
+    action IN (
+        'VOID_ORDER', 'REFUND', 'STOCK_OVERRIDE', 'PRICE_CHANGE',
+        'SHIFT_OPEN', 'SHIFT_CLOSE', 'SHIFT_FORCE_CLOSE',
+        'ROLE_CHANGE', 'STATIC_QRIS_RECONCILE', 'CASH_PAYMENT_RECORDED', 'EDC_RECONCILE',
+        'ORDER_CREATE', 'ORDER_CANCEL', 'PAYMENT_SETTLED',
+        'STAFF_LOGIN_LOCKED', 'STAFF_UNLOCK', 'STAFF_PIN_RESET', 'STAFF_DEACTIVATED',
+        'STAFF_SESSION_REVOKED', 'STAFF_INVITED', 'STAFF_PIN_SET', 'STAFF_TEMP_PIN_ISSUED',
+        'STORE_BOOTSTRAP', 'STORE_SETTINGS_CHANGED',
+        'CASH_MOVEMENT', 'DRAWER_CREATE', 'DRAWER_UPDATE',
+        'TAB_OPEN', 'ROUND_SUBMIT', 'TAB_CLOSE', 'TAB_REOPEN',
+        'OWNER_PIN_FAILED',
+        'TABLE_CREATE', 'TABLE_UPDATE', 'TABLE_QR_ROTATE', 'TABLE_SESSION_CLOSE',
+        'PRODUCT_IMAGE_CHANGED',
+        'APPROVAL_REQUESTED', 'APPROVAL_APPROVED', 'APPROVAL_REJECTED',
+        'STAFF_PHONE_SET', 'CUSTOMER_PHONE_VERIFIED',
+        'OUTLET_CASH_MOVEMENT',
+        'ORDER_DISCOUNT',
+        'STAFF_BADGE_ISSUED', 'STAFF_BADGE_REVOKED',
+        'TABLE_MOVE', 'TABLE_MERGE', 'TABLE_SPLIT',
+        'TABLE_TIMER_EXTEND',
+        'DISPLAY_TOKEN_CREATED', 'DISPLAY_TOKEN_REVOKED',
+        'PRINTER_CREATED', 'PRINTER_UPDATED', 'PRINTER_TOKEN_ROTATED', 'PRINT_REPRINT',
+        'RECEIPT_SENT',
+        'DEVICE_REGISTERED', 'DEVICE_RENAMED', 'DEVICE_REVOKED', 'DEVICE_ROLE_CHANGED', 'FEATURE_FLAG_CHANGED', 'DEVICE_PIN_VERIFIER_ISSUED',
+        'OFFLINE_ORDER_SYNCED', 'OFFLINE_ORDER_REJECTED', 'OFFLINE_ORDER_RESOLVED', 'DEVICE_PIN_FAILED',
+        'PROMOTION_CREATED', 'PROMOTION_UPDATED',
+        'BUNDLE_CHANGED',
+        'INGREDIENT_CREATED', 'INGREDIENT_UPDATED', 'RECIPE_CHANGED',
+        'SUPPLIER_CHANGED', 'PURCHASE_ORDER_CHANGED', 'GOODS_RECEIVED',
+        'PAYABLE_PAID',
+        'STOCK_SESSION_SUBMITTED', 'STOCK_SESSION_APPROVED', 'STOCK_SESSION_REJECTED',
+        'SALES_CHANNEL_CHANGED', 'CHANNEL_PRICES_CHANGED', 'PLATFORM_PAYMENT_RECORDED',
+        'STAMP_PROGRAM_CHANGED', 'STAMP_REWARD_REDEEMED',
+        'BUSINESS_CUSTOMER_CHANGED', 'INVOICE_CHARGED', 'INVOICE_ISSUED', 'INVOICE_PAYMENT_RECORDED'
+    )
+);

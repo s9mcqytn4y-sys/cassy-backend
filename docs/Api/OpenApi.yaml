@@ -4821,10 +4821,12 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [device_role, catalog_version, first_served_at, catalog]
+                required: [device_role, features, catalog_version, first_served_at, catalog]
                 properties:
                   device_role:
                     $ref: "#/components/schemas/DeviceRole"
+                  features:
+                    $ref: "#/components/schemas/FeatureFlags"
                   catalog_version:
                     type: string
                     pattern: "^[0-9a-f]{64}$"
@@ -5829,6 +5831,65 @@ paths:
           description: MEDIA_DIMENSIONS
         "503":
           description: MEDIA_UNAVAILABLE
+  /api/v1/store/features:
+    get:
+      tags: [Staff]
+      operationId: listStoreFeatures
+      summary: Feature flags of the caller's store (any staff)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      responses:
+        "200":
+          description: Flags
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [features]
+                properties:
+                  features:
+                    $ref: "#/components/schemas/FeatureFlags"
+  /api/v1/store/features/{key}:
+    put:
+      tags: [Staff]
+      operationId: setStoreFeature
+      summary: Turn one feature flag on or off (store.settings.manage, audited as FEATURE_FLAG_CHANGED)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [call_waiter, kds, queue_display, dual_screen, open_bill, split_bill, stock, whatsapp]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: All flags after the change
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [features]
+                properties:
+                  features:
+                    $ref: "#/components/schemas/FeatureFlags"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
   /api/v1/store/settings:
     get:
       tags: [Staff]
@@ -7533,6 +7594,21 @@ components:
         quota: {type: integer, minimum: 1}
         clear_quota: {type: boolean}
         is_active: {type: boolean}
+    FeatureFlags:
+      type: object
+      description: >-
+        Every known per-store flag with the store override applied. Defaults: call_waiter and whatsapp off,
+        the others on. Package pricing is layered on top later.
+      required: [call_waiter, kds, queue_display, dual_screen, open_bill, split_bill, stock, whatsapp]
+      properties:
+        call_waiter: {type: boolean}
+        kds: {type: boolean}
+        queue_display: {type: boolean}
+        dual_screen: {type: boolean}
+        open_bill: {type: boolean}
+        split_bill: {type: boolean}
+        stock: {type: boolean}
+        whatsapp: {type: boolean}
     DeviceRole:
       type: string
       enum: [pos, kds, queue_display, backoffice]
@@ -7940,6 +8016,9 @@ components:
           items:
             type: string
             enum: [qris, gopay, shopeepay]
+        call_waiter_enabled:
+          type: boolean
+          description: Show the guest "Panggil Pelayan" entry (feature flag call_waiter).
         service_mode:
           type: string
           enum: [pickup, table]

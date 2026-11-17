@@ -74,10 +74,11 @@ type DeviceInput struct {
 
 // DeviceCatalog is the POS catalog plus the version a device sends back with each offline order.
 type DeviceCatalog struct {
-	Role          string       `json:"device_role"`
-	Version       string       `json:"catalog_version"`
-	FirstServedAt time.Time    `json:"first_served_at"`
-	Catalog       *CatalogView `json:"catalog"`
+	Role          string          `json:"device_role"`
+	Features      map[string]bool `json:"features"`
+	Version       string          `json:"catalog_version"`
+	FirstServedAt time.Time       `json:"first_served_at"`
+	Catalog       *CatalogView    `json:"catalog"`
 }
 
 type DeviceService struct {
@@ -280,7 +281,11 @@ func (s *DeviceService) Catalog(ctx context.Context, credential string) (*Device
 			VALUES ($1, $2, $3, $4) ON CONFLICT (store_id, version) DO NOTHING`, storeID, version, snapshot, now); err != nil {
 			return fmt.Errorf("failed to store catalog snapshot: %w", err)
 		}
-		out = &DeviceCatalog{Role: device.Role, Version: version, Catalog: view}
+		features, err := loadFeatureFlagsTx(ctx, tx, storeID)
+		if err != nil {
+			return err
+		}
+		out = &DeviceCatalog{Role: device.Role, Features: features, Version: version, Catalog: view}
 		return tx.GetContext(ctx, &out.FirstServedAt, `SELECT first_served_at FROM catalog_versions WHERE store_id = $1 AND version = $2`, storeID, version)
 	})
 	if err != nil {

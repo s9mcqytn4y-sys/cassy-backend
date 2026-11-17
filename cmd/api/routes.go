@@ -41,6 +41,7 @@ type handlerSet struct {
 	display    *handler.DisplayHandler
 	print      *handler.PrintHandler
 	device     *handler.DeviceHandler
+	feature    *handler.FeatureHandler
 	inventory  *handler.InventoryHandler
 	invoice    *handler.InvoiceHandler
 	offline    *handler.OfflineHandler
@@ -132,6 +133,7 @@ func wireHandlers(workerCtx context.Context, cfg *config.Config, db *sqlx.DB, hu
 	// Invoice reminders at D-3, the due date and D+7 (v0.11.1 PR 11.10, X18).
 	go service.NewInvoiceReminderService(db, emailService, messageService).StartWorker(workerCtx, time.Hour)
 	h.device = handler.NewDeviceHandler(service.NewDeviceService(db, catalogService))
+	h.feature = handler.NewFeatureHandler(service.NewFeatureService(db))
 
 	shiftService := service.NewShiftService(db)
 	shiftService.SetPINPolicy(authPolicy, emailService)
@@ -249,6 +251,8 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	store := v1.Group("/store")
 	store.GET("/settings", h.auth.RequireStaff(), h.pos.GetSettings)
 	store.PATCH("/settings", h.auth.RequirePermission(rbac.StoreSettingsManage), h.pos.UpdateSettings)
+	store.GET("/features", h.auth.RequireStaff(), h.feature.ListFeatures)
+	store.PUT("/features/:key", h.auth.RequirePermission(rbac.StoreSettingsManage), h.feature.SetFeature)
 
 	// POS (ADR-003 D8 "staff" class): store and actor come from the access token only.
 	pos := v1.Group("/pos")
