@@ -46,12 +46,17 @@ type stubGatewayClient struct {
 	lastChargeID   string
 	lastChargeAmt  int64
 	qrStringToGive string
+	failCharges    int // the next N charges fail like a gateway outage
 }
 
 func (g *stubGatewayClient) ChargeCoreAPI(_ context.Context, input midtrans.ChargeRequest) (*coreapi.ChargeResponse, error) {
 	g.chargeCalls++
 	g.lastChargeID = input.OrderID
 	g.lastChargeAmt = input.Amount
+	if g.failCharges > 0 {
+		g.failCharges--
+		return nil, fmt.Errorf("midtrans unavailable (stub %s)", g.label)
+	}
 	qr := g.qrStringToGive
 	if qr == "" {
 		qr = "00020101021226680016ID.CO.QRIS.WWW-" + g.label
@@ -220,6 +225,7 @@ func TestGovernanceIntegration(t *testing.T) {
 	storeGov.POST("/network/mikrotik/generate-rsc", gh.GenerateStoreMikrotikRsc)
 	storeGov.GET("/subscription/invoices", gh.ListStoreSubscriptionInvoices)
 	storeGov.POST("/subscription/invoices", gh.CreateStoreSubscriptionInvoice)
+	storeGov.POST("/subscription/invoices/:id/sync", gh.SyncStoreSubscriptionInvoice)
 	storeGov.POST("/clearance", gh.RequestAccountClearance)
 	storeGov.POST("/clearance/:id/cancel", gh.CancelAccountClearance)
 
@@ -765,6 +771,40 @@ func TestGovernanceIntegration(t *testing.T) {
 		wh2 := call("POST", "/api/v1/payments/midtrans/webhook", nil, platWebhook)
 		if wh2.Code != http.StatusOK || !strings.Contains(wh2.Body.String(), `"duplicate":true`) {
 			t.Fatalf("expected 200 OK duplicate=true on replayed Lane 1 webhook, got %d: %s", wh2.Code, wh2.Body.String())
+		}
+	})
+
+	t.Run("Lane1SyncRetriesFailedChargeThenReconciles", func(t *testing.T) {
+		platformBillingGateway.failCharges = 1
+		invRes := call("POST", "/api/v1/store/subscription/invoices", ownerA, map[string]string{
+			"plan_code": "pro_cafe", "billing_cycle": "monthly",
+		})
+		var inv domain.PlatformInvoice
+		_ = json.Unmarshal(invRes.Body.Bytes(), &inv)
+		if invRes.Code != http.StatusCreated || inv.ProviderQRString != "" || inv.Status != domain.PlatformInvoicePending {
+			t.Fatalf("a failed charge still creates a pending invoice without QR: %d %+v", invRes.Code, inv)
+		}
+		sync := func() domain.PlatformInvoice {
+			t.Helper()
+			res := call("POST", "/api/v1/store/subscription/invoices/"+inv.ID.String()+"/sync", ownerA, nil)
+			var out domain.PlatformInvoice
+			_ = json.Unmarshal(res.Body.Bytes(), &out)
+			if res.Code != http.StatusOK {
+				t.Fatalf("sync: %d: %s", res.Code, res.Body.String())
+			}
+			return out
+		}
+		if got := sync(); got.ProviderQRString == "" || got.Status != domain.PlatformInvoicePending {
+			t.Fatalf("sync retries the charge and stores the QR: %+v", got)
+		}
+		if platformBillingGateway.lastChargeID != inv.ID.String() {
+			t.Fatalf("the retry reuses the invoice order id, got %q", platformBillingGateway.lastChargeID)
+		}
+		if got := sync(); got.Status != domain.PlatformInvoicePaid {
+			t.Fatalf("with a QR, sync applies the Midtrans status (settlement), got %s", got.Status)
+		}
+		if res := call("POST", "/api/v1/store/subscription/invoices/"+uuid.NewString()+"/sync", ownerA, nil); res.Code != http.StatusNotFound {
+			t.Fatalf("an unknown invoice is 404, got %d", res.Code)
 		}
 	})
 

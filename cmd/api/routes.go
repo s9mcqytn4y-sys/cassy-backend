@@ -524,6 +524,7 @@ func registerGovernanceRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	storeGov.POST("/network/mikrotik/generate-rsc", h.governance.GenerateStoreMikrotikRsc)
 	storeGov.GET("/subscription/invoices", h.governance.ListStoreSubscriptionInvoices)
 	storeGov.POST("/subscription/invoices", h.governance.CreateStoreSubscriptionInvoice)
+	storeGov.POST("/subscription/invoices/:id/sync", h.governance.SyncStoreSubscriptionInvoice)
 	storeGov.POST("/clearance", h.governance.RequestAccountClearance)
 	storeGov.POST("/clearance/:id/cancel", h.governance.CancelAccountClearance)
 

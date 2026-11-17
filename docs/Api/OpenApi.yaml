@@ -7194,7 +7194,33 @@ paths:
         - BearerStaffJWT: []
       responses:
         "201":
-          description: Created platform subscription invoice
+          description: >-
+            Created platform subscription invoice. When the QRIS charge fails the invoice stays pending with an
+            empty provider_qr_string; call the sync endpoint to retry.
+  /api/v1/store/subscription/invoices/{id}/sync:
+    post:
+      tags: [SaaS Governance]
+      operationId: syncStoreSubscriptionInvoice
+      summary: Retry a missing Lane 1 QRIS charge or reconcile a pending invoice with Midtrans (owner)
+      description: >-
+        A pending invoice without a QR is charged again with the same order id and Idempotency-Key. A pending
+        invoice with a QR is checked with Midtrans and the status is applied through the webhook path (amount
+        verified, a paid invoice is never downgraded). Other statuses are returned unchanged.
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: The invoice after the retry or reconciliation
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/store/clearance:
     post:
