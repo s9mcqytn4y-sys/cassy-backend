@@ -408,6 +408,22 @@ func (h *GovernanceHandler) CreateStoreSubscriptionInvoice(c *gin.Context) {
 	c.JSON(http.StatusCreated, inv)
 }
 
+// SyncStoreSubscriptionInvoice handles POST /api/v1/store/subscription/invoices/:id/sync: retry the
+// QRIS charge when the QR is missing, otherwise reconcile the status with Midtrans.
+func (h *GovernanceHandler) SyncStoreSubscriptionInvoice(c *gin.Context) {
+	id, ok := pathID(c, "id")
+	if !ok {
+		return
+	}
+	inv, err := h.governance.SyncPlatformInvoice(c.Request.Context(), currentStaff(c), id)
+	if err != nil {
+		writeGovernanceError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, inv)
+}
+
 // RequestAccountClearance handles POST /api/v1/store/clearance
 func (h *GovernanceHandler) RequestAccountClearance(c *gin.Context) {
 	var body struct {

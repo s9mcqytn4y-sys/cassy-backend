@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -309,14 +310,17 @@ func (s *TableService) CloseSession(ctx context.Context, actor *AuthenticatedSta
 
 // PublicTable is what a scanned QR reveals: enough to show the menu header, nothing internal.
 type PublicTable struct {
-	StoreName    string `json:"store_name"`
-	StoreSlug    string `json:"store_slug"`
-	TableNumber  string `json:"table_number"`
-	Label        string `json:"label"`
-	OrderingOpen bool   `json:"ordering_open"`
-	ClosedReason string `json:"closed_reason,omitempty"`
+	StoreName      string          `json:"store_name"`
+	StoreSlug      string          `json:"store_slug"`
+	TableNumber    string          `json:"table_number"`
+	Label          string          `json:"label"`
+	OrderingOpen   bool            `json:"ordering_open"`
+	ClosedReason   string          `json:"closed_reason,omitempty"`
+	OperatingHours json.RawMessage `json:"operating_hours,omitempty"`
 	// PaymentMethods lists the guest methods (qris, gopay, shopeepay) this store has enabled, in that order.
 	PaymentMethods []string `json:"payment_methods"`
+	// CallWaiterEnabled shows the guest "Panggil Pelayan" entry (feature flag call_waiter, W4.3).
+	CallWaiterEnabled bool `json:"call_waiter_enabled"`
 	// ServiceMode is "pickup" (guest collects at the bar) or "table" (staff bring it to the table).
 	ServiceMode string `json:"service_mode"`
 	// SplitEnabled tells the guest page it may offer an equal split before paying (W13, off by default).
@@ -356,8 +360,21 @@ func (s *TableService) ResolveQR(ctx context.Context, token string) (*PublicTabl
 			return err
 		}
 		out = &PublicTable{StoreName: store.Name, StoreSlug: store.Slug, TableNumber: t.TableNumber, Label: t.Label,
-			OrderingOpen: reason == "", ClosedReason: reason, PaymentMethods: []string{}, ServiceMode: settings.QRServiceMode,
-			SplitEnabled: s.GuestSplit}
+			OrderingOpen: reason == "", ClosedReason: reason, PaymentMethods: []string{}, ServiceMode: settings.QRServiceMode}
+		var hoursRaw []byte
+		if err := tx.QueryRowxContext(ctx, `SELECT operating_hours FROM store_cms_configs WHERE store_id = $1`, storeID).Scan(&hoursRaw); err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+		} else if len(hoursRaw) > 0 && string(hoursRaw) != "{}" {
+			out.OperatingHours = json.RawMessage(hoursRaw)
+		}
+		features, err := loadFeatureFlagsTx(ctx, tx, storeID)
+		if err != nil {
+			return err
+		}
+		out.CallWaiterEnabled = features[FeatureCallWaiter]
+		out.SplitEnabled = s.GuestSplit && features[FeatureSplitBill]
 		for _, m := range []domain.PaymentMethod{domain.PaymentMethodQRIS, domain.PaymentMethodGoPay, domain.PaymentMethodShopeePay, domain.PaymentMethodBankTransfer} {
 			if isPaymentMethodEnabled(store.EnabledPaymentMethods, m) {
 				out.PaymentMethods = append(out.PaymentMethods, string(m))

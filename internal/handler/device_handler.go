@@ -60,8 +60,8 @@ func (h *DeviceHandler) RegisterDevice(c *gin.Context) {
 	c.JSON(http.StatusCreated, d)
 }
 
-// RenameDevice handles PATCH /api/v1/store/devices/:id {name}.
-func (h *DeviceHandler) RenameDevice(c *gin.Context) {
+// UpdateDevice handles PATCH /api/v1/store/devices/:id {name?, role?}.
+func (h *DeviceHandler) UpdateDevice(c *gin.Context) {
 	id, ok := pathID(c, "id")
 	if !ok {
 		return
@@ -70,7 +70,7 @@ func (h *DeviceHandler) RenameDevice(c *gin.Context) {
 	if !bindJSON(c, &in) {
 		return
 	}
-	d, err := h.devices.RenameDevice(c.Request.Context(), currentStaff(c), id, in)
+	d, err := h.devices.UpdateDevice(c.Request.Context(), currentStaff(c), id, in)
 	if err != nil {
 		writeDeviceError(c, err)
 		return

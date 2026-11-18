@@ -241,15 +241,15 @@ ON CONFLICT (id) DO NOTHING;
 -- =============================================================================
 INSERT INTO modifier_groups (id, store_id, name, selection_type, is_required, min_select, max_select, display_order, is_active)
 VALUES
-    -- Store 1 Core & Extended Modifier Groups
-    ('10000001-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'Milk Selection', 'single', true, 1, 1, 1, true),
-    ('10000002-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111', 'Sweetness Level', 'single', true, 1, 1, 2, true),
-    ('10000003-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111', 'Plant Milk Preparation (Sub-Addon)', 'single', true, 1, 1, 3, true),
-    ('10000004-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111', 'Ice Cube Level', 'single', false, 0, 1, 4, true),
-    ('10000005-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111', 'Espresso & Bean Upgrade', 'multiple', false, 0, 2, 5, true),
-    ('10000006-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111', 'Bakery Serving & Spread', 'multiple', false, 0, 2, 6, true),
-    ('10000007-0000-4000-8000-000000000007', '11111111-1111-4111-8111-111111111111', 'Kitchen Add-Ons & Spice Preference', 'multiple', false, 0, 3, 7, true),
-    ('10000008-0000-4000-8000-000000000008', '11111111-1111-4111-8111-111111111111', 'Roastery Grind Size', 'single', true, 1, 1, 8, true),
+    -- Store 1 Core & Extended Modifier Groups (cleaned labels matching active demo seed)
+    ('10000001-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'Milk', 'single', true, 1, 1, 1, true),
+    ('10000002-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111', 'Sweetness', 'single', true, 1, 1, 2, true),
+    ('10000003-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111', 'Plant Milk Topping', 'single', true, 1, 1, 3, true),
+    ('10000004-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111', 'Ice Level', 'single', false, 0, 1, 4, true),
+    ('10000005-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111', 'Extra Shot & Beans', 'multiple', false, 0, 2, 5, true),
+    ('10000006-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111', 'Serving & Spread', 'multiple', false, 0, 2, 6, true),
+    ('10000007-0000-4000-8000-000000000007', '11111111-1111-4111-8111-111111111111', 'Sides & Spice', 'multiple', false, 0, 3, 7, true),
+    ('10000008-0000-4000-8000-000000000008', '11111111-1111-4111-8111-111111111111', 'Grind Size', 'single', true, 1, 1, 8, true),
     -- Store 2 Express Modifier Groups
     ('10000009-0000-4000-8000-000000000009', '22222222-2222-4222-8222-222222222222', 'Express Sweetness & Ice', 'single', false, 0, 1, 1, true),
     ('10000010-0000-4000-8000-000000000010', '22222222-2222-4222-8222-222222222222', 'Express Milk & Foam Upgrade', 'multiple', false, 0, 2, 2, true)

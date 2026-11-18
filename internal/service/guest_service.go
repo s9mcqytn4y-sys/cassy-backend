@@ -393,5 +393,14 @@ func (s *GuestService) Track(ctx context.Context, token string) (*postgres.Track
 	if errors.Is(err, postgres.ErrTrackedOrderNotFound) {
 		return nil, ErrGuestOrderNotFound
 	}
-	return out, err
+	if err != nil || out == nil {
+		return out, err
+	}
+	// Derive overdue expiry immediately even before background ExpireOverdueOrders sweeps it.
+	if out.Status == string(domain.OrderStatusPendingPayment) &&
+		out.PaymentStatus == string(domain.OrderPaymentStatusUnpaid) &&
+		out.ExpiresAt != nil && !s.nowFunc().UTC().Before(*out.ExpiresAt) {
+		out.PaymentStatus = string(domain.OrderPaymentStatusExpired)
+	}
+	return out, nil
 }

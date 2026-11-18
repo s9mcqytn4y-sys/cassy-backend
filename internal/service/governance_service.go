@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -1676,30 +1677,90 @@ func (s *GovernanceService) CreatePlatformSubscriptionInvoice(ctx context.Contex
 		return nil, err
 	}
 
-	// Phase 2 (optional): Charge Lane 1 Platform Midtrans QRIS outside DB lock when configured.
-	if s.platformGateway != nil {
-		chargeResp, chargeErr := s.platformGateway.ChargeCoreAPI(ctx, midtrans.ChargeRequest{
-			OrderID:        providerOrderID,
-			Amount:         inv.AmountIDR,
-			Method:         domain.PaymentMethodQRIS,
-			IdempotencyKey: inv.ID.String(),
-		})
-		if chargeErr == nil && chargeResp != nil && chargeResp.QRString != "" {
-			_ = database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
-				_, uErr := tx.ExecContext(ctx, `
-					UPDATE platform_invoices
-					SET provider_qr_string = $3, updated_at = $4
-					WHERE store_id = $1 AND id = $2
-				`, storeID, inv.ID, chargeResp.QRString, s.nowFunc().UTC())
-				if uErr == nil {
-					inv.ProviderQRString = chargeResp.QRString
-				}
-				return uErr
-			})
-		}
-	}
-
+	// Phase 2: charge Lane 1 QRIS outside the DB transaction. A failure leaves the invoice pending
+	// without a QR; the owner retries through SyncPlatformInvoice.
+	s.chargePlatformInvoice(ctx, inv)
 	return inv, nil
+}
+
+// chargePlatformInvoice charges an invoice as dynamic QRIS and stores the QR string. The invoice id is
+// the Idempotency-Key, so a retry after a lost response returns the original charge instead of a
+// second one. Failures are logged (order id and error only) and leave the invoice without a QR.
+func (s *GovernanceService) chargePlatformInvoice(ctx context.Context, inv *domain.PlatformInvoice) {
+	if s.platformGateway == nil || inv.ProviderOrderID == nil {
+		return
+	}
+	resp, err := s.platformGateway.ChargeCoreAPI(ctx, midtrans.ChargeRequest{
+		OrderID:        *inv.ProviderOrderID,
+		Amount:         inv.AmountIDR,
+		Method:         domain.PaymentMethodQRIS,
+		IdempotencyKey: inv.ID.String(),
+	})
+	if err != nil || resp == nil || resp.QRString == "" {
+		log.Printf("[PLATFORM INVOICE] store_id=%s order_id=%s QRIS charge failed: %v", inv.StoreID, *inv.ProviderOrderID, err)
+		return
+	}
+	if err := database.WithTenantTx(ctx, s.db, inv.StoreID, func(tx *sqlx.Tx) error {
+		_, uErr := tx.ExecContext(ctx, `
+			UPDATE platform_invoices
+			SET provider_qr_string = $3, updated_at = $4
+			WHERE store_id = $1 AND id = $2 AND status = 'pending'
+		`, inv.StoreID, inv.ID, resp.QRString, s.nowFunc().UTC())
+		return uErr
+	}); err != nil {
+		log.Printf("[PLATFORM INVOICE] store_id=%s order_id=%s saving QR failed: %v", inv.StoreID, *inv.ProviderOrderID, err)
+		return
+	}
+	inv.ProviderQRString = resp.QRString
+}
+
+// SyncPlatformInvoice is the owner's fallback when the QR is missing or a webhook did not arrive. A
+// pending invoice without a QR is charged again (same Idempotency-Key); a pending invoice with a QR is
+// checked against Midtrans and the status is applied through the webhook path, which verifies the
+// amount and never downgrades a paid invoice.
+func (s *GovernanceService) SyncPlatformInvoice(ctx context.Context, actor *AuthenticatedStaff, id uuid.UUID) (*domain.PlatformInvoice, error) {
+	if err := requireGovernanceOwner(actor); err != nil {
+		return nil, err
+	}
+	load := func() (*domain.PlatformInvoice, error) {
+		var inv domain.PlatformInvoice
+		err := database.WithTenantTx(ctx, s.db, actor.Staff.Store.ID, func(tx *sqlx.Tx) error {
+			return tx.GetContext(ctx, &inv, `
+				SELECT id, store_id, invoice_number, plan_code, billing_cycle, amount_idr,
+				       status, provider_environment, provider_order_id, provider_qr_string,
+				       provider_va_number, paid_at, due_at, created_at, updated_at
+				FROM platform_invoices WHERE store_id = $1 AND id = $2
+			`, actor.Staff.Store.ID, id)
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrGovernanceNotFound
+		}
+		return &inv, err
+	}
+	inv, err := load()
+	if err != nil {
+		return nil, err
+	}
+	if inv.Status != domain.PlatformInvoicePending || s.platformGateway == nil || inv.ProviderOrderID == nil {
+		return inv, nil
+	}
+	if inv.ProviderQRString == "" {
+		s.chargePlatformInvoice(ctx, inv)
+		return inv, nil
+	}
+	st, err := s.platformGateway.CheckTransaction(ctx, *inv.ProviderOrderID)
+	if err != nil || st == nil {
+		log.Printf("[PLATFORM INVOICE] store_id=%s order_id=%s status check failed: %v", inv.StoreID, *inv.ProviderOrderID, err)
+		return inv, nil
+	}
+	if _, err := s.ProcessPlatformInvoiceWebhook(ctx, MidtransWebhookInput{
+		OrderID: st.OrderID, TransactionID: st.TransactionID, StatusCode: st.StatusCode,
+		TransactionStatus: st.TransactionStatus, GrossAmount: st.GrossAmount, FraudStatus: st.FraudStatus,
+		PaymentType: st.PaymentType, Currency: st.Currency,
+	}); err != nil && !errors.Is(err, ErrInvalidMidtransWebhook) {
+		return nil, err
+	}
+	return load()
 }
 
 func (s *GovernanceService) ListStorePlatformInvoices(ctx context.Context, actor *AuthenticatedStaff) ([]domain.PlatformInvoice, error) {

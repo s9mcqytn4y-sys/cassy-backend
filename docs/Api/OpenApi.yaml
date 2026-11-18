@@ -4803,6 +4803,8 @@ paths:
                   type: string
                   pattern: "^[A-Za-z][A-Za-z0-9]{0,3}$"
                   description: Upper-cased; printed on offline queue numbers (e.g. X1-007); fixed after registration.
+                role:
+                  $ref: "#/components/schemas/DeviceRole"
       responses:
         "201":
           description: Registered; credential shown once
@@ -4819,8 +4821,8 @@ paths:
   /api/v1/store/devices/{id}:
     patch:
       tags: [Devices]
-      operationId: renameDevice
-      summary: Rename a device; the prefix cannot change (device.manage, audited)
+      operationId: updateDevice
+      summary: Rename a device and/or change its role; the prefix cannot change (device.manage, audited)
       x-implementation-status: implemented
       security:
         - BearerStaffJWT: []
@@ -4837,14 +4839,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name]
+              description: At least one of name or role.
               properties:
                 name:
                   type: string
                   maxLength: 50
+                role:
+                  $ref: "#/components/schemas/DeviceRole"
       responses:
         "200":
-          description: Renamed
+          description: Updated
           content:
             application/json:
               schema:
@@ -4900,8 +4904,12 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [catalog_version, first_served_at, catalog]
+                required: [device_role, features, catalog_version, first_served_at, catalog]
                 properties:
+                  device_role:
+                    $ref: "#/components/schemas/DeviceRole"
+                  features:
+                    $ref: "#/components/schemas/FeatureFlags"
                   catalog_version:
                     type: string
                     pattern: "^[0-9a-f]{64}$"
@@ -5906,6 +5914,296 @@ paths:
           description: MEDIA_DIMENSIONS
         "503":
           description: MEDIA_UNAVAILABLE
+  /api/v1/store/features:
+    get:
+      tags: [Staff]
+      operationId: listStoreFeatures
+      summary: Feature flags of the caller's store (any staff)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      responses:
+        "200":
+          description: Flags
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [features]
+                properties:
+                  features:
+                    $ref: "#/components/schemas/FeatureFlags"
+  /api/v1/store/features/{key}:
+    put:
+      tags: [Staff]
+      operationId: setStoreFeature
+      summary: Turn one feature flag on or off (store.settings.manage, audited as FEATURE_FLAG_CHANGED)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [call_waiter, kds, queue_display, dual_screen, open_bill, split_bill, stock, whatsapp]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: All flags after the change
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [features]
+                properties:
+                  features:
+                    $ref: "#/components/schemas/FeatureFlags"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/store/service-request-templates:
+    get:
+      tags: [Staff]
+      operationId: listServiceRequestTemplates
+      summary: Call-waiter templates of the store, active first (any staff)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [templates]
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ServiceRequestTemplate"
+    post:
+      tags: [Staff]
+      operationId: createServiceRequestTemplate
+      summary: Add a call-waiter template (store.settings.manage, at most 12 active)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequestTemplateInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequestTemplate"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Too many active templates
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/store/service-request-templates/{id}:
+    patch:
+      tags: [Staff]
+      operationId: updateServiceRequestTemplate
+      summary: Rename, reorder or (de)activate a template; templates are never deleted
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequestTemplateInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequestTemplate"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Too many active templates
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/store/service-requests:
+    get:
+      tags: [Staff]
+      operationId: listServiceRequests
+      summary: Guest service requests by status, oldest first (order.read.store); realtime service_request.created and service_request.updated reach the pos channel
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, acknowledged, done, cancelled]
+            default: open
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service_requests]
+                properties:
+                  service_requests:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ServiceRequest"
+  /api/v1/store/service-requests/{id}/acknowledge:
+    post:
+      tags: [Staff]
+      operationId: acknowledgeServiceRequest
+      summary: Mark an open request as being handled (order.read.store)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Not open
+  /api/v1/store/service-requests/{id}/done:
+    post:
+      tags: [Staff]
+      operationId: finishServiceRequest
+      summary: Mark an open or acknowledged request as done (order.read.store)
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Already done or cancelled
+  /api/v1/public/guest/service-request-templates:
+    get:
+      tags: [Guest]
+      operationId: guestServiceRequestTemplates
+      summary: Active call-waiter templates for the guest store (guest cookie, 403 CALL_WAITER_DISABLED when off)
+      x-implementation-status: implemented
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [templates]
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ServiceRequestTemplate"
+        "403":
+          description: Call waiter disabled
+  /api/v1/public/guest/service-requests:
+    get:
+      tags: [Guest]
+      operationId: guestListServiceRequests
+      summary: Requests of this guest session only, newest first (max 20)
+      x-implementation-status: implemented
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service_requests]
+                properties:
+                  service_requests:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ServiceRequest"
+    post:
+      tags: [Guest]
+      operationId: guestCreateServiceRequest
+      summary: Call a waiter from the guest table (guest cookie and X-CSRF-Protection)
+      description: >-
+        Requires feature flag call_waiter and an open table session. A repeat for a template that is still
+        open or acknowledged at the same table returns that request. At most 5 requests per guest session in
+        10 minutes (429). The note is trimmed, control characters are removed, max 80 characters.
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template_id]
+              properties:
+                template_id: {type: string, format: uuid}
+                note: {type: string, maxLength: 80}
+      responses:
+        "201":
+          description: Created, or the live request for this template and table
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+        "403":
+          description: Call waiter disabled
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "429":
+          description: Too many requests in the window
   /api/v1/store/settings:
     get:
       tags: [Staff]
@@ -6979,7 +7277,33 @@ paths:
         - BearerStaffJWT: []
       responses:
         "201":
-          description: Created platform subscription invoice
+          description: >-
+            Created platform subscription invoice. When the QRIS charge fails the invoice stays pending with an
+            empty provider_qr_string; call the sync endpoint to retry.
+  /api/v1/store/subscription/invoices/{id}/sync:
+    post:
+      tags: [SaaS Governance]
+      operationId: syncStoreSubscriptionInvoice
+      summary: Retry a missing Lane 1 QRIS charge or reconcile a pending invoice with Midtrans (owner)
+      description: >-
+        A pending invoice without a QR is charged again with the same order id and Idempotency-Key. A pending
+        invoice with a QR is checked with Midtrans and the status is applied through the webhook path (amount
+        verified, a paid invoice is never downgraded). Other statuses are returned unchanged.
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: The invoice after the retry or reconciliation
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/store/clearance:
     post:
@@ -7610,9 +7934,59 @@ components:
         quota: {type: integer, minimum: 1}
         clear_quota: {type: boolean}
         is_active: {type: boolean}
+    ServiceRequestTemplate:
+      type: object
+      required: [id, label, sort_order, is_active]
+      properties:
+        id: {type: string, format: uuid}
+        label: {type: string, maxLength: 40}
+        sort_order: {type: integer, minimum: 0, maximum: 999}
+        is_active: {type: boolean}
+    ServiceRequestTemplateInput:
+      type: object
+      description: label is required on create, any field on update.
+      properties:
+        label: {type: string, maxLength: 40}
+        sort_order: {type: integer, minimum: 0, maximum: 999}
+        is_active: {type: boolean}
+    ServiceRequest:
+      type: object
+      required: [id, table_id, table_number, template_id, label, status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        table_id: {type: string, format: uuid}
+        table_number: {type: string}
+        template_id: {type: string, format: uuid}
+        label: {type: string, description: Template label at the time of the request.}
+        note: {type: string, maxLength: 80}
+        status:
+          type: string
+          enum: [open, acknowledged, done, cancelled]
+        created_at: {type: string, format: date-time}
+        acknowledged_at: {type: string, format: date-time}
+        done_at: {type: string, format: date-time}
+    FeatureFlags:
+      type: object
+      description: >-
+        Every known per-store flag with the store override applied. Defaults: call_waiter and whatsapp off,
+        the others on. Package pricing is layered on top later.
+      required: [call_waiter, kds, queue_display, dual_screen, open_bill, split_bill, stock, whatsapp]
+      properties:
+        call_waiter: {type: boolean}
+        kds: {type: boolean}
+        queue_display: {type: boolean}
+        dual_screen: {type: boolean}
+        open_bill: {type: boolean}
+        split_bill: {type: boolean}
+        stock: {type: boolean}
+        whatsapp: {type: boolean}
+    DeviceRole:
+      type: string
+      enum: [pos, kds, queue_display, backoffice]
+      description: Mode the Android app opens in, assigned by the owner. Defaults to pos.
     Device:
       type: object
-      required: [id, name, prefix, created_at]
+      required: [id, name, prefix, role, created_at]
       properties:
         id:
           type: string
@@ -7622,6 +7996,8 @@ components:
         prefix:
           type: string
           description: Printed on offline queue numbers (e.g. X1-007).
+        role:
+          $ref: "#/components/schemas/DeviceRole"
         revoked_at:
           type: string
           format: date-time
@@ -7862,6 +8238,10 @@ components:
         updated_at:
           type: string
           format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          description: Deadline timestamp for pending unpaid orders.
     TableInput:
       type: object
       properties:
@@ -8008,12 +8388,19 @@ components:
         closed_reason:
           type: string
           enum: [paused, store_closed, table_inactive]
+        operating_hours:
+          type: object
+          additionalProperties: true
+          description: Optional per-day store operating hours configured in store CMS settings.
         payment_methods:
           type: array
           description: Guest payment methods the store has enabled, in this order.
           items:
             type: string
             enum: [qris, gopay, shopeepay]
+        call_waiter_enabled:
+          type: boolean
+          description: Show the guest "Panggil Pelayan" entry (feature flag call_waiter).
         service_mode:
           type: string
           enum: [pickup, table]
@@ -9588,6 +9975,16 @@ components:
           type: string
           enum: [pickup, table]
           description: How a QR order reaches the guest (PRD v3 Q3). pickup (default) collected at the bar; table brought by staff.
+        enabled_payment_methods:
+          type: array
+          items:
+            type: string
+            enum: [qris, bank_transfer, gopay, shopeepay, cash, static_qris, edc]
+          description: Active store payment channels; digital guest channels require verified Midtrans credentials.
+        midtrans_validation_status:
+          type: string
+          enum: [unverified, valid, invalid]
+          description: Current validation status of store Midtrans BYOK credentials.
 
     InitiatePaymentResponse:
       type: object

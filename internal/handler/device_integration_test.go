@@ -53,7 +53,7 @@ func TestDeviceIntegration(t *testing.T) {
 	devices := r.Group("/store/devices", ah.RequirePermission(rbac.DeviceManage))
 	devices.GET("", dh.ListDevices)
 	devices.POST("", dh.RegisterDevice)
-	devices.PATCH("/:id", dh.RenameDevice)
+	devices.PATCH("/:id", dh.UpdateDevice)
 	devices.POST("/:id/revoke", dh.RevokeDevice)
 	r.GET("/device/catalog", dh.Catalog)
 
@@ -137,6 +137,20 @@ func TestDeviceIntegration(t *testing.T) {
 		if res := call("PATCH", "/store/devices/"+device.ID.String(), owner, map[string]any{"name": "Kasir belakang"}); res.Code != http.StatusOK || !strings.Contains(res.Body.String(), "Kasir belakang") {
 			t.Fatalf("rename failed: %d: %s", res.Code, res.Body.String())
 		}
+		if !strings.Contains(list.Body.String(), `"role":"pos"`) {
+			t.Fatalf("a device registered without a role defaults to pos: %s", list.Body.String())
+		}
+		for _, bad := range []map[string]any{{"role": "printer"}, {}} {
+			if res := call("PATCH", "/store/devices/"+device.ID.String(), owner, bad); res.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("%v must be 422, got %d", bad, res.Code)
+			}
+		}
+		if res := call("PATCH", "/store/devices/"+device.ID.String(), owner, map[string]any{"role": "kds"}); res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `"role":"kds"`) || !strings.Contains(res.Body.String(), "Kasir belakang") {
+			t.Fatalf("a role-only update keeps the name: %d: %s", res.Code, res.Body.String())
+		}
+		if res := call("PATCH", "/store/devices/"+device.ID.String(), owner, map[string]any{"role": "pos"}); res.Code != http.StatusOK {
+			t.Fatalf("role reset failed: %d", res.Code)
+		}
 	})
 	if device.Credential == "" {
 		t.Fatal("registration failed; later steps need the device")
@@ -152,6 +166,7 @@ func TestDeviceIntegration(t *testing.T) {
 			t.Fatalf("a credential moved to another store must be 401 (RLS), got %d", res.Code)
 		}
 		type served struct {
+			Role          string    `json:"device_role"`
 			Version       string    `json:"catalog_version"`
 			FirstServedAt time.Time `json:"first_served_at"`
 			Catalog       struct {
@@ -169,6 +184,9 @@ func TestDeviceIntegration(t *testing.T) {
 			return s
 		}
 		first, second := get(), get()
+		if first.Role != "pos" {
+			t.Fatalf("the device learns its role from the catalog, got %q", first.Role)
+		}
 		if len(first.Version) != 64 || len(first.Catalog.Products) == 0 {
 			t.Fatalf("expected a SHA-256 version and the POS catalog, got %q with %d products", first.Version, len(first.Catalog.Products))
 		}

@@ -139,7 +139,7 @@ func (s *OrderService) QuoteOrder(ctx context.Context, trustedStoreID uuid.UUID,
 	}
 
 	var result *OrderQuoteResult
-	err := database.WithTenantTx(ctx, s.db, trustedStoreID, func(tx *sqlx.Tx) error {
+	err := database.WithReadOnlyTenantTx(ctx, s.db, trustedStoreID, func(tx *sqlx.Tx) error {
 		productIDs := orderProductIDs(input.Items)
 
 		catalogData, err := s.repo.LoadCatalogForQuote(ctx, tx, trustedStoreID, productIDs)

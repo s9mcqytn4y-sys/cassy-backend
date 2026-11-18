@@ -130,8 +130,8 @@ switch ($Command) {
     'run' { Assert-EnvFile; Set-LocalDatabaseEnv; Invoke-Native go @('run', './cmd/api') }
 
     'login' {
-        Write-Step 'POST /api/v1/auth/staff/login (central-cafe / cashier.central@mycaffe.local / PIN dev 482913)'
-        $body = @{ store_slug = 'central-cafe'; email = 'cashier.central@mycaffe.local'; pin = '482913' } | ConvertTo-Json
+        Write-Step 'POST /api/v1/auth/staff/login (central-cafe / staff.senopati@abbdullaziz.online / PIN dev 482913)'
+        $body = @{ store_slug = 'central-cafe'; email = 'staff.senopati@abbdullaziz.online'; pin = '482913' } | ConvertTo-Json
         $resp = Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/api/v1/auth/staff/login' -ContentType 'application/json' -Body $body
         Write-Host "Masuk sebagai $($resp.staff.full_name) ($($resp.staff.role)) di $($resp.staff.store.name); access token sampai $($resp.access_token_expires_at), sesi sampai $($resp.session_expires_at)."
         $me = Invoke-RestMethod -Uri 'http://localhost:8080/api/v1/auth/staff/me' -Headers @{ Authorization = "Bearer $($resp.access_token)" }
@@ -163,7 +163,7 @@ switch ($Command) {
             $env:DB_APP_USER = 'cassy_app'
             $env:DB_APP_PASSWORD = 'it_app'
             Invoke-Native go @('run', './cmd/migrate', '-action=up')
-            Invoke-Native go @('run', './cmd/migrate', '-action=seed', '-seed-file=db/seeds/development.sql')
+            Invoke-Native go @('run', './cmd/migrate', '-action=seed', '-seed-file=db/seeds/platform_reference.sql')
             Invoke-Native go @('run', './cmd/migrate', '-action=seed', '-seed-file=db/seeds/test_fixtures.sql')
             $env:TEST_APP_DATABASE_URL = "postgres://cassy_app:it_app@127.0.0.1:$TestPort/cassy_test?sslmode=disable"
             $env:TEST_MIGRATOR_DATABASE_URL = $migrator

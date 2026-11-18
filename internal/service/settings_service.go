@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/domain"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/database"
@@ -16,36 +18,49 @@ var ErrInvalidSettings = errors.New("invalid store settings")
 
 // StoreSettingsPatch is a partial update; nil fields keep their current value.
 type StoreSettingsPatch struct {
-	VoidRefundOwnerThreshold *int64  `json:"void_refund_owner_threshold"`
-	CashierMaxDiscountBPS    *int64  `json:"cashier_max_discount_bps"`
-	CashVarianceTolerance    *int64  `json:"cash_variance_tolerance"`
-	CashierHandlesBar        *bool   `json:"cashier_handles_bar"`
-	TableIdleCloseMinutes    *int    `json:"table_idle_close_minutes"`
-	QROrderingPaused         *bool   `json:"qr_ordering_paused"`
-	StaticQRISFallbackMode   *string `json:"static_qris_fallback_mode"`
-	RefundWindowCashierDays  *int    `json:"refund_window_cashier_days"`
-	RefundWindowOwnerDays    *int    `json:"refund_window_owner_days"`
-	CashRoundingStep         *int    `json:"cash_rounding_step"`
-	OutletDailyExpenseLimit  *int64  `json:"outlet_daily_expense_limit"`
-	DefaultOpeningFloat      *int64  `json:"default_opening_float"`
-	CashierSeesExpectedCash  *bool   `json:"cashier_sees_expected_cash"`
-	GatewayPartialRefunds    *bool   `json:"gateway_partial_refunds"`
-	TableTimeLimitMinutes    *int    `json:"table_time_limit_minutes"`
-	TableTimerWarningMinutes *int    `json:"table_timer_warning_minutes"`
-	QRServiceMode            *string `json:"qr_service_mode"`
-	OfflineMaxHours          *int    `json:"offline_max_hours"`
-	OfflineMaxOrders         *int    `json:"offline_max_orders"`
-	StockApprovalLimit       *int64  `json:"stock_approval_limit"`
+	VoidRefundOwnerThreshold *int64    `json:"void_refund_owner_threshold"`
+	CashierMaxDiscountBPS    *int64    `json:"cashier_max_discount_bps"`
+	CashVarianceTolerance    *int64    `json:"cash_variance_tolerance"`
+	CashierHandlesBar        *bool     `json:"cashier_handles_bar"`
+	TableIdleCloseMinutes    *int      `json:"table_idle_close_minutes"`
+	QROrderingPaused         *bool     `json:"qr_ordering_paused"`
+	StaticQRISFallbackMode   *string   `json:"static_qris_fallback_mode"`
+	RefundWindowCashierDays  *int      `json:"refund_window_cashier_days"`
+	RefundWindowOwnerDays    *int      `json:"refund_window_owner_days"`
+	CashRoundingStep         *int      `json:"cash_rounding_step"`
+	OutletDailyExpenseLimit  *int64    `json:"outlet_daily_expense_limit"`
+	DefaultOpeningFloat      *int64    `json:"default_opening_float"`
+	CashierSeesExpectedCash  *bool     `json:"cashier_sees_expected_cash"`
+	GatewayPartialRefunds    *bool     `json:"gateway_partial_refunds"`
+	TableTimeLimitMinutes    *int      `json:"table_time_limit_minutes"`
+	TableTimerWarningMinutes *int      `json:"table_timer_warning_minutes"`
+	QRServiceMode            *string   `json:"qr_service_mode"`
+	OfflineMaxHours          *int      `json:"offline_max_hours"`
+	OfflineMaxOrders         *int      `json:"offline_max_orders"`
+	StockApprovalLimit       *int64    `json:"stock_approval_limit"`
+	EnabledPaymentMethods    *[]string `json:"enabled_payment_methods"`
 }
 
 // SettingsService lets owners change operating policies without a developer (owner decision K3).
 type SettingsService struct {
-	db           *sqlx.DB
-	settingsRepo *postgres.SettingsRepository
+	db                     *sqlx.DB
+	settingsRepo           *postgres.SettingsRepository
+	requireVerifiedGateway bool
+	onSettingsChanged      func(storeID uuid.UUID)
 }
 
 func NewSettingsService(db *sqlx.DB) *SettingsService {
 	return &SettingsService{db: db, settingsRepo: postgres.NewSettingsRepository()}
+}
+
+// SetRequireVerifiedGateway enforces validation_status == "valid" before enabling digital methods.
+func (s *SettingsService) SetRequireVerifiedGateway(required bool) {
+	s.requireVerifiedGateway = required
+}
+
+// SetOnSettingsChanged registers a cache-invalidation hook invoked after store settings commit.
+func (s *SettingsService) SetOnSettingsChanged(fn func(storeID uuid.UUID)) {
+	s.onSettingsChanged = fn
 }
 
 // Get is readable by any signed-in staff member of the store: POS screens need the thresholds.
@@ -135,11 +150,45 @@ func (s *SettingsService) Update(ctx context.Context, actor *AuthenticatedStaff,
 		if patch.StockApprovalLimit != nil {
 			after.StockApprovalLimit = *patch.StockApprovalLimit
 		}
+		var updatedMethods []string
+		if patch.EnabledPaymentMethods != nil {
+			var normErr error
+			updatedMethods, normErr = normalizeEnabledPaymentMethods(*patch.EnabledPaymentMethods)
+			if normErr != nil {
+				return normErr
+			}
+			enablingGateway := false
+			beforeSet := map[string]bool{}
+			for _, m := range before.EnabledPaymentMethods {
+				beforeSet[m] = true
+			}
+			for _, m := range updatedMethods {
+				if isMidtransGatewayMethod(domain.PaymentMethod(m)) && !beforeSet[m] {
+					enablingGateway = true
+					break
+				}
+			}
+			if enablingGateway {
+				exists, valid, cErr := s.settingsRepo.MidtransCredentialStatus(ctx, tx, storeID)
+				if cErr != nil {
+					return cErr
+				}
+				if (exists && !valid) || (!exists && s.requireVerifiedGateway) {
+					return errors.Join(ErrInvalidSettings, errors.New("kredensial Midtrans gerai harus terverifikasi (valid) sebelum mengaktifkan pembayaran digital"))
+				}
+			}
+			after.EnabledPaymentMethods = updatedMethods
+		}
 		if err := validateStoreSettings(after); err != nil {
 			return err
 		}
 		if err := s.settingsRepo.UpsertStoreSettings(ctx, tx, after, actor.Staff.UserID); err != nil {
 			return err
+		}
+		if patch.EnabledPaymentMethods != nil {
+			if err := s.settingsRepo.UpdateStorePaymentMethods(ctx, tx, storeID, updatedMethods); err != nil {
+				return err
+			}
 		}
 		meta, _ := json.Marshal(map[string]any{"before": before, "after": after})
 		actorID := actor.Staff.UserID
@@ -152,7 +201,38 @@ func (s *SettingsService) Update(ctx context.Context, actor *AuthenticatedStaff,
 		out = after
 		return nil
 	})
+	if err == nil && s.onSettingsChanged != nil {
+		s.onSettingsChanged(storeID)
+	}
 	return out, err
+}
+
+func normalizeEnabledPaymentMethods(raw []string) ([]string, error) {
+	if len(raw) == 0 {
+		return nil, errors.Join(ErrInvalidSettings, errors.New("minimal satu metode pembayaran harus aktif"))
+	}
+	allowed := map[string]bool{
+		string(domain.PaymentMethodQRIS):         true,
+		string(domain.PaymentMethodBankTransfer): true,
+		string(domain.PaymentMethodGoPay):        true,
+		string(domain.PaymentMethodShopeePay):    true,
+		string(domain.PaymentMethodCash):         true,
+		string(domain.PaymentMethodStaticQRIS):   true,
+		string(domain.PaymentMethodEDC):          true,
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		m := strings.ToLower(strings.TrimSpace(item))
+		if !allowed[m] {
+			return nil, errors.Join(ErrInvalidSettings, errors.New("metode pembayaran tidak dikenal: "+m))
+		}
+		if !seen[m] {
+			seen[m] = true
+			out = append(out, m)
+		}
+	}
+	return out, nil
 }
 
 func validateStoreSettings(s domain.StoreSettings) error {

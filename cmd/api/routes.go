@@ -41,6 +41,8 @@ type handlerSet struct {
 	display    *handler.DisplayHandler
 	print      *handler.PrintHandler
 	device     *handler.DeviceHandler
+	feature    *handler.FeatureHandler
+	svcRequest *handler.ServiceRequestHandler
 	inventory  *handler.InventoryHandler
 	invoice    *handler.InvoiceHandler
 	offline    *handler.OfflineHandler
@@ -110,7 +112,9 @@ func wireHandlers(workerCtx context.Context, cfg *config.Config, db *sqlx.DB, hu
 	h.midtrans.SetGovernanceService(governanceService)
 	h.governance = handler.NewGovernanceHandler(governanceService, cfg.PlatformAdminAPIKey)
 
-	h.pos = handler.NewPOSHandler(orderService, paymentService, service.NewSettingsService(db))
+	settingsService := service.NewSettingsService(db)
+	settingsService.SetRequireVerifiedGateway(cfg.AppEnv == "production")
+	h.pos = handler.NewPOSHandler(orderService, paymentService, settingsService)
 	operationalService := service.NewOperationalService(
 		db,
 		orderRepo,
@@ -126,12 +130,15 @@ func wireHandlers(workerCtx context.Context, cfg *config.Config, db *sqlx.DB, hu
 
 	h.approval = handler.NewApprovalHandler(service.NewApprovalService(db, operationalService))
 	catalogService := service.NewCatalogService(db)
+	settingsService.SetOnSettingsChanged(catalogService.InvalidatePublicCatalog)
 	h.catalog = handler.NewCatalogHandler(catalogService)
 	h.inventory = handler.NewInventoryHandler(service.NewInventoryService(db))
 	h.invoice = handler.NewInvoiceHandler(service.NewInvoiceService(db))
 	// Invoice reminders at D-3, the due date and D+7 (v0.11.1 PR 11.10, X18).
 	go service.NewInvoiceReminderService(db, emailService, messageService).StartWorker(workerCtx, time.Hour)
 	h.device = handler.NewDeviceHandler(service.NewDeviceService(db, catalogService))
+	h.feature = handler.NewFeatureHandler(service.NewFeatureService(db))
+	h.svcRequest = handler.NewServiceRequestHandler(service.NewServiceRequestService(db))
 
 	shiftService := service.NewShiftService(db)
 	shiftService.SetPINPolicy(authPolicy, emailService)
@@ -250,6 +257,14 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	store := v1.Group("/store")
 	store.GET("/settings", h.auth.RequireStaff(), h.pos.GetSettings)
 	store.PATCH("/settings", h.auth.RequirePermission(rbac.StoreSettingsManage), h.pos.UpdateSettings)
+	store.GET("/features", h.auth.RequireStaff(), h.feature.ListFeatures)
+	store.PUT("/features/:key", h.auth.RequirePermission(rbac.StoreSettingsManage), h.feature.SetFeature)
+	store.GET("/service-request-templates", h.auth.RequireStaff(), h.svcRequest.ListTemplates)
+	store.POST("/service-request-templates", h.auth.RequirePermission(rbac.StoreSettingsManage), h.svcRequest.CreateTemplate)
+	store.PATCH("/service-request-templates/:id", h.auth.RequirePermission(rbac.StoreSettingsManage), h.svcRequest.UpdateTemplate)
+	store.GET("/service-requests", h.auth.RequirePermission(rbac.OrderReadStore), h.svcRequest.ListForStaff)
+	store.POST("/service-requests/:id/acknowledge", h.auth.RequirePermission(rbac.OrderReadStore), h.svcRequest.Acknowledge)
+	store.POST("/service-requests/:id/done", h.auth.RequirePermission(rbac.OrderReadStore), h.svcRequest.Done)
 
 	// POS (ADR-003 D8 "staff" class): store and actor come from the access token only.
 	pos := v1.Group("/pos")
@@ -329,7 +344,7 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	devices := v1.Group("/store/devices", h.auth.RequirePermission(rbac.DeviceManage))
 	devices.GET("", h.device.ListDevices)
 	devices.POST("", h.device.RegisterDevice)
-	devices.PATCH("/:id", h.device.RenameDevice)
+	devices.PATCH("/:id", h.device.UpdateDevice)
 	devices.POST("/:id/revoke", h.device.RevokeDevice)
 	v1.GET("/device/catalog", h.device.Catalog)
 	// Offline order sync (v0.10 PR 10.2): one result per order; rejected orders wait in the owner review queue.
@@ -390,6 +405,9 @@ func registerTableAndGuestRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	guest.POST("/orders", h.guest.CreateOrder)
 	guest.POST("/orders/:id/payments", h.guest.InitiatePayment)
 	guest.POST("/orders/:id/receipt/send", h.receiptOut.SendByGuest)
+	guest.GET("/service-request-templates", h.svcRequest.GuestTemplates)
+	guest.GET("/service-requests", h.svcRequest.ListForGuest)
+	guest.POST("/service-requests", handler.LimitBody(4<<10), h.svcRequest.CreateForGuest)
 	if h.guestSplit { // stays off until the Android cashier can settle a share a guest leaves unpaid
 		guest.POST("/orders/:id/splits", h.guest.CreateSplits)
 		guest.GET("/orders/:id/splits", h.guest.ListSplits)
@@ -512,6 +530,7 @@ func registerGovernanceRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	storeGov.POST("/network/mikrotik/generate-rsc", h.governance.GenerateStoreMikrotikRsc)
 	storeGov.GET("/subscription/invoices", h.governance.ListStoreSubscriptionInvoices)
 	storeGov.POST("/subscription/invoices", h.governance.CreateStoreSubscriptionInvoice)
+	storeGov.POST("/subscription/invoices/:id/sync", h.governance.SyncStoreSubscriptionInvoice)
 	storeGov.POST("/clearance", h.governance.RequestAccountClearance)
 	storeGov.POST("/clearance/:id/cancel", h.governance.CancelAccountClearance)
 

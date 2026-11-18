@@ -228,6 +228,9 @@ type StoreSettings struct {
 	OfflineMaxHours    int   `json:"offline_max_hours" db:"offline_max_hours"`
 	OfflineMaxOrders   int   `json:"offline_max_orders" db:"offline_max_orders"`
 	StockApprovalLimit int64 `json:"stock_approval_limit" db:"stock_approval_limit"`
+	// Store-level enabled payment methods (stores.enabled_payment_methods) & BYOK credential state.
+	EnabledPaymentMethods    []string `json:"enabled_payment_methods" db:"-"`
+	MidtransValidationStatus string   `json:"midtrans_validation_status,omitempty" db:"-"`
 }
 
 // QR service modes (PRD v3 Q3).
