@@ -317,6 +317,31 @@ func (h *POSHandler) VoidOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+// VoidTabItem handles POST /api/v1/pos/tabs/:id/items/:itemId/void (order.void).
+func (h *POSHandler) VoidTabItem(c *gin.Context) {
+	if h.operational == nil {
+		authError(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Layanan operasional belum aktif.")
+		return
+	}
+	orderID, err := uuid.Parse(c.Param("id"))
+	itemID, itemErr := uuid.Parse(c.Param("itemId"))
+	if err != nil || itemErr != nil {
+		authError(c, http.StatusNotFound, "NOT_FOUND", "Item tab tidak ditemukan.")
+		return
+	}
+	var in service.VoidTabItemInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		authError(c, http.StatusBadRequest, "INVALID_REQUEST", "Data pembatalan item tidak valid.")
+		return
+	}
+	res, err := h.operational.VoidTabItem(c.Request.Context(), currentStaff(c), orderID, itemID, in)
+	if err != nil {
+		writeOperationalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
 // ApplyDiscount handles POST /api/v1/pos/orders/:id/discount (order.discount.apply).
 func (h *POSHandler) ApplyDiscount(c *gin.Context) {
 	orderID, err := uuid.Parse(c.Param("id"))
@@ -419,6 +444,10 @@ func writeOperationalError(c *gin.Context, err error) {
 		authError(c, http.StatusConflict, "REFUND_LINES_NOT_ALLOWED", "Refund per item hanya untuk tagihan yang sudah lunas dan bukan split per item.")
 	case errors.Is(err, service.ErrOutletInsufficientFunds):
 		authError(c, http.StatusConflict, "OUTLET_INSUFFICIENT_FUNDS", "Saldo kas outlet tidak mencukupi.")
+	case errors.Is(err, service.ErrTabNotFound), errors.Is(err, service.ErrTabItemNotFound):
+		authError(c, http.StatusNotFound, "NOT_FOUND", "Item tab tidak ditemukan.")
+	case errors.Is(err, service.ErrTabNotOpen):
+		authError(c, http.StatusConflict, "TAB_NOT_OPEN", "Tab sudah ditutup untuk pembayaran. Buka kembali tab untuk membatalkan item.")
 	case errors.Is(err, service.ErrApprovalInvalid):
 		authError(c, http.StatusConflict, "APPROVAL_INVALID", "Persetujuan owner tidak cocok, sudah dipakai, atau kedaluwarsa. Minta persetujuan baru.")
 	case errors.Is(err, service.ErrOwnerPINRequired):

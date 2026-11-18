@@ -22,6 +22,7 @@ import (
 
 const (
 	ApprovalVoid          = "void"
+	ApprovalVoidItem      = "void_item" // part or all of one line of an open tab; reference is the order item
 	ApprovalRefund        = "refund"
 	ApprovalStockOverride = "stock_override"
 	ApprovalShiftVariance = "shift_variance"
@@ -46,7 +47,7 @@ var (
 )
 
 var approvalPermission = map[string]rbac.Permission{
-	ApprovalVoid: rbac.OrderVoid, ApprovalRefund: rbac.PaymentRefund,
+	ApprovalVoid: rbac.OrderVoid, ApprovalVoidItem: rbac.OrderVoid, ApprovalRefund: rbac.PaymentRefund,
 	ApprovalStockOverride: rbac.StockOverride, ApprovalShiftVariance: rbac.ShiftClose,
 	ApprovalOutletExpense: rbac.CashMovementCreate, ApprovalDiscount: rbac.OrderDiscountApply,
 }
@@ -64,6 +65,8 @@ type approvalParams struct {
 	// Outlet expense (V13): the approval covers exactly this amount and category.
 	Amount   *int64 `json:"amount,omitempty"`
 	Category string `json:"category,omitempty"`
+	// Void item: the approval covers exactly this many units of the line.
+	Quantity *int `json:"quantity,omitempty"`
 }
 
 type Approval struct {
@@ -119,7 +122,7 @@ func (s *ApprovalService) Create(ctx context.Context, actor *AuthenticatedStaff,
 	reason := strings.TrimSpace(in.Reason)
 	fields := map[string]string{}
 	if !known {
-		fields["action"] = "harus void, refund, stock_override, shift_variance, outlet_expense atau discount"
+		fields["action"] = "harus void, void_item, refund, stock_override, shift_variance, outlet_expense atau discount"
 	}
 	if in.Action == ApprovalOutletExpense {
 		in.ReferenceID = actor.Staff.Store.ID // the fund belongs to the store, not to one record
@@ -144,6 +147,9 @@ func (s *ApprovalService) Create(ctx context.Context, actor *AuthenticatedStaff,
 	}
 	if in.Action == ApprovalDiscount && (params.Amount == nil || *params.Amount <= 0) {
 		fields["params.amount"] = "nominal diskon (rupiah, > 0) wajib diisi"
+	}
+	if in.Action == ApprovalVoidItem && (params.Quantity == nil || *params.Quantity < 1) {
+		fields["params.quantity"] = "jumlah item yang dibatalkan wajib diisi, minimal 1"
 	}
 	if in.Action == ApprovalShiftVariance && (params.CountedCash == nil || *params.CountedCash < 0) {
 		fields["params.counted_cash"] = "wajib diisi, tidak boleh negatif"
@@ -208,6 +214,18 @@ func (s *ApprovalService) requiredAmount(ctx context.Context, tx *sqlx.Tx, actor
 			return 0, false, ErrApprovalNotFound
 		}
 		return total, total > threshold, err
+	case ApprovalVoidItem:
+		item, amount, err := voidTabItemAmount(ctx, tx, storeID, ref, *p.Quantity)
+		if errors.Is(err, ErrTabItemNotFound) {
+			return 0, false, ErrApprovalNotFound
+		}
+		if err != nil {
+			return 0, false, err
+		}
+		if *p.Quantity > item.Quantity {
+			return 0, false, &ValidationError{Fields: map[string]string{"params.quantity": fmt.Sprintf("maksimal %d", item.Quantity)}}
+		}
+		return amount, amount > threshold, nil
 	case ApprovalRefund:
 		payment, err := s.ops.paymentRepo.GetPaymentByIDForUpdate(ctx, tx, storeID, ref)
 		if errors.Is(err, postgres.ErrPaymentNotFound) || (err == nil && payment.Status != domain.PaymentStatusPaid) {
@@ -272,12 +290,14 @@ func (s *ApprovalService) requiredAmount(ctx context.Context, tx *sqlx.Tx, actor
 const approvalSelect = `
 	SELECT a.id, a.action, a.reference_id, a.amount, a.params, a.reason, a.status, a.requested_by,
 	       COALESCE(a.decision_note, '') AS decision_note, a.expires_at, a.decided_at, a.created_at,
-	       COALESCE(o.order_number, po.order_number, pr.name, d.name, CASE WHEN a.action = 'outlet_expense' THEN 'Kas outlet' END, '') AS reference_label,
+	       COALESCE(o.order_number, po.order_number, vo.order_number || ': ' || vi.snapshot_name, pr.name, d.name, CASE WHEN a.action = 'outlet_expense' THEN 'Kas outlet' END, '') AS reference_label,
 	       COALESCE(ru.full_name, '') AS requested_by_name, COALESCE(du.full_name, '') AS decided_by_name
 	FROM approval_requests a
 	LEFT JOIN orders o ON a.action IN ('void', 'discount') AND o.store_id = a.store_id AND o.id = a.reference_id
 	LEFT JOIN payments p ON a.action = 'refund' AND p.store_id = a.store_id AND p.id = a.reference_id
 	LEFT JOIN orders po ON po.store_id = p.store_id AND po.id = p.order_id
+	LEFT JOIN order_items vi ON a.action = 'void_item' AND vi.store_id = a.store_id AND vi.id = a.reference_id
+	LEFT JOIN orders vo ON vo.store_id = vi.store_id AND vo.id = vi.order_id
 	LEFT JOIN products pr ON a.action = 'stock_override' AND pr.store_id = a.store_id AND pr.id = a.reference_id
 	LEFT JOIN shifts sh ON a.action = 'shift_variance' AND sh.store_id = a.store_id AND sh.id = a.reference_id
 	LEFT JOIN cash_drawers d ON d.store_id = sh.store_id AND d.id = sh.drawer_id
@@ -454,6 +474,7 @@ func consumeApproval(ctx context.Context, tx *sqlx.Tx, actor *AuthenticatedStaff
 	paramsMatch := (c.Params.NewQuantity == nil || (approved.NewQuantity != nil && *approved.NewQuantity == *c.Params.NewQuantity)) &&
 		(c.Params.CountedCash == nil || (approved.CountedCash != nil && *approved.CountedCash == *c.Params.CountedCash)) &&
 		(c.Params.Amount == nil || (approved.Amount != nil && *approved.Amount == *c.Params.Amount)) &&
+		(c.Params.Quantity == nil || (approved.Quantity != nil && *approved.Quantity == *c.Params.Quantity)) &&
 		c.Params.Category == approved.Category
 	if row.Status != approvalStatusOK || row.DecidedBy == nil || !now.Before(row.ExpiresAt) || row.RequestedBy != actor.Staff.UserID ||
 		row.Action != c.Action || row.ReferenceID != c.Ref || row.Amount != amount || !paramsMatch {

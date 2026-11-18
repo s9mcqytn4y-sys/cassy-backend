@@ -295,6 +295,7 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	pos.GET("/tabs/:id", h.auth.RequireStaff(), h.tab.GetTab)
 	pos.POST("/tabs/:id/close", h.auth.RequirePermission(rbac.TabManage), h.tab.CloseTab)
 	pos.POST("/tabs/:id/reopen", h.auth.RequirePermission(rbac.TabManage), h.tab.ReopenTab)
+	pos.POST("/tabs/:id/items/:itemId/void", h.auth.RequirePermission(rbac.OrderVoid), h.pos.VoidTabItem)
 
 	// POS Operational: Void, Refund & Stock Override (Iteration 4d)
 	pos.POST("/approvals", h.auth.RequireStaff(), h.approval.Create)
