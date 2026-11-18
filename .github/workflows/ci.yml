@@ -287,8 +287,8 @@ jobs:
           grep -q '^RESULT PASS' drill.log
 
           # Both scripts leave textfile metrics for the backup/drill freshness alerts.
-          grep -E '^mycaffe_backup_last_success_timestamp_seconds [0-9]+$' "$METRICS_TEXTFILE_DIR/backup.prom"
-          grep -E '^mycaffe_restore_drill_last_success_timestamp_seconds [0-9]+$' "$METRICS_TEXTFILE_DIR/restore_drill.prom"
+          grep -E '^cassy_backup_last_success_timestamp_seconds [0-9]+$' "$METRICS_TEXTFILE_DIR/backup.prom"
+          grep -E '^cassy_restore_drill_last_success_timestamp_seconds [0-9]+$' "$METRICS_TEXTFILE_DIR/restore_drill.prom"
 
           # Restoring over a non-disposable database without explicit confirmation must be refused.
           if DB_CONTAINER="$PG" DB_NAME=cassy_prod DB_MIGRATOR_USER=cassy_migrator BACKUP_OBJECT=latest \
