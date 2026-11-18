@@ -27,7 +27,7 @@ const (
 	offlineMaxBatch = 50
 	// Default OF7 limits when store_settings has no custom row yet.
 	offlineMaxHours  = 12
-	offlineMaxOrders = 300
+	offlineMaxOrders = 200
 	staleCatalogAge  = 24 * time.Hour
 	// offlineClockSkew tolerates a device clock that runs a little off the server clock.
 	offlineClockSkew = 5 * time.Minute
