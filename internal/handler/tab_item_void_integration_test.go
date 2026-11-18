@@ -75,6 +75,7 @@ func TestTabItemVoidIntegration(t *testing.T) {
 	r.POST("/pos/tabs", ah.RequirePermission(rbac.TabManage), th.OpenTab)
 	r.POST("/pos/tabs/:id/rounds", ah.RequirePermission(rbac.TabManage), th.SubmitRound)
 	r.POST("/pos/tabs/:id/close", ah.RequirePermission(rbac.TabManage), th.CloseTab)
+	r.POST("/pos/tabs/:id/reopen", ah.RequirePermission(rbac.TabManage), th.ReopenTab)
 	r.POST("/pos/tabs/:id/items/:itemId/void", ah.RequirePermission(rbac.OrderVoid), pos.VoidTabItem)
 	r.POST("/pos/approvals", ah.RequireStaff(), aph.Create)
 	r.POST("/approvals/:id/approve", ah.RequirePermission(rbac.ApprovalDecide), aph.Approve)
@@ -279,6 +280,31 @@ func TestTabItemVoidIntegration(t *testing.T) {
 		}
 		if deleted != 0 {
 			t.Fatalf("restrictive policy must keep lines of a closed tab, deleted %d", deleted)
+		}
+	})
+
+	t.Run("LineOfACancelledItemSplitCanBeRemovedAfterReopen", func(t *testing.T) {
+		reopen := func() {
+			if res := call("POST", fmt.Sprintf("/pos/tabs/%s/reopen", tabID), cashier, map[string]any{}); res.Code != http.StatusOK {
+				t.Fatalf("reopen tab: %d: %s", res.Code, res.Body.String())
+			}
+		}
+		reopen()
+		// A by_item split points at the line; reopening cancels the split but keeps its item rows.
+		res := call("POST", fmt.Sprintf("/pos/tabs/%s/close", tabID), cashier, map[string]any{
+			"strategy": "by_item",
+			"splits": []map[string]any{
+				{"label": "Andi", "items": []map[string]any{{"order_item_id": croissantLine.ID, "quantity": 1}}},
+				{"label": "Budi", "items": []map[string]any{{"order_item_id": croissantLine.ID, "quantity": 1}}},
+			},
+		})
+		if res.Code != http.StatusOK {
+			t.Fatalf("close by item: %d: %s", res.Code, res.Body.String())
+		}
+		reopen()
+		res = call("POST", voidPath(croissantLine.ID), cashier, map[string]any{"quantity": 2, "reason": "Tamu batal", "pin": "482913"})
+		if res.Code != http.StatusOK {
+			t.Fatalf("void a line a cancelled split pointed at: %d: %s", res.Code, res.Body.String())
 		}
 	})
 }

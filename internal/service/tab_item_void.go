@@ -137,7 +137,12 @@ func (s *OperationalService) VoidTabItem(ctx context.Context, actor *Authenticat
 		now := s.nowFunc().UTC()
 		remaining := item.Quantity - qty
 		if remaining == 0 {
-			// Options cascade; nothing else references a line of an open tab.
+			// Options cascade; split rows of a reopened tab's cancelled splits are the only other reference.
+			if _, err := tx.ExecContext(ctx, `DELETE FROM payment_split_items psi USING payment_splits ps
+				WHERE psi.store_id = $1 AND psi.order_item_id = $2
+				  AND ps.store_id = psi.store_id AND ps.id = psi.split_id AND ps.status = 'cancelled'`, storeID, item.ID); err != nil {
+				return fmt.Errorf("failed to drop cancelled split rows: %w", err)
+			}
 			if _, err := tx.ExecContext(ctx, `DELETE FROM order_items WHERE store_id = $1 AND id = $2`, storeID, item.ID); err != nil {
 				return fmt.Errorf("failed to remove tab item: %w", err)
 			}

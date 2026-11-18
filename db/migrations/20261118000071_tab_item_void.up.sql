@@ -54,3 +54,12 @@ CREATE POLICY p_order_items_delete_open_tab_only ON order_items AS RESTRICTIVE F
     USING (EXISTS (SELECT 1 FROM orders o
         WHERE o.store_id = order_items.store_id AND o.id = order_items.order_id
           AND o.billing_mode = 'open_tab' AND o.status = 'open'));
+
+-- A reopened tab keeps the item rows of its cancelled by_item splits, and their RESTRICT key would
+-- block removing a voided line; only rows of cancelled splits may go.
+GRANT DELETE ON payment_split_items TO cassy_app;
+DROP POLICY IF EXISTS p_payment_split_items_delete_cancelled_only ON payment_split_items;
+CREATE POLICY p_payment_split_items_delete_cancelled_only ON payment_split_items AS RESTRICTIVE FOR DELETE
+    USING (EXISTS (SELECT 1 FROM payment_splits ps
+        WHERE ps.store_id = payment_split_items.store_id AND ps.id = payment_split_items.split_id
+          AND ps.status = 'cancelled'));

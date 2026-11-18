@@ -44,5 +44,7 @@ ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (
     )
 );
 
+DROP POLICY IF EXISTS p_payment_split_items_delete_cancelled_only ON payment_split_items;
+REVOKE DELETE ON payment_split_items FROM cassy_app;
 DROP POLICY IF EXISTS p_order_items_delete_open_tab_only ON order_items;
 REVOKE DELETE ON order_items FROM cassy_app;
