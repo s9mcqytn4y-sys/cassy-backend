@@ -908,6 +908,12 @@ func (s *TabService) ReopenTab(
 	return updatedOrder, nil
 }
 
+// lineShare is the part of a line subtotal owed by its first units; consecutive differences add up to
+// the whole subtotal.
+func lineShare(subtotal int64, quantity, units int) int64 {
+	return subtotal * int64(units) / int64(quantity)
+}
+
 // allocateSplits divides an order into payment splits (full, equal, or by_item); nothing is written.
 func allocateSplits(order *domain.Order, items []domain.OrderItem, in CloseTabInput, strategy string, now time.Time) ([]domain.PaymentSplit, []domain.PaymentSplitItem, error) {
 	storeID := order.StoreID
@@ -1026,6 +1032,9 @@ func allocateSplits(order *domain.Order, items []domain.OrderItem, in CloseTabIn
 
 		splits = make([]domain.PaymentSplit, len(in.Splits))
 		var cumTax, cumService int64
+		// Units of each line already given out; a line's subtotal is shared exactly, so a promo or bundle
+		// line whose subtotal does not divide by its quantity loses no rupiah.
+		doneQty := make(map[uuid.UUID]int, len(items))
 
 		for sIdx, spInput := range in.Splits {
 			spID := uuid.New()
@@ -1034,8 +1043,9 @@ func allocateSplits(order *domain.Order, items []domain.OrderItem, in CloseTabIn
 
 			for _, itAlloc := range spInput.Items {
 				it := itemMap[itAlloc.OrderItemID]
-				unitPrice := it.SubtotalAmount / int64(it.Quantity)
-				itemAllocTotal := unitPrice * int64(itAlloc.Quantity)
+				done := doneQty[it.ID]
+				doneQty[it.ID] = done + itAlloc.Quantity
+				itemAllocTotal := lineShare(it.SubtotalAmount, it.Quantity, done+itAlloc.Quantity) - lineShare(it.SubtotalAmount, it.Quantity, done)
 				splitSubtotal += itemAllocTotal
 
 				psi := domain.PaymentSplitItem{
