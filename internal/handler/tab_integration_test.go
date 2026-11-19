@@ -70,6 +70,7 @@ func TestTabLifecycleIntegration(t *testing.T) {
 
 	th := handler.NewTabHandler(tabSvc)
 	pos := handler.NewPOSHandler(orderSvc, paymentSvc, settingsSvc)
+	sh := handler.NewShiftHandler(service.NewShiftService(db))
 
 	r := gin.New()
 	r.POST("/login", ah.Login)
@@ -82,6 +83,9 @@ func TestTabLifecycleIntegration(t *testing.T) {
 	// POS Order & Payment routes
 	r.POST("/pos/orders/:id/payments", ah.RequireStaff(), pos.InitiatePayment)
 	r.POST("/pos/orders/quote", ah.RequireStaff(), pos.QuoteOrder)
+	r.POST("/pos/drawers", ah.RequirePermission(rbac.CashDrawerManage), sh.CreateDrawer)
+	r.POST("/pos/shifts", ah.RequireStaff(), sh.OpenShift)
+	r.POST("/pos/shifts/:id/force-close", ah.RequireStaff(), sh.ForceCloseShift)
 
 	call := func(method, path, token string, body any) *httptest.ResponseRecorder {
 		var buf bytes.Buffer
@@ -584,6 +588,21 @@ func TestTabLifecycleIntegration(t *testing.T) {
 
 	// 13. Guard against paying an open tab: InitiatePayment returns 409 TAB_NOT_CLOSED, 0 payments, 0 cash movements
 	t.Run("13_PayOpenTab_RejectedWith409TabNotClosed", func(t *testing.T) {
+		// Payment checks the cashier shift first, so the tab guard is only reached with a shift open.
+		var drawer domain.CashDrawer
+		_ = json.Unmarshal(call(http.MethodPost, "/pos/drawers", ownerToken, map[string]any{"name": "Laci Tab " + uuid.NewString()[:6]}).Body.Bytes(), &drawer)
+		wShift := call(http.MethodPost, "/pos/shifts", cashierToken, map[string]any{"drawer_id": drawer.ID, "opening_float": 0})
+		if wShift.Code != http.StatusCreated {
+			t.Fatalf("open shift failed: %d %s", wShift.Code, wShift.Body.String())
+		}
+		var opened struct {
+			Shift domain.Shift `json:"shift"`
+		}
+		_ = json.Unmarshal(wShift.Body.Bytes(), &opened)
+		t.Cleanup(func() {
+			call(http.MethodPost, "/pos/shifts/"+opened.Shift.ID.String()+"/force-close", ownerToken, map[string]any{"reason": "Akhir test tab"})
+		})
+
 		// Open tab with initial items
 		wTab := call(http.MethodPost, "/pos/tabs", cashierToken, map[string]any{
 			"idempotency_key": "tab-unclosed-pay-" + uuid.NewString()[:8],
