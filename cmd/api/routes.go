@@ -176,7 +176,9 @@ func wireHandlers(workerCtx context.Context, cfg *config.Config, db *sqlx.DB, hu
 
 	realtimeService := service.NewRealtimeService(db)
 	h.realtime = handler.NewRealtimeHandler(hub, realtimeService)
-	h.display = handler.NewDisplayHandler(service.NewDisplayService(db), realtimeService)
+	displayService := service.NewDisplayService(db)
+	displayService.PublicURL = cfg.AppPublicURL
+	h.display = handler.NewDisplayHandler(displayService, realtimeService)
 	h.print = handler.NewPrintHandler(service.NewPrintService(db))
 
 	// Outbox relay (iteration 5c): LISTEN outbox + 2 s polling, at-least-once, ordered per store.
