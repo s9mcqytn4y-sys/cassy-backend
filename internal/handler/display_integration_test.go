@@ -48,7 +48,9 @@ func TestQueueDisplayIntegration(t *testing.T) {
 	})
 	ah := handler.NewAuthHandler(authSvc)
 	rt := service.NewRealtimeService(db)
-	dh := handler.NewDisplayHandler(service.NewDisplayService(db), rt)
+	displaySvc := service.NewDisplayService(db)
+	displaySvc.PublicURL = "https://order.example.test/"
+	dh := handler.NewDisplayHandler(displaySvc, rt)
 
 	r := gin.New()
 	r.POST("/login", ah.Login)
@@ -136,8 +138,11 @@ func TestQueueDisplayIntegration(t *testing.T) {
 		if !strings.HasPrefix(tv.Token, centralID.String()+".") {
 			t.Fatalf("token must carry the store id, got %q", tv.Token)
 		}
+		if tv.DisplayURL != "https://order.example.test/antrean#t="+tv.Token {
+			t.Fatalf("display_url must open the web queue with the token in the fragment, got %q", tv.DisplayURL)
+		}
 		res := call("GET", "/store/display-tokens", owner, nil)
-		if res.Code != http.StatusOK || strings.Contains(res.Body.String(), tv.Token) || !strings.Contains(res.Body.String(), tv.ID.String()) {
+		if res.Code != http.StatusOK || strings.Contains(res.Body.String(), tv.Token) || strings.Contains(res.Body.String(), "display_url") || !strings.Contains(res.Body.String(), tv.ID.String()) {
 			t.Fatalf("list must show the display without its token: %d %s", res.Code, res.Body.String())
 		}
 	})

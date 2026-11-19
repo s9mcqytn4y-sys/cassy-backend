@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +38,9 @@ type DisplayToken struct {
 	LastSeenAt *time.Time `json:"last_seen_at,omitempty" db:"last_seen_at"`
 	// Token is returned once, when the display is created.
 	Token string `json:"token,omitempty" db:"-"`
+	// DisplayURL opens the guest web queue screen with the token in the fragment, which browsers never
+	// send to a server; returned with Token, empty when no public web URL is configured.
+	DisplayURL string `json:"display_url,omitempty" db:"-"`
 }
 
 // QueueEntry is everything a queue display may show about an order.
@@ -54,6 +58,8 @@ type QueueView struct {
 type DisplayService struct {
 	db      *sqlx.DB
 	nowFunc func() time.Time
+	// PublicURL is the guest web origin (APP_PUBLIC_URL) that serves /antrean.
+	PublicURL string
 }
 
 func NewDisplayService(db *sqlx.DB) *DisplayService {
@@ -104,6 +110,9 @@ func (s *DisplayService) CreateToken(ctx context.Context, actor *AuthenticatedSt
 		return nil, err
 	}
 	out.Token = formatRefreshToken(storeID, out.ID, secret)
+	if base := strings.TrimRight(s.PublicURL, "/"); base != "" {
+		out.DisplayURL = base + "/antrean#t=" + out.Token
+	}
 	return out, nil
 }
 

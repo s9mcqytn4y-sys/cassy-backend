@@ -8225,6 +8225,10 @@ components:
         token:
           type: string
           description: Only in the create response; "<store_id>.<token_id>.<secret>", only its hash is stored
+        display_url:
+          type: string
+          example: "https://order.example.com/antrean#t=<token>"
+          description: Only in the create response, when APP_PUBLIC_URL is set; opens the web queue screen with the token in the URL fragment
     QueueView:
       type: object
       required: [store_name, orders]
