@@ -5106,6 +5106,27 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/ValidationFailed"
+  /api/v1/pos/printers:
+    get:
+      tags: [Printing]
+      operationId: listPosPrinters
+      summary: Active printers the POS tablets print to directly (those with lan_address); any signed-in staff
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      responses:
+        "200":
+          description: Tablet printers, without agent tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [printers]
+                properties:
+                  printers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Printer"
   /api/v1/store/printers:
     get:
       tags: [Printing]
@@ -8021,7 +8042,8 @@ components:
           type: string
         station:
           type: string
-          enum: [bar, kitchen, checker, label]
+          enum: [bar, kitchen, checker, label, receipt]
+          description: receipt is the cashier printer; it is always printed by the tablets and needs lan_address
         format:
           type: string
           enum: [escpos, tspl]
@@ -8038,6 +8060,10 @@ components:
         footer:
           type: string
           maxLength: 100
+        lan_address:
+          type: string
+          example: "192.168.1.50:9100"
+          description: Private IPv4 "host:port". Set means the POS tablets print to it directly on the LAN and the print queue skips it
         is_active:
           type: boolean
         last_seen_at:
@@ -8058,7 +8084,7 @@ components:
           maxLength: 50
         station:
           type: string
-          enum: [bar, kitchen, checker, label]
+          enum: [bar, kitchen, checker, label, receipt]
           description: Required on create
         paper_width_mm:
           type: integer
@@ -8071,6 +8097,9 @@ components:
         footer:
           type: string
           maxLength: 100
+        lan_address:
+          type: string
+          description: Private IPv4 with an optional port (default 9100), normalized to "host:port". An empty string clears it. Required for receipt, not allowed for label
         is_active:
           type: boolean
     AgentJob:

@@ -51,6 +51,16 @@ func (h *PrintHandler) ListPrinters(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"printers": printers})
 }
 
+// ListPosPrinters handles GET /api/v1/pos/printers: the printers POS tablets print to directly.
+func (h *PrintHandler) ListPosPrinters(c *gin.Context) {
+	printers, err := h.prints.ListPosPrinters(c.Request.Context(), currentStaff(c))
+	if err != nil {
+		writePrintError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"printers": printers})
+}
+
 // CreatePrinter handles POST /api/v1/store/printers; the agent token is shown once.
 func (h *PrintHandler) CreatePrinter(c *gin.Context) {
 	var in service.PrinterInput

@@ -293,6 +293,7 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	pos.POST("/tabs", h.auth.RequirePermission(rbac.TabManage), h.tab.OpenTab)
 	pos.POST("/tabs/:id/rounds", h.auth.RequirePermission(rbac.TabManage), h.tab.SubmitRound)
 	pos.GET("/tabs/:id", h.auth.RequireStaff(), h.tab.GetTab)
+	pos.GET("/printers", h.auth.RequireStaff(), h.print.ListPosPrinters)
 	pos.POST("/tabs/:id/close", h.auth.RequirePermission(rbac.TabManage), h.tab.CloseTab)
 	pos.POST("/tabs/:id/reopen", h.auth.RequirePermission(rbac.TabManage), h.tab.ReopenTab)
 	pos.POST("/tabs/:id/items/:itemId/void", h.auth.RequirePermission(rbac.OrderVoid), h.pos.VoidTabItem)
