@@ -64,6 +64,7 @@ func TestPrintQueueIntegration(t *testing.T) {
 	r.POST("/pos/orders/:id/payments", ah.RequireStaff(), pos.InitiatePayment)
 	r.POST("/pos/orders/:id/reprint", ah.RequirePermission(rbac.OrderPOSCreate), ph.Reprint)
 	r.POST("/pos/tabs", ah.RequirePermission(rbac.TabManage), tabs.OpenTab)
+	r.GET("/pos/printers", ah.RequireStaff(), ph.ListPosPrinters)
 	printers := r.Group("/store/printers", ah.RequirePermission(rbac.StoreSettingsManage))
 	printers.GET("", ph.ListPrinters)
 	printers.POST("", ph.CreatePrinter)
@@ -119,7 +120,7 @@ func TestPrintQueueIntegration(t *testing.T) {
 		return p
 	}
 	suffix := uuid.NewString()[:6]
-	var bar, kitchen, checker, label service.Printer
+	var bar, kitchen, checker, label, tabletKitchen, receipt service.Printer
 	t.Run("OwnerConfiguresPrinters", func(t *testing.T) {
 		if res := call("POST", "/store/printers", cashier, map[string]any{"name": "Bar", "station": "bar"}); res.Code != http.StatusForbidden {
 			t.Fatalf("cashier must not configure printers, got %d", res.Code)
@@ -129,6 +130,9 @@ func TestPrintQueueIntegration(t *testing.T) {
 			{"name": "X", "station": "receipt"},
 			{"name": "X", "station": "label", "label_height_mm": 5},
 			{"name": "X", "station": "bar", "copies": 6},
+			{"name": "X", "station": "bar", "lan_address": "8.8.8.8"},
+			{"name": "X", "station": "bar", "lan_address": "192.168.1.50:70000"},
+			{"name": "X", "station": "label", "lan_address": "192.168.1.50"},
 		} {
 			if res := call("POST", "/store/printers", owner, bad); res.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("%v must be 422, got %d: %s", bad, res.Code, res.Body.String())
@@ -138,6 +142,12 @@ func TestPrintQueueIntegration(t *testing.T) {
 		kitchen = newPrinter(map[string]any{"name": "Dapur " + suffix, "station": "kitchen", "paper_width_mm": 80})
 		checker = newPrinter(map[string]any{"name": "Checker " + suffix, "station": "checker"})
 		label = newPrinter(map[string]any{"name": "Label " + suffix, "station": "label"})
+		// Printed by the tablets on the LAN, so the queue below must skip it.
+		tabletKitchen = newPrinter(map[string]any{"name": "Dapur Tablet " + suffix, "station": "kitchen", "lan_address": " 192.168.1.60 "})
+		receipt = newPrinter(map[string]any{"name": "Struk " + suffix, "station": "receipt", "lan_address": "10.0.0.7:9101"})
+		if tabletKitchen.LanAddress == nil || *tabletKitchen.LanAddress != "192.168.1.60:9100" || *receipt.LanAddress != "10.0.0.7:9101" {
+			t.Fatalf("addresses are normalized to host:port: %+v %+v", tabletKitchen.LanAddress, receipt.LanAddress)
+		}
 		if bar.Format != "escpos" || bar.PaperWidthMM != 58 || label.Format != "tspl" || label.PaperWidthMM != 40 || label.LabelHeightMM == nil || *label.LabelHeightMM != 30 {
 			t.Fatalf("defaults must follow the station: bar %+v label %+v", bar, label)
 		}
@@ -148,6 +158,38 @@ func TestPrintQueueIntegration(t *testing.T) {
 		if res.Code != http.StatusOK || strings.Contains(res.Body.String(), bar.AgentToken) || strings.Contains(res.Body.String(), "agent_token") {
 			t.Fatalf("the list must never show agent tokens: %s", res.Body.String())
 		}
+	})
+
+	t.Run("TabletsReadTheirDirectPrinters", func(t *testing.T) {
+		res := call("GET", "/pos/printers", cashier, nil)
+		if res.Code != http.StatusOK {
+			t.Fatalf("cashier must read the tablet printers: %d: %s", res.Code, res.Body.String())
+		}
+		var body struct {
+			Printers []service.Printer `json:"printers"`
+		}
+		_ = json.Unmarshal(res.Body.Bytes(), &body)
+		mine := map[uuid.UUID]bool{}
+		for _, p := range body.Printers {
+			if p.LanAddress == nil {
+				t.Fatalf("only printers with an address are listed: %+v", p)
+			}
+			mine[p.ID] = true
+		}
+		if !mine[tabletKitchen.ID] || !mine[receipt.ID] || mine[bar.ID] {
+			t.Fatalf("expected the tablet kitchen and receipt printers only, got %s", res.Body.String())
+		}
+		if strings.Contains(res.Body.String(), "agent_token") {
+			t.Fatal("the tablet list never carries agent tokens")
+		}
+		// Clearing the address hands the printer back to the print agent.
+		if res := call("PATCH", "/store/printers/"+tabletKitchen.ID.String(), owner, map[string]any{"lan_address": ""}); res.Code != http.StatusOK {
+			t.Fatalf("clear address failed: %d: %s", res.Code, res.Body.String())
+		}
+		if strings.Contains(call("GET", "/pos/printers", cashier, nil).Body.String(), tabletKitchen.ID.String()) {
+			t.Fatal("a printer without an address is no longer a tablet printer")
+		}
+		call("PATCH", "/store/printers/"+tabletKitchen.ID.String(), owner, map[string]any{"lan_address": "192.168.1.60"})
 	})
 
 	// A paid order: two Americano (bar) and one Croissant (kitchen).
@@ -212,7 +254,7 @@ func TestPrintQueueIntegration(t *testing.T) {
 		pay() // idempotent replay must not print again
 		js := jobs()
 		if len(js) != 4 {
-			t.Fatalf("expected bar, kitchen, checker and label jobs, got %d", len(js))
+			t.Fatalf("expected bar, kitchen, checker and label jobs (none for tablet printers), got %d", len(js))
 		}
 		b, k, c, l := string(js[bar.ID].Payload), string(js[kitchen.ID].Payload), string(js[checker.ID].Payload), string(js[label.ID].Payload)
 		if js[bar.ID].Kind != "ticket" || !strings.Contains(b, "2x Americano") || strings.Contains(b, "Croissant") || strings.Count(b, "Bar utama") != 2 {

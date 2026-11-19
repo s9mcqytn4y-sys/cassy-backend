@@ -15,24 +15,24 @@ import (
 var (
 	// HTTPRequests counts finished requests by route template (never the raw path, which can hold QR/tracker tokens).
 	HTTPRequests = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "mycaffe_http_requests_total",
+		Name: "cassy_http_requests_total",
 		Help: "HTTP requests by method, route template and status code.",
 	}, []string{"method", "route", "status"})
 
 	HTTPDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "mycaffe_http_request_duration_seconds",
+		Name:    "cassy_http_request_duration_seconds",
 		Help:    "HTTP request latency by method and route template.",
 		Buckets: prometheus.DefBuckets,
 	}, []string{"method", "route"})
 
 	// WorkerLastSuccess lets an alert fire when a background worker stops completing cycles.
 	WorkerLastSuccess = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "mycaffe_worker_last_success_timestamp_seconds",
+		Name: "cassy_worker_last_success_timestamp_seconds",
 		Help: "Unix time of the last completed cycle per background worker.",
 	}, []string{"worker"})
 
 	EmailSendFailures = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "mycaffe_email_send_failures_total",
+		Name: "cassy_email_send_failures_total",
 		Help: "Failed email deliveries; permanent=true means the email will not be retried.",
 	}, []string{"permanent"})
 
@@ -66,7 +66,7 @@ func WorkerSucceeded(worker string) {
 // Handler serves the default registry plus connection-pool stats for db (nil skips them).
 func Handler(db *sql.DB) http.Handler {
 	if db != nil {
-		prometheus.MustRegister(collectors.NewDBStatsCollector(db, "mycaffe"))
+		prometheus.MustRegister(collectors.NewDBStatsCollector(db, "cassy"))
 	}
 	return promhttp.Handler()
 }

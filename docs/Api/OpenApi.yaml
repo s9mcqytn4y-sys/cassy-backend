@@ -3988,6 +3988,86 @@ paths:
         "409":
           description: Tab has already settled payments or pending payment attempts
 
+  /api/v1/pos/tabs/{id}/items/{itemId}/void:
+    post:
+      tags: [POS Tabs]
+      operationId: voidTabItem
+      summary: Take part or all of one line off an open tab
+      x-implementation-status: implemented
+      description: |
+        Needs order.void. Authority follows the voided value (snapshot price x quantity, before tax and
+        service): up to void_refund_owner_threshold the cashier's own PIN is enough; above it send
+        owner_pin or the id of an approved void_item request for exactly this line and quantity.
+        Stock comes back only when the kitchen has not started the line. A line voided to zero is
+        removed. Tab totals are recalculated, VOID_ORDER_ITEM is audited and order.item_voided is
+        emitted. A closed tab must be reopened first.
+      security:
+        - BearerStaffJWT: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: itemId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity, reason, pin]
+              properties:
+                quantity: {type: integer, minimum: 1}
+                reason: {type: string}
+                pin: {type: string, description: Cashier PIN}
+                owner_pin: {type: string, description: Owner PIN entered on this device}
+                approval_id: {type: string, format: uuid, description: Approved void_item request}
+      responses:
+        "200":
+          description: Line voided
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order:
+                    $ref: "#/components/schemas/Order"
+                  remaining_quantity: {type: integer, description: 0 when the line was removed}
+                  stock_returned: {type: boolean, description: false when the kitchen had started the line}
+        "401":
+          description: INVALID_STAFF_PIN or INVALID_OWNER_PIN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: FORBIDDEN (lacks order.void)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: NOT_FOUND (tab or line not in this store)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: TAB_NOT_OPEN or APPROVAL_INVALID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: VALIDATION_FAILED (quantity, reason) or OWNER_PIN_REQUIRED (above the threshold without owner_pin or approval_id)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+
   /api/v1/pos/approvals:
     post:
       tags: [Approvals]
@@ -3996,7 +4076,7 @@ paths:
       x-implementation-status: implemented
       description: |
         Needs the permission of the underlying action; owners use their PIN directly and get 403. The
-        server computes amount and label from the reference: order total (void), payment amount
+        server computes amount and label from the reference: order total (void), voided line value (void_item), payment amount
         (refund), new quantity (stock override), or signed cash variance from counted_cash (shift).
         The owner has 2 minutes to decide; after approval the requester has 2 minutes to use it.
         Emits approval.requested on the owner WebSocket channel.
@@ -5109,6 +5189,27 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/ValidationFailed"
+  /api/v1/pos/printers:
+    get:
+      tags: [Printing]
+      operationId: listPosPrinters
+      summary: Active printers the POS tablets print to directly (those with lan_address); any signed-in staff
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      responses:
+        "200":
+          description: Tablet printers, without agent tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [printers]
+                properties:
+                  printers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Printer"
   /api/v1/store/printers:
     get:
       tags: [Printing]
@@ -8024,7 +8125,8 @@ components:
           type: string
         station:
           type: string
-          enum: [bar, kitchen, checker, label]
+          enum: [bar, kitchen, checker, label, receipt]
+          description: receipt is the cashier printer; it is always printed by the tablets and needs lan_address
         format:
           type: string
           enum: [escpos, tspl]
@@ -8041,6 +8143,10 @@ components:
         footer:
           type: string
           maxLength: 100
+        lan_address:
+          type: string
+          example: "192.168.1.50:9100"
+          description: Private IPv4 "host:port". Set means the POS tablets print to it directly on the LAN and the print queue skips it
         is_active:
           type: boolean
         last_seen_at:
@@ -8061,7 +8167,7 @@ components:
           maxLength: 50
         station:
           type: string
-          enum: [bar, kitchen, checker, label]
+          enum: [bar, kitchen, checker, label, receipt]
           description: Required on create
         paper_width_mm:
           type: integer
@@ -8074,6 +8180,9 @@ components:
         footer:
           type: string
           maxLength: 100
+        lan_address:
+          type: string
+          description: Private IPv4 with an optional port (default 9100), normalized to "host:port". An empty string clears it. Required for receipt, not allowed for label
         is_active:
           type: boolean
     AgentJob:
@@ -8721,12 +8830,13 @@ components:
       type: object
       required: [action, reference_id, reason]
       properties:
-        action: {type: string, enum: [void, refund, stock_override, shift_variance, outlet_expense, discount]}
-        reference_id: {type: string, format: uuid, description: "Order (void), payment (refund), product (stock_override) or shift (shift_variance)"}
+        action: {type: string, enum: [void, void_item, refund, stock_override, shift_variance, outlet_expense, discount]}
+        reference_id: {type: string, format: uuid, description: "Order (void), order item of an open tab (void_item), payment (refund), product (stock_override) or shift (shift_variance)"}
         params:
           type: object
           properties:
             new_quantity: {type: integer, minimum: 0, description: Required for stock_override}
+            quantity: {type: integer, minimum: 1, description: "Required for void_item: units taken off the line"}
             counted_cash: {type: integer, format: int64, minimum: 0, description: Required for shift_variance}
             amount: {type: integer, format: int64, minimum: 1, description: "Required for outlet_expense; reference_id is ignored (the store fund)"}
             category: {type: string, enum: [ingredients, operational, other], description: Required for outlet_expense}
@@ -8736,7 +8846,7 @@ components:
       required: [id, action, reference_id, reference_label, amount, params, reason, status, requested_by_name, expires_at, created_at]
       properties:
         id: {type: string, format: uuid}
-        action: {type: string, enum: [void, refund, stock_override, shift_variance, outlet_expense, discount]}
+        action: {type: string, enum: [void, void_item, refund, stock_override, shift_variance, outlet_expense, discount]}
         reference_id: {type: string, format: uuid}
         reference_label: {type: string, description: "Order number, product name or drawer name"}
         amount: {type: integer, format: int64, description: "Server-computed; signed for shift_variance"}
