@@ -122,6 +122,9 @@ func dividePayFirstOrderTx(
 	orders *postgres.OrderRepository, payments *postgres.PaymentRepository, tabs *postgres.TabRepository,
 	storeID, orderID uuid.UUID, in CloseTabInput, now time.Time,
 ) (*domain.Order, []domain.PaymentSplit, error) {
+	if err := requireSplitBill(ctx, tx, storeID); err != nil {
+		return nil, nil, err
+	}
 	order, existing, err := orders.GetOrderByIDForUpdate(ctx, tx, storeID, orderID)
 	if err != nil {
 		return nil, nil, err

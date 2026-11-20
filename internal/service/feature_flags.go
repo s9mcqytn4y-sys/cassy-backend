@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -32,6 +33,21 @@ const (
 	FeatureCallWaiter = "call_waiter"
 	FeatureSplitBill  = "split_bill"
 )
+
+// ErrSplitBillDisabled means the owner turned split_bill off; no new shares may be created.
+var ErrSplitBillDisabled = errors.New("split bill is disabled for this store")
+
+// requireSplitBill fails closed when the store has turned split_bill off.
+func requireSplitBill(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) error {
+	flags, err := loadFeatureFlagsTx(ctx, tx, storeID)
+	if err != nil {
+		return err
+	}
+	if !flags[FeatureSplitBill] {
+		return ErrSplitBillDisabled
+	}
+	return nil
+}
 
 // FeatureService reads and changes the flags of the caller's store.
 type FeatureService struct {

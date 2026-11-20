@@ -39,6 +39,8 @@ func NewGuestHandler(guests *service.GuestService) *GuestHandler {
 
 func writeGuestError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, service.ErrSplitBillDisabled):
+		authError(c, http.StatusForbidden, "SPLIT_BILL_DISABLED", "Fitur bagi tagihan tidak aktif di gerai ini.")
 	case errors.Is(err, service.ErrGuestSessionInvalid):
 		authError(c, http.StatusUnauthorized, "GUEST_SESSION_EXPIRED", "Sesi pemesanan berakhir. Pindai ulang QR di meja.")
 	case errors.Is(err, service.ErrQROrderingPaused):
