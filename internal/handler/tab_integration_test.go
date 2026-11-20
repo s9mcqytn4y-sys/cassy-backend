@@ -79,6 +79,9 @@ func TestTabLifecycleIntegration(t *testing.T) {
 	r.POST("/pos/tabs", ah.RequirePermission(rbac.TabManage), th.OpenTab)
 	r.POST("/pos/tabs/:id/rounds", ah.RequirePermission(rbac.TabManage), th.SubmitRound)
 	r.GET("/pos/tabs/:id", ah.RequireStaff(), th.GetTab)
+	r.POST("/pos/tabs/:id/close", ah.RequirePermission(rbac.TabManage), th.CloseTab)
+	fh := handler.NewFeatureHandler(service.NewFeatureService(db))
+	r.PUT("/store/features/:key", ah.RequirePermission(rbac.StoreSettingsManage), fh.SetFeature)
 
 	// POS Order & Payment routes
 	r.POST("/pos/orders/:id/payments", ah.RequireStaff(), pos.InitiatePayment)
@@ -756,6 +759,38 @@ func TestTabLifecycleIntegration(t *testing.T) {
 	})
 
 	// 15. Non-open_tab order returns 404 on GET /pos/tabs/:id
+	t.Run("16_SplitBillOff_RejectsSplitButAllowsFullClose", func(t *testing.T) {
+		if w := call(http.MethodPut, "/store/features/split_bill", ownerToken, map[string]any{"enabled": false}); w.Code != http.StatusOK {
+			t.Fatalf("disable split_bill: %d %s", w.Code, w.Body.String())
+		}
+		t.Cleanup(func() {
+			call(http.MethodPut, "/store/features/split_bill", ownerToken, map[string]any{"enabled": true})
+		})
+
+		wTab := call(http.MethodPost, "/pos/tabs", cashierToken, map[string]any{
+			"idempotency_key": "tab-split-off-" + uuid.NewString()[:8],
+			"table_number":    "Meja Split Off",
+			"customer_name":   "Split Off",
+			"initial_items": []map[string]any{
+				{"product_id": americanoProdID, "quantity": 2},
+			},
+		})
+		if wTab.Code != http.StatusCreated {
+			t.Fatalf("open tab failed: %d %s", wTab.Code, wTab.Body.String())
+		}
+		var tabRes service.OpenTabResult
+		_ = json.Unmarshal(wTab.Body.Bytes(), &tabRes)
+		closePath := "/pos/tabs/" + tabRes.Order.ID.String() + "/close"
+
+		wSplit := call(http.MethodPost, closePath, cashierToken, map[string]any{"strategy": "equal", "split_count": 2})
+		if wSplit.Code != http.StatusForbidden || !strings.Contains(wSplit.Body.String(), "SPLIT_BILL_DISABLED") {
+			t.Fatalf("expected 403 SPLIT_BILL_DISABLED, got %d %s", wSplit.Code, wSplit.Body.String())
+		}
+		if wFull := call(http.MethodPost, closePath, cashierToken, map[string]any{"strategy": "full"}); wFull.Code != http.StatusOK {
+			t.Fatalf("full close must still work with split_bill off, got %d %s", wFull.Code, wFull.Body.String())
+		}
+	})
+
 	t.Run("15_NonOpenTabOrder_Returns404", func(t *testing.T) {
 		var nonTabOrderID uuid.UUID
 		err := database.WithTenantTx(context.Background(), db, centralStoreID, func(tx *sqlx.Tx) error {

@@ -560,6 +560,8 @@ func (h *POSHandler) DivideOrder(c *gin.Context) {
 
 func divideOrderError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, service.ErrSplitBillDisabled):
+		authError(c, http.StatusForbidden, "SPLIT_BILL_DISABLED", "Fitur bagi tagihan tidak aktif di gerai ini.")
 	case errors.Is(err, service.ErrGuestSplitNotAllowed):
 		authError(c, http.StatusConflict, "SPLIT_NOT_ALLOWED", "Pesanan ini tidak bisa dibagi lagi. Pembayaran sudah dimulai, pesanan kedaluwarsa, atau sudah dibagi.")
 	case errors.Is(err, service.ErrInvalidSplitStrategy):

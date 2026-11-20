@@ -732,6 +732,11 @@ func (s *TabService) CloseTab(
 	var result *CloseTabResult
 	err := database.WithTenantTx(ctx, s.db, actor.Staff.Store.ID, func(tx *sqlx.Tx) error {
 		storeID := actor.Staff.Store.ID
+		if strategy != "full" {
+			if err := requireSplitBill(ctx, tx, storeID); err != nil {
+				return err
+			}
+		}
 
 		order, _, err := s.orderRep.GetOrderByIDForUpdate(ctx, tx, storeID, orderID)
 		if err != nil {

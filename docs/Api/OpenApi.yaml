@@ -2979,6 +2979,8 @@ paths:
           description: Not this guest's order
         "409":
           description: The order can no longer be divided
+        "403":
+          description: "`SPLIT_BILL_DISABLED` when the store turned split_bill off"
     get:
       security: []
       tags: [Guest]
@@ -3869,7 +3871,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          description: Role not allowed, or `SPLIT_BILL_DISABLED` when the store turned the split_bill flag off
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -3951,6 +3953,8 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/PaymentSplit"
+        "403":
+          description: "`SPLIT_BILL_DISABLED` for an equal or by_item close when the store turned split_bill off"
         "400":
           description: Invalid split configuration
         "409":

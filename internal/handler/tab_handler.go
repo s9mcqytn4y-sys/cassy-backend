@@ -208,6 +208,8 @@ func writeTabServiceError(c *gin.Context, err error) {
 		authError(c, http.StatusConflict, "SPLIT_PAYMENT_PENDING", "Split bill memiliki transaksi pembayaran yang sedang gantung (pending). Batalkan atau tunggu kedaluwarsa.")
 	case errors.Is(err, service.ErrTabCannotReopen):
 		authError(c, http.StatusConflict, "TAB_CANNOT_REOPEN", "Tab tidak dapat dibuka kembali.")
+	case errors.Is(err, service.ErrSplitBillDisabled):
+		authError(c, http.StatusForbidden, "SPLIT_BILL_DISABLED", "Fitur bagi tagihan tidak aktif di gerai ini.")
 	case errors.Is(err, service.ErrInvalidSplitStrategy):
 		authError(c, http.StatusBadRequest, "INVALID_SPLIT_STRATEGY", err.Error())
 	case errors.Is(err, service.ErrInvalidSplitCount):
