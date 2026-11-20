@@ -15,11 +15,15 @@ Lihat antrean terpusat lintas repositori pada [BacklogAndDebt.md](../docs/Projec
 - [ ] Aktifkan masking bearer token path `/r/*`, `/receipts/*`, `/bagian/*` di Nginx log sebelum pilot VPS.
 - [x] Merge backend PR #152 (void item tab, migrasi 071/072, `GET /api/v1/pos/printers`).
 - [ ] Uji end-to-end A1 di tablet dengan backend dan printer LAN sungguhan (tab, void, split rata/per item, printer dari server).
-- [ ] Perbaiki setup subtest 13 `TestTabLifecycleIntegration` (buka shift kasir dulu; kini gagal `NO_OPEN_SHIFT`).
-- [ ] Cek pembulatan split `by_item`: harga unit `subtotal / qty` integer bisa membuat alokasi kurang dari subtotal baris.
-- [ ] Android: tiket dapur tercetak ulang saat tagihan meja dibayar (cart terkirim ikut dirouting lagi).
-- [ ] Android: struk per bagian split (kini hanya struk penuh saat bagian terakhir lunas); salinan dan footer printer server belum dipakai.
-- [ ] Android: menu KDS dan Meja belum ada di layout HP (hanya nav rail tablet); flag `split_bill` belum dibaca.
-- [ ] A2: buka PR client `feat/a2-queue-display` dan backend `feat/a2-display-url` (backend dulu, agar tautan layar terisi).
+- [x] Perbaiki setup subtest 13 `TestTabLifecycleIntegration` (backend PR #154).
+- [x] Pembulatan split `by_item`: alokasi kini pas ke subtotal baris lewat `lineShare` (backend PR #154).
+- [x] Android: tiket dapur tidak lagi tercetak ulang saat tagihan meja dibayar (client PR #101).
+- [x] Android: struk per bagian split (client PR #102).
+- [ ] Android: `copies` dan `footer` printer server belum dipakai; struk per bagian belum memuat item per orang (split per item).
+- [x] Android: menu KDS dan Meja di layout HP, flag `split_bill` dibaca dari profil perangkat (client PR #102).
+- [ ] Backend: flag `split_bill` belum ditegakkan di endpoint split kasir (hanya disembunyikan di client).
+- [x] A2: client PR #100 dan backend PR #153 merged.
 - [ ] A2: uji RoleGate di tablet sungguhan (ubah peran perangkat ke `kds`, cek penahan saat shift terbuka); peran `backoffice` sementara tetap di kasir sampai layar A3 ada.
-- [ ] A2 sisa: KDS sebagai layar utama tidak punya tombol kembali yang berguna; target PRD tiket pos ke kds di bawah 2 detik di LAN belum diukur.
+- [x] KDS sebagai layar utama: tombol kembali disembunyikan (client PR #100).
+- [ ] A2 sisa: target PRD tiket pos ke kds di bawah 2 detik di LAN belum diukur.
+- [ ] Lanjut A3 backoffice.
