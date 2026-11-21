@@ -34,22 +34,22 @@ INSERT INTO legal_documents (doc_type, version, locale, title, content_markdown,
 VALUES
     ('terms_of_service', '1.0.0', 'id-ID', 'Syarat dan Ketentuan Layanan SaaS Cassy by AzureDevID',
      'AzureDevID bertindak murni sebagai penyedia perangkat lunak (SaaS Provider) dengan skema Bring Your Own Key (BYOK) dan 0% komisi per transaksi. Dana transaksi menu mengalir langsung ke rekening masing-masing Tenant.',
-     encode(sha256('tos-mycaffe-azuredevid-v1.0.0-id'::bytea), 'hex')),
+     encode(sha256('tos-cassy-azuredevid-v1.0.0-id'::bytea), 'hex')),
     ('privacy_policy_pdp', '1.0.0', 'id-ID', 'Kebijakan Privasi & Perlindungan Data Pribadi (UU No. 27 Tahun 2022)',
      'Pemrosesan data pribadi pelanggan dan staf gerai dilindungi dengan isolasi Row-Level Security PostgreSQL 18 dan enkripsi kredensial AES-256-GCM sesuai UU PDP No. 27/2022.',
-     encode(sha256('pdp-mycaffe-azuredevid-v1.0.0-id'::bytea), 'hex')),
+     encode(sha256('pdp-cassy-azuredevid-v1.0.0-id'::bytea), 'hex')),
     ('dpa_tenant', '1.0.0', 'id-ID', 'Perjanjian Pemrosesan Data Mitra Usaha (Data Processing Agreement)',
      'Mitra Usaha bertindak sebagai Pengendali Data Pribadi pelanggan gerai dan menunjuk AzureDevID sebagai Prosesor Data Pribadi.',
-     encode(sha256('dpa-mycaffe-azuredevid-v1.0.0-id'::bytea), 'hex')),
+     encode(sha256('dpa-cassy-azuredevid-v1.0.0-id'::bytea), 'hex')),
     ('refund_policy', '1.0.0', 'id-ID', 'Kebijakan Pembatalan dan Pengembalian Dana Langganan SaaS',
      'Langganan SaaS dapat dibatalkan kapan saja sebelum jatuh tempo berikutnya. Kelebihan bayar atau duplikasi transaksi dikembalikan 100% dalam 5-7 hari kerja.',
-     encode(sha256('refund-mycaffe-azuredevid-v1.0.0-id'::bytea), 'hex')),
+     encode(sha256('refund-cassy-azuredevid-v1.0.0-id'::bytea), 'hex')),
     ('terms_of_service', '1.0.0', 'en-US', 'Cassy by AzureDevID SaaS Terms of Service',
      'AzureDevID operates strictly as a pure Software-as-a-Service (SaaS) provider using Bring Your Own Key (BYOK) gateway credentials with 0% transaction commission. Customer menu payments settle directly to each Tenant merchant account.',
-     encode(sha256('tos-mycaffe-azuredevid-v1.0.0-en'::bytea), 'hex')),
+     encode(sha256('tos-cassy-azuredevid-v1.0.0-en'::bytea), 'hex')),
     ('privacy_policy_pdp', '1.0.0', 'en-US', 'Privacy Policy & Personal Data Protection (Indonesia Law No. 27/2022)',
      'Guest and staff personal data are isolated per tenant using PostgreSQL 18 Row-Level Security and AES-256-GCM credential encryption in compliance with Indonesia PDP Law No. 27/2022.',
-     encode(sha256('pdp-mycaffe-azuredevid-v1.0.0-en'::bytea), 'hex'))
+     encode(sha256('pdp-cassy-azuredevid-v1.0.0-en'::bytea), 'hex'))
 ON CONFLICT (doc_type, version, locale) DO UPDATE SET
     title = EXCLUDED.title,
     content_markdown = EXCLUDED.content_markdown;
@@ -107,6 +107,28 @@ VALUES
         'Nadya Kusuma (Kasir & Pelayan Meja)',
         'cashier',
         '+628129008813',
+        '$argon2id$v=19$m=19456,t=2,p=1$asaQjWwUQ7vf35jdVNPtlw$giPi5ZwfklHxgmJ2rcCuvkNw3zn5mEfDTdbaGvy+sFY',
+        true,
+        NOW()
+    ),
+    (
+        'a0000004-0000-4000-8000-000000000004',
+        '11111111-1111-4111-8111-111111111111',
+        'barista.senopati@abbdullaziz.online',
+        'Bima Pratama (Barista KDS)',
+        'barista',
+        '+628129008814',
+        '$argon2id$v=19$m=19456,t=2,p=1$asaQjWwUQ7vf35jdVNPtlw$giPi5ZwfklHxgmJ2rcCuvkNw3zn5mEfDTdbaGvy+sFY',
+        true,
+        NOW()
+    ),
+    (
+        'a0000005-0000-4000-8000-000000000005',
+        '11111111-1111-4111-8111-111111111111',
+        'kitchen.senopati@abbdullaziz.online',
+        'Rina Dewi (Dapur KDS)',
+        'kitchen',
+        '+628129008815',
         '$argon2id$v=19$m=19456,t=2,p=1$asaQjWwUQ7vf35jdVNPtlw$giPi5ZwfklHxgmJ2rcCuvkNw3zn5mEfDTdbaGvy+sFY',
         true,
         NOW()
@@ -315,3 +337,53 @@ SELECT
 FROM products p
 WHERE p.store_id = '11111111-1111-4111-8111-111111111111' AND p.image_url IS NOT NULL
 ON CONFLICT (id) DO NOTHING;
+
+-- 9. STORE CMS BRANDING & SALES CHANNELS (COMPLETE SEED)
+INSERT INTO store_cms_configs (
+    store_id, default_locale, supported_locales,
+    hero_title_id, hero_title_en, hero_subtitle_id, hero_subtitle_en,
+    announcement_banner_id, announcement_banner_en,
+    primary_hex, accent_hex, operating_hours,
+    public_refund_policy, public_contact_phone, public_contact_email
+)
+VALUES (
+    '11111111-1111-4111-8111-111111111111',
+    'id-ID',
+    '["id-ID", "en-US"]'::jsonb,
+    'Cassy Roastery Senopati',
+    'Cassy Roastery Senopati',
+    'Kopi specialty, pastry hangat, dan hidangan rumahan langsung dari meja Anda.',
+    'Specialty coffee, fresh pastries, and comfort meals ordered right from your table.',
+    'Buka setiap hari 07.00 - 22.00 WIB. Pesan via QR tanpa antre.',
+    'Open daily 07:00 - 22:00 WIB. Order via QR with zero queue.',
+    '#0D6E6E',
+    '#D97706',
+    '{"mon":"07:00-22:00","tue":"07:00-22:00","wed":"07:00-22:00","thu":"07:00-22:00","fri":"07:00-23:00","sat":"07:00-23:00","sun":"07:00-22:00"}'::jsonb,
+    'Pembatalan sebelum pesanan diproses dapur dikembalikan penuh melalui kasir gerai.',
+    '+628567060477',
+    'abdulaziz543333@gmail.com'
+)
+ON CONFLICT (store_id) DO UPDATE SET
+    hero_title_id = EXCLUDED.hero_title_id,
+    hero_title_en = EXCLUDED.hero_title_en,
+    hero_subtitle_id = EXCLUDED.hero_subtitle_id,
+    hero_subtitle_en = EXCLUDED.hero_subtitle_en,
+    announcement_banner_id = EXCLUDED.announcement_banner_id,
+    announcement_banner_en = EXCLUDED.announcement_banner_en,
+    primary_hex = EXCLUDED.primary_hex,
+    accent_hex = EXCLUDED.accent_hex,
+    public_contact_phone = EXCLUDED.public_contact_phone,
+    public_contact_email = EXCLUDED.public_contact_email,
+    updated_at = NOW();
+
+INSERT INTO sales_channels (id, store_id, name, commission_bps, is_active)
+VALUES
+    ('90000001-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'Dine-In', 0, true),
+    ('90000002-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111', 'Takeaway', 0, true),
+    ('90000003-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111', 'GoFood', 2000, true),
+    ('90000004-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111', 'GrabFood', 2000, true),
+    ('90000005-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111', 'ShopeeFood', 2000, true)
+ON CONFLICT (store_id, name) DO UPDATE SET
+    commission_bps = EXCLUDED.commission_bps,
+    is_active = EXCLUDED.is_active,
+    updated_at = NOW();
