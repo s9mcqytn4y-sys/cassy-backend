@@ -107,8 +107,32 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, actor *Authenticated
 	if err := requireDeviceManage(actor); err != nil {
 		return nil, err
 	}
+	d, err := newDeviceFromInput(in, s.nowFunc().UTC())
+	if err != nil {
+		return nil, err
+	}
+	secret, hash, err := newRefreshSecret()
+	if err != nil {
+		return nil, err
+	}
+	storeID := actor.Staff.Store.ID
+	err = database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
+		if err := insertDeviceTx(ctx, tx, storeID, d, hash, actor.Staff.UserID); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "DEVICE_REGISTERED", "Perangkat POS didaftarkan", d.ID, map[string]any{"name": d.Name, "prefix": d.Prefix, "role": d.Role})
+	})
+	if err != nil {
+		return nil, err
+	}
+	d.Credential = formatRefreshToken(storeID, d.ID, secret)
+	return d, nil
+}
+
+// newDeviceFromInput validates a new device's name and prefix.
+func newDeviceFromInput(in DeviceInput, now time.Time) (*Device, error) {
 	f := fieldErrors{}
-	d := &Device{ID: uuid.New(), Role: DeviceRolePOS, CreatedAt: s.nowFunc().UTC()}
+	d := &Device{ID: uuid.New(), Role: DeviceRolePOS, CreatedAt: now}
 	if in.Name == nil {
 		f.add("name", "wajib diisi")
 	} else {
@@ -127,26 +151,29 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, actor *Authenticated
 	if err := f.err(); err != nil {
 		return nil, err
 	}
-	secret, hash, err := newRefreshSecret()
-	if err != nil {
-		return nil, err
-	}
-	storeID := actor.Staff.Store.ID
-	err = database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, store_id, name, prefix, role, credential_hash, registered_by, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`, d.ID, storeID, d.Name, d.Prefix, d.Role, hash, actor.Staff.UserID, d.CreatedAt); err != nil {
-			if c, ok := postgres.UniqueViolation(err); ok && c == "uq_devices_store_prefix" {
-				return &ConflictError{Field: "prefix", Message: "prefix sudah dipakai perangkat lain"}
-			}
-			return fmt.Errorf("failed to register device: %w", err)
-		}
-		return s.audit(ctx, tx, actor, "DEVICE_REGISTERED", "Perangkat POS didaftarkan", d.ID, map[string]any{"name": d.Name, "prefix": d.Prefix, "role": d.Role})
-	})
-	if err != nil {
-		return nil, err
-	}
-	d.Credential = formatRefreshToken(storeID, d.ID, secret)
 	return d, nil
+}
+
+// insertDeviceTx enforces the device plan quota, then inserts the device with its credential hash.
+func insertDeviceTx(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID, d *Device, credentialHash string, registeredBy uuid.UUID) error {
+	if err := ensurePlanQuota(ctx, tx, storeID, PlanResourceDevices); err != nil {
+		return err
+	}
+	if d.Role == "" {
+		d.Role = DeviceRolePOS
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, store_id, name, prefix, role, credential_hash, registered_by, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`, d.ID, storeID, d.Name, d.Prefix, d.Role, credentialHash, registeredBy, d.CreatedAt); err != nil {
+		if c, ok := postgres.UniqueViolation(err); ok && c == "uq_devices_store_prefix" {
+			return devicePrefixConflict()
+		}
+		return fmt.Errorf("failed to register device: %w", err)
+	}
+	return nil
+}
+
+func devicePrefixConflict() error {
+	return &ConflictError{Field: "prefix", Message: "prefix sudah dipakai perangkat lain"}
 }
 
 func (s *DeviceService) ListDevices(ctx context.Context, actor *AuthenticatedStaff) ([]Device, error) {

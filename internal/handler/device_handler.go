@@ -23,6 +23,8 @@ func writeDeviceError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrDeviceInvalid):
 		authError(c, http.StatusUnauthorized, "DEVICE_INVALID", "Perangkat ini tidak terdaftar atau sudah dicabut.")
+	case errors.Is(err, service.ErrPairingTokenInvalid):
+		authError(c, http.StatusUnauthorized, "PAIRING_TOKEN_INVALID", "QR pairing tidak valid, sudah dipakai, atau kedaluwarsa. Minta QR baru ke owner.")
 	case errors.Is(err, service.ErrDeviceNotFound):
 		authError(c, http.StatusNotFound, "NOT_FOUND", "Perangkat tidak ditemukan.")
 	default:
@@ -102,4 +104,41 @@ func (h *DeviceHandler) Catalog(c *gin.Context) {
 	}
 	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusOK, out)
+}
+
+// IssuePairingToken handles POST /api/v1/pos/devices/pairing-token {name, prefix} (device.manage).
+// The token is single-use, lives 5 minutes, and is shown once for the Owner Dashboard QR.
+func (h *DeviceHandler) IssuePairingToken(c *gin.Context) {
+	var in service.DeviceInput
+	if !bindJSON(c, &in) {
+		return
+	}
+	out, err := h.devices.IssuePairingToken(c.Request.Context(), currentStaff(c), in)
+	if err != nil {
+		writeDeviceError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusCreated, out)
+}
+
+// PairDeviceRequest carries the pairing token in the body, never in the URL, so it stays out of logs.
+type PairDeviceRequest struct {
+	PairingToken string `json:"pairing_token" binding:"required"`
+}
+
+// PairDevice handles POST /api/v1/pos/devices/pair (public): exchanges a pairing token for a device
+// credential, returned once.
+func (h *DeviceHandler) PairDevice(c *gin.Context) {
+	var req PairDeviceRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	d, err := h.devices.PairDevice(c.Request.Context(), strings.TrimSpace(req.PairingToken))
+	if err != nil {
+		writeDeviceError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusCreated, d)
 }
