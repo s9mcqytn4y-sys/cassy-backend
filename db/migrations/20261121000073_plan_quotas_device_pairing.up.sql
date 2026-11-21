@@ -1,4 +1,4 @@
--- 20261116000066_plan_quotas_device_pairing.up.sql
+-- 20261121000073_plan_quotas_device_pairing.up.sql
 -- PM-E1: per-plan quotas for SKUs, staff and POS devices (0 means unlimited, same as max_tables and
 -- max_printers). PM-E2: single-use device pairing tokens with a 5-minute TTL (SecurityQrPairingAdr).
 
@@ -56,14 +56,14 @@ BEGIN
     END IF;
     EXECUTE 'DROP POLICY IF EXISTS p_device_pairing_tokens_tenant_isolation ON device_pairing_tokens';
     EXECUTE format('CREATE POLICY p_device_pairing_tokens_tenant_isolation ON device_pairing_tokens FOR ALL TO %s
-        USING (store_id = current_store_id()) WITH CHECK (store_id = current_store_id())', roles);
+        USING (store_id = (SELECT current_store_id())) WITH CHECK (store_id = (SELECT current_store_id()))', roles);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE ON device_pairing_tokens TO %s', roles);
 END $$;
 
 ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS chk_audit_logs_action;
 ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (
     action IN (
-        'VOID_ORDER', 'REFUND', 'STOCK_OVERRIDE', 'PRICE_CHANGE',
+        'VOID_ORDER', 'VOID_ORDER_ITEM', 'REFUND', 'STOCK_OVERRIDE', 'PRICE_CHANGE',
         'SHIFT_OPEN', 'SHIFT_CLOSE', 'SHIFT_FORCE_CLOSE',
         'ROLE_CHANGE', 'STATIC_QRIS_RECONCILE', 'CASH_PAYMENT_RECORDED', 'EDC_RECONCILE',
         'ORDER_CREATE', 'ORDER_CANCEL', 'PAYMENT_SETTLED',
@@ -85,7 +85,7 @@ ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (
         'DISPLAY_TOKEN_CREATED', 'DISPLAY_TOKEN_REVOKED',
         'PRINTER_CREATED', 'PRINTER_UPDATED', 'PRINTER_TOKEN_ROTATED', 'PRINT_REPRINT',
         'RECEIPT_SENT',
-        'DEVICE_REGISTERED', 'DEVICE_RENAMED', 'DEVICE_REVOKED', 'DEVICE_PIN_VERIFIER_ISSUED',
+        'DEVICE_REGISTERED', 'DEVICE_RENAMED', 'DEVICE_REVOKED', 'DEVICE_ROLE_CHANGED', 'FEATURE_FLAG_CHANGED', 'DEVICE_PIN_VERIFIER_ISSUED',
         'OFFLINE_ORDER_SYNCED', 'OFFLINE_ORDER_REJECTED', 'OFFLINE_ORDER_RESOLVED', 'DEVICE_PIN_FAILED',
         'PROMOTION_CREATED', 'PROMOTION_UPDATED',
         'BUNDLE_CHANGED',

@@ -1,10 +1,10 @@
--- 20261116000066_plan_quotas_device_pairing.down.sql
--- Restore the 000055 audit action list. NOT VALID keeps rollback possible after pairing audit rows
+-- 20261121000073_plan_quotas_device_pairing.down.sql
+-- Restore the 000071 audit action list. NOT VALID keeps rollback possible after pairing audit rows
 -- exist; those rows stay as history and new inserts are checked against the old list again.
 ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS chk_audit_logs_action;
 ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (
     action IN (
-        'VOID_ORDER', 'REFUND', 'STOCK_OVERRIDE', 'PRICE_CHANGE',
+        'VOID_ORDER', 'VOID_ORDER_ITEM', 'REFUND', 'STOCK_OVERRIDE', 'PRICE_CHANGE',
         'SHIFT_OPEN', 'SHIFT_CLOSE', 'SHIFT_FORCE_CLOSE',
         'ROLE_CHANGE', 'STATIC_QRIS_RECONCILE', 'CASH_PAYMENT_RECORDED', 'EDC_RECONCILE',
         'ORDER_CREATE', 'ORDER_CANCEL', 'PAYMENT_SETTLED',
@@ -26,7 +26,7 @@ ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (
         'DISPLAY_TOKEN_CREATED', 'DISPLAY_TOKEN_REVOKED',
         'PRINTER_CREATED', 'PRINTER_UPDATED', 'PRINTER_TOKEN_ROTATED', 'PRINT_REPRINT',
         'RECEIPT_SENT',
-        'DEVICE_REGISTERED', 'DEVICE_RENAMED', 'DEVICE_REVOKED', 'DEVICE_PIN_VERIFIER_ISSUED',
+        'DEVICE_REGISTERED', 'DEVICE_RENAMED', 'DEVICE_REVOKED', 'DEVICE_ROLE_CHANGED', 'FEATURE_FLAG_CHANGED', 'DEVICE_PIN_VERIFIER_ISSUED',
         'OFFLINE_ORDER_SYNCED', 'OFFLINE_ORDER_REJECTED', 'OFFLINE_ORDER_RESOLVED', 'DEVICE_PIN_FAILED',
         'PROMOTION_CREATED', 'PROMOTION_UPDATED',
         'BUNDLE_CHANGED',
