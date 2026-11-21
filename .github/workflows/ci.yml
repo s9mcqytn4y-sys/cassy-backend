@@ -205,8 +205,8 @@ jobs:
           go run ./cmd/migrate -action=seed -seed-file=db/seeds/development.sql
           DEV_STORE_COUNT=$(psql -h localhost -p 55432 -U cassy_migrator -d cassy_test -t -A -c "SELECT COUNT(*) FROM stores;")
           DEV_USER_COUNT=$(psql -h localhost -p 55432 -U cassy_migrator -d cassy_test -t -A -c "SELECT COUNT(*) FROM users;")
-          if [ "$DEV_STORE_COUNT" != "1" ] || [ "$DEV_USER_COUNT" != "2" ]; then
-            echo "Expected 1 store and 2 RBAC users in development.sql, got stores=$DEV_STORE_COUNT users=$DEV_USER_COUNT"
+          if [ "$DEV_STORE_COUNT" != "1" ] || [ "$DEV_USER_COUNT" != "4" ]; then
+            echo "Expected 1 store and 4 RBAC users in development.sql, got stores=$DEV_STORE_COUNT users=$DEV_USER_COUNT"
             exit 1
           fi
           psql -h localhost -p 55432 -U cassy_migrator -d cassy_test -c "TRUNCATE stores, users CASCADE;"
