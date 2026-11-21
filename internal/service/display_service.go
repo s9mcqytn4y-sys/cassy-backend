@@ -51,8 +51,9 @@ type QueueEntry struct {
 }
 
 type QueueView struct {
-	StoreName string       `json:"store_name"`
-	Orders    []QueueEntry `json:"orders"`
+	StoreName     string       `json:"store_name"`
+	StoreTimezone string       `json:"store_timezone"`
+	Orders        []QueueEntry `json:"orders"`
 }
 
 type DisplayService struct {
@@ -173,9 +174,15 @@ func (s *DisplayService) Queue(ctx context.Context, token string) (*QueueView, e
 		if err := s.authTx(ctx, tx, storeID, tokenID, secret); err != nil {
 			return err
 		}
-		if err := tx.GetContext(ctx, &view.StoreName, `SELECT name FROM stores WHERE id = $1`, storeID); err != nil {
+		var storeMeta struct {
+			Name     string `db:"name"`
+			Timezone string `db:"timezone"`
+		}
+		if err := tx.GetContext(ctx, &storeMeta, `SELECT name, COALESCE(NULLIF(timezone, ''), 'Asia/Jakarta') AS timezone FROM stores WHERE id = $1`, storeID); err != nil {
 			return err
 		}
+		view.StoreName = storeMeta.Name
+		view.StoreTimezone = storeMeta.Timezone
 		return tx.SelectContext(ctx, &view.Orders, `
 			SELECT o.queue_number, o.status, o.updated_at
 			FROM orders o JOIN stores st ON st.id = o.store_id

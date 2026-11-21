@@ -163,6 +163,9 @@ func TestQueueDisplayIntegration(t *testing.T) {
 			t.Fatalf("queue failed: %d: %s", res.Code, res.Body.String())
 		}
 		body := res.Body.String()
+		if !strings.Contains(body, `"store_timezone"`) {
+			t.Fatalf("queue must include store_timezone for multi-timezone display: %s", body)
+		}
 		if !strings.Contains(body, readyQueue) || strings.Contains(body, unpaidQueue) {
 			t.Fatalf("queue must list the ready order and hide the unpaid one: %s", body)
 		}
