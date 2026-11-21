@@ -197,6 +197,9 @@ func (s *PrintService) CreatePrinter(ctx context.Context, actor *AuthenticatedSt
 	}
 	storeID := actor.Staff.Store.ID
 	err = database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
+		if err := ensurePlanQuota(ctx, tx, storeID, PlanResourcePrinters); err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO printers (id, store_id, name, station, format, paper_width_mm, label_height_mm,
 			copies, footer, agent_token_hash, is_active, created_by, created_at, updated_at, lan_address)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, $14)`,
@@ -251,6 +254,11 @@ func (s *PrintService) UpdatePrinter(ctx context.Context, actor *AuthenticatedSt
 		before := p
 		if err := applyPrinter(&p, in); err != nil {
 			return err
+		}
+		if !before.IsActive && p.IsActive {
+			if err := ensurePlanQuota(ctx, tx, storeID, PlanResourcePrinters); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE printers SET name = $3, station = $4, format = $5, paper_width_mm = $6,
 			label_height_mm = $7, copies = $8, footer = $9, is_active = $10, updated_at = $11, lan_address = $12 WHERE store_id = $1 AND id = $2`,

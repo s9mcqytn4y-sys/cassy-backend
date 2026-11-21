@@ -646,6 +646,19 @@ BEGIN
         RAISE EXCEPTION 'SECURITY FAILURE: onboarding/webhook SECURITY DEFINER functions are executable by PUBLIC!';
     END IF;
 
+    -- 10F-32. Device pairing tokens and plan quotas (migration 000066): RLS on; tokens are never deleted
+    -- by the app; quota columns are non-negative with 0 meaning unlimited.
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.device_pairing_tokens'::regclass) THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: device_pairing_tokens does not have row-level security enabled!';
+    END IF;
+    IF has_table_privilege('cassy_app', 'public.device_pairing_tokens', 'DELETE') THEN
+        RAISE EXCEPTION 'SECURITY FAILURE: cassy_app may delete device pairing tokens!';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_device_pairing_tokens_ttl')
+       OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_subscription_plans_quota_limits') THEN
+        RAISE EXCEPTION 'CONSTRAINT FAILURE: pairing token TTL cap or plan quota check is missing!';
+    END IF;
+
     RAISE NOTICE 'SUCCESS: Row-Level Security (RLS) on stores/orders/payments/notifications and DELETE privilege revocation verified.';
     RAISE NOTICE 'ALL CONSTRAINTS, RLS POLICIES, AND BEHAVIORAL VERIFICATIONS PASSED SUCCESSFULLY.';
 END $$;

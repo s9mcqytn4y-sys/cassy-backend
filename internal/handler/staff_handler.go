@@ -80,7 +80,10 @@ func currentStaff(c *gin.Context) *service.AuthenticatedStaff {
 
 // lifecycleError maps account-lifecycle errors to HTTP responses.
 func lifecycleError(c *gin.Context, err error) {
+	var planLimit *service.PlanLimitError
 	switch {
+	case errors.As(err, &planLimit):
+		writePlanLimit(c, planLimit)
 	case errors.Is(err, auth.ErrPINFormat), errors.Is(err, auth.ErrPINTooWeak):
 		authError(c, http.StatusBadRequest, "PIN_REJECTED", err.Error())
 	case errors.Is(err, service.ErrInvalidEmail), errors.Is(err, service.ErrInvalidName), errors.Is(err, service.ErrInvalidRole):

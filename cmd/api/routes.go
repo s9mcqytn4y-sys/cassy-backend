@@ -350,6 +350,10 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	devices.POST("", h.device.RegisterDevice)
 	devices.PATCH("/:id", h.device.UpdateDevice)
 	devices.POST("/:id/revoke", h.device.RevokeDevice)
+	// Device pairing (PM-E2, SecurityQrPairingAdr): owner issues a 5-minute single-use token for the QR;
+	// the tablet exchanges it once for a device credential.
+	v1.POST("/pos/devices/pairing-token", h.auth.RequirePermission(rbac.DeviceManage), h.device.IssuePairingToken)
+	v1.POST("/pos/devices/pair", handler.LimitBody(4<<10), h.device.PairDevice)
 	v1.GET("/device/catalog", h.device.Catalog)
 	// Offline order sync (v0.10 PR 10.2): one result per order; rejected orders wait in the owner review queue.
 	v1.POST("/device/offline-orders/sync", handler.LimitBody(512<<10), h.offline.Sync)

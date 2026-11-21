@@ -132,8 +132,9 @@ paths:
       description: |
         Inactive categories and archived products are hidden; unavailable items stay listed with
         `available=false` and `sold_out_reason`. Stock counts are not exposed. Responses carry a content
-        `ETag` (excluding `generated_at`) and `Cache-Control: public, max-age=30`; send `If-None-Match`
-        to get `304`.
+        `ETag` (excluding `generated_at`) and `Cache-Control: public, max-age=30, stale-while-revalidate=30`;
+        send `If-None-Match` to get `304`. Concurrent requests for one slug share a single database load;
+        nothing is cached server-side after it returns (PM-E6).
       parameters:
         - name: store_slug
           in: path
@@ -173,6 +174,7 @@ paths:
     post:
       tags: [Orders]
       operationId: getPublicOrderQuote
+      description: "Every response, errors included, carries `Cache-Control: no-store`; a quote reflects live prices, promotions, and stock (PM-E6)."
       summary: Lock-free calculation of subtotal, discounts, PB1 tax, and service charge for guest order
       x-implementation-status: implemented
       security: []
@@ -296,6 +298,8 @@ paths:
             schema:
               $ref: "#/components/schemas/ProductInput"
       responses:
+        "402":
+          $ref: "#/components/responses/PlanLimitReached"
         "201":
           description: Created product with variants
         "400":
@@ -2267,6 +2271,7 @@ paths:
     post:
       tags: [Orders]
       operationId: getPosOrderQuote
+      description: "Every response, errors included, carries `Cache-Control: no-store`; a quote reflects live prices, promotions, and stock (PM-E6)."
       summary: Lock-free calculation of subtotal, discounts, PB1 tax, and service charge for POS order
       x-implementation-status: implemented
       security:
@@ -2401,6 +2406,8 @@ paths:
             schema:
               $ref: "#/components/schemas/TableInput"
       responses:
+        "402":
+          $ref: "#/components/responses/PlanLimitReached"
         "201":
           description: Created table (includes qr_token for printing)
           content:
@@ -4890,6 +4897,8 @@ paths:
                 role:
                   $ref: "#/components/schemas/DeviceRole"
       responses:
+        "402":
+          $ref: "#/components/responses/PlanLimitReached"
         "201":
           description: Registered; credential shown once
           content:
@@ -4943,6 +4952,98 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationFailed"
+  /api/v1/pos/devices/pairing-token:
+    post:
+      tags: [Devices]
+      operationId: issueDevicePairingToken
+      summary: Issue a single-use pairing token for the Owner Dashboard QR (device.manage, audited, PM-E2)
+      description: |
+        The token lives 5 minutes and is consumed by the first successful `POST /api/v1/pos/devices/pair`.
+        The QR carries only `store_slug` and `pairing_token` (SecurityQrPairingAdr). Name and prefix are
+        validated now; the device quota and prefix uniqueness are checked again at exchange time.
+        Responses carry `Cache-Control: no-store`.
+      x-implementation-status: implemented
+      security:
+        - BearerStaffJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, prefix]
+              properties:
+                name:
+                  type: string
+                  maxLength: 50
+                prefix:
+                  type: string
+                  pattern: "^[A-Za-z][A-Za-z0-9]{0,3}$"
+      responses:
+        "201":
+          description: Token issued; shown once
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pairing_token, store_slug, expires_at]
+                properties:
+                  pairing_token:
+                    type: string
+                    description: "<store_id>.<token_id>.<secret>; only a SHA-256 hash of the secret is stored."
+                  store_slug:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+        "402":
+          $ref: "#/components/responses/PlanLimitReached"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/pos/devices/pair:
+    post:
+      tags: [Devices]
+      operationId: pairDevice
+      summary: Exchange a pairing token for a device credential, returned once (public, audited, PM-E2)
+      description: |
+        The token travels in the body, never in the URL. The token row is locked and marked consumed in the
+        same transaction as the device insert, so concurrent exchanges of one token create one device.
+        Responses carry `Cache-Control: no-store`.
+      x-implementation-status: implemented
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pairing_token]
+              properties:
+                pairing_token:
+                  type: string
+      responses:
+        "201":
+          description: Device paired; `credential` shown once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          $ref: "#/components/responses/InvalidJSON"
+        "401":
+          description: Token malformed, unknown, expired, already used, or store/issuer deactivated (`PAIRING_TOKEN_INVALID`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          $ref: "#/components/responses/PlanLimitReached"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /api/v1/store/devices/{id}/revoke:
     post:
       tags: [Devices]
@@ -5255,6 +5356,8 @@ paths:
             schema:
               $ref: "#/components/schemas/PrinterInput"
       responses:
+        "402":
+          $ref: "#/components/responses/PlanLimitReached"
         "201":
           description: Printer with its one-time agent_token
           content:
@@ -5286,6 +5389,8 @@ paths:
             schema:
               $ref: "#/components/schemas/PrinterInput"
       responses:
+        "402":
+          $ref: "#/components/responses/PlanLimitReached"
         "200":
           description: Updated printer
           content:
@@ -6827,6 +6932,8 @@ paths:
                 role:
                   $ref: "#/components/schemas/StaffRole"
       responses:
+        "402":
+          $ref: "#/components/responses/PlanLimitReached"
         "201":
           description: Invited
           content:
@@ -7664,6 +7771,30 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ConflictResponse"
+    PlanLimitReached:
+      description: |
+        The store's subscription plan quota for this resource is full (`PLAN_LIMIT_REACHED`, PM-E1).
+        Archive, revoke, or deactivate an existing item or upgrade the plan. Limits come from
+        `subscription_plans` (`max_products`, `max_staff`, `max_devices`, `max_tables`, `max_printers`; 0 = unlimited).
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, error, resource, limit, plan_code]
+            properties:
+              code:
+                type: string
+                enum: [PLAN_LIMIT_REACHED]
+              error:
+                type: string
+                example: Paket Anda mencakup maksimal 2 perangkat POS aktif. Nonaktifkan yang tidak dipakai atau tingkatkan paket.
+              resource:
+                type: string
+                enum: [products, staff, devices, tables, printers]
+              limit:
+                type: integer
+              plan_code:
+                type: string
     ValidationFailed:
       description: Field-level validation errors (`VALIDATION_FAILED`)
       content:

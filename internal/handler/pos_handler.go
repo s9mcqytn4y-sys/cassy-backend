@@ -92,6 +92,7 @@ type OrderQuoteRequest struct {
 
 // QuoteOrder handles POST /api/v1/pos/orders/quote (staff POS quote).
 func (h *POSHandler) QuoteOrder(c *gin.Context) {
+	noStoreQuote(c)
 	var req OrderQuoteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		authError(c, http.StatusBadRequest, "INVALID_REQUEST", "Data quote tidak lengkap atau tidak valid.")
@@ -119,6 +120,7 @@ func (h *POSHandler) QuoteOrder(c *gin.Context) {
 
 // PublicQuoteOrder handles POST /api/v1/public/stores/:slug/orders/quote (guest ordering quote).
 func (h *POSHandler) PublicQuoteOrder(c *gin.Context) {
+	noStoreQuote(c)
 	slug := strings.ToLower(strings.TrimSpace(c.Param("slug")))
 	if slug == "" {
 		authError(c, http.StatusBadRequest, "INVALID_REQUEST", "Store slug wajib diisi.")
@@ -146,6 +148,13 @@ func (h *POSHandler) PublicQuoteOrder(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, res)
+}
+
+// noStoreQuote marks every quote response, errors included, as uncacheable (PM-E6). A quote reflects
+// live prices, promotions, and stock; a cached one would show a guest a total the server no longer
+// honours, and an intermediary must never share one cart's quote with another.
+func noStoreQuote(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
 }
 
 func orderError(c *gin.Context, err error) {

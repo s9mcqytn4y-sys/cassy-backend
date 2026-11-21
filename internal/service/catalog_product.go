@@ -100,6 +100,9 @@ func (s *CatalogService) CreateProduct(ctx context.Context, actor *Authenticated
 		if err := s.checkCategory(ctx, tx, storeID, p.CategoryID); err != nil {
 			return err
 		}
+		if err := ensurePlanQuota(ctx, tx, storeID, PlanResourceProducts); err != nil {
+			return err
+		}
 		if err := s.repo.InsertProduct(ctx, tx, p); err != nil {
 			return err
 		}

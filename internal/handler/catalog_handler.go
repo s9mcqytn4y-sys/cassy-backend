@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -20,6 +21,7 @@ import (
 //	400 INVALID_JSON       malformed body
 //	401/403                authentication / permission (middleware or service)
 //	404 NOT_FOUND          id not in the caller's store
+//	402 PLAN_LIMIT_REACHED subscription plan quota full, {"resource", "limit", "plan_code"}
 //	409 CONFLICT           uniqueness clash, {"field": "..."}
 //	422 VALIDATION_FAILED  {"fields": {"name": "wajib diisi", ...}}
 //	503                    infrastructure failure (logged with request id)
@@ -35,7 +37,10 @@ func NewCatalogHandler(catalog *service.CatalogService) *CatalogHandler {
 func writeServiceError(c *gin.Context, err error) {
 	var validation *service.ValidationError
 	var conflict *service.ConflictError
+	var planLimit *service.PlanLimitError
 	switch {
+	case errors.As(err, &planLimit):
+		writePlanLimit(c, planLimit)
 	case errors.As(err, &validation):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "VALIDATION_FAILED", "error": "Periksa kembali isian yang ditandai.", "fields": validation.Fields})
 	case errors.As(err, &conflict):
@@ -50,6 +55,26 @@ func writeServiceError(c *gin.Context, err error) {
 		log.Printf("[API] request_id=%s %s %s error: %v", c.GetString(RequestIDHeader), c.Request.Method, c.FullPath(), err)
 		authError(c, http.StatusServiceUnavailable, "SERVICE_TEMPORARILY_UNAVAILABLE", "Layanan sedang bermasalah. Coba lagi.")
 	}
+}
+
+// planResourceLabels names each quota resource in owner-facing copy.
+var planResourceLabels = map[service.PlanResource]string{
+	service.PlanResourceProducts: "menu aktif",
+	service.PlanResourceStaff:    "staf aktif",
+	service.PlanResourceDevices:  "perangkat POS aktif",
+	service.PlanResourceTables:   "meja aktif",
+	service.PlanResourcePrinters: "printer aktif",
+}
+
+// writePlanLimit answers 402 so clients can show an upgrade prompt instead of a generic error.
+func writePlanLimit(c *gin.Context, e *service.PlanLimitError) {
+	c.JSON(http.StatusPaymentRequired, gin.H{
+		"code":      "PLAN_LIMIT_REACHED",
+		"error":     fmt.Sprintf("Paket Anda mencakup maksimal %d %s. Nonaktifkan yang tidak dipakai atau tingkatkan paket.", e.Limit, planResourceLabels[e.Resource]),
+		"resource":  e.Resource,
+		"limit":     e.Limit,
+		"plan_code": e.PlanCode,
+	})
 }
 
 func bindJSON(c *gin.Context, dst any) bool {
@@ -70,8 +95,9 @@ func pathID(c *gin.Context, name string) (uuid.UUID, bool) {
 }
 
 // writeCatalog sends the view with a content ETag (generated_at excluded) and honours If-None-Match.
-func writeCatalog(c *gin.Context, view *service.CatalogView, cacheControl string) {
-	generated := view.GeneratedAt
+// It works on a shallow copy: the public view may be shared by concurrent requests.
+func writeCatalog(c *gin.Context, shared *service.CatalogView, cacheControl string) {
+	view := *shared
 	view.GeneratedAt = time.Time{}
 	stable, err := json.Marshal(view)
 	if err != nil {
@@ -86,8 +112,7 @@ func writeCatalog(c *gin.Context, view *service.CatalogView, cacheControl string
 		c.Status(http.StatusNotModified)
 		return
 	}
-	view.GeneratedAt = generated
-	c.JSON(http.StatusOK, view)
+	c.JSON(http.StatusOK, shared)
 }
 
 // StaffCatalog handles GET /api/v1/pos/catalog.
@@ -107,7 +132,9 @@ func (h *CatalogHandler) PublicCatalog(c *gin.Context) {
 		writeServiceError(c, err)
 		return
 	}
-	writeCatalog(c, view, "public, max-age=30")
+	// Browsers and the Next.js rewrite may reuse a 30 s menu and serve it for 30 s more while they
+	// revalidate with If-None-Match, which answers 304 when nothing changed.
+	writeCatalog(c, view, "public, max-age=30, stale-while-revalidate=30")
 }
 
 func (h *CatalogHandler) CreateCategory(c *gin.Context) {
