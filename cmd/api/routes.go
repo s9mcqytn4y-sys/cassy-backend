@@ -196,6 +196,13 @@ func registerRoutes(router *gin.Engine, h *handlerSet) {
 	v1.GET("/health", h.health.Check)
 	v1.POST("/payments/midtrans/webhook", h.midtrans.HandleWebhook)
 	v1.POST("/payments/midtrans/webhook/:store_slug", h.midtrans.HandleTenantWebhook)
+	webhookProbe := func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "midtrans_webhook", "time": time.Now().UTC()})
+	}
+	v1.GET("/payments/midtrans/webhook", webhookProbe)
+	v1.HEAD("/payments/midtrans/webhook", webhookProbe)
+	v1.GET("/payments/midtrans/webhook/:store_slug", webhookProbe)
+	v1.HEAD("/payments/midtrans/webhook/:store_slug", webhookProbe)
 
 	if h.auth != nil {
 		registerStaffAuthRoutes(v1, h)
