@@ -43,6 +43,11 @@ Kedua repo saat ini publik, jadi branch protection tersedia tapi belum diaktifka
 
 Setiap PR wajib lolos job CI: lint dan vet, govulncheck, Docker build, migrasi PostgreSQL 18 triple-role, seed idempotency, dan integration test `-race`. Integration test hanya benar-benar jalan di job PostgreSQL.
 
+### Pre-Push Checklist Wajib (Lokal)
+1. **Formatting**: Jalankan `gofmt -l .` di root `CassyBackend`. Output wajib kosong sebelum membuat commit.
+2. **Go Toolchain**: Seluruh workflow CI membaca versi Go via `go-version-file: 'go.mod'`, bukan hardcoded version string.
+3. **Secret & Dummy Token Hygiene**: Dilarang menggunakan token atau string acak ber-entropy tinggi pada test mock, contoh skenario, atau template dokumen untuk mencegah false positive pada `gitleaks`. Gunakan nama semantik (`demo-order-14`).
+
 ## 4. Versi
 
 - SemVer per repo. API tetap `v0.x` sampai `v1.0.0`, yaitu saat tenant berbayar pertama sudah berjalan 30 hari.
