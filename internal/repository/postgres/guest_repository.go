@@ -138,20 +138,21 @@ func (r *GuestRepository) OrderGuestSession(ctx context.Context, tx *sqlx.Tx, st
 
 // TrackedOrder is the public tracker view returned by track_order_by_token (decision QR6).
 type TrackedOrder struct {
-	StoreName     string     `json:"store_name" db:"store_name"`
-	OrderNumber   string     `json:"order_number" db:"order_number"`
-	QueueNumber   string     `json:"queue_number" db:"queue_number"`
-	Status        string     `json:"status" db:"status"`
-	PaymentStatus string     `json:"payment_status" db:"payment_status"`
-	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
-	ExpiresAt     *time.Time `json:"expires_at,omitempty" db:"expires_at"`
+	StoreName            string     `json:"store_name" db:"store_name"`
+	OrderNumber          string     `json:"order_number" db:"order_number"`
+	QueueNumber          string     `json:"queue_number" db:"queue_number"`
+	Status               string     `json:"status" db:"status"`
+	PaymentStatus        string     `json:"payment_status" db:"payment_status"`
+	UpdatedAt            time.Time  `json:"updated_at" db:"updated_at"`
+	ExpiresAt            *time.Time `json:"expires_at,omitempty" db:"expires_at"`
+	EstimatedPrepMinutes int        `json:"estimated_prep_minutes" db:"estimated_prep_minutes"`
 }
 
 // TrackOrder calls the SECURITY DEFINER tracker; it runs without a tenant context.
 func (r *GuestRepository) TrackOrder(ctx context.Context, db *sqlx.DB, tokenHash []byte) (*TrackedOrder, error) {
 	var out TrackedOrder
 	err := db.GetContext(ctx, &out, `
-		SELECT store_name, order_number, queue_number, status, payment_status, updated_at, expires_at
+		SELECT store_name, order_number, queue_number, status, payment_status, updated_at, expires_at, estimated_prep_minutes
 		FROM track_order_by_token($1)`, tokenHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrTrackedOrderNotFound

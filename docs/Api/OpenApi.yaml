@@ -8490,6 +8490,10 @@ components:
           type: string
           format: date-time
           description: Deadline timestamp for pending unpaid orders.
+        estimated_prep_minutes:
+          type: integer
+          minimum: 0
+          description: Server-calculated preparation ETA in minutes based on item/station prep configs and active KDS queue load. 0 once ready/served/completed/cancelled.
     TableInput:
       type: object
       properties:
@@ -9160,6 +9164,21 @@ components:
               prep_station:
                 type: string
                 enum: [bar, kitchen, none]
+              badge_label:
+                type: ["string", "null"]
+                maxLength: 40
+                description: Optional highlight badge for guest catalog cards (e.g. "Favorit", "Rekomendasi Chef").
+              prep_minutes:
+                type: ["integer", "null"]
+                minimum: 1
+                maximum: 120
+                description: Optional per-product preparation time override in minutes.
+              recommended_product_ids:
+                type: array
+                items:
+                  type: string
+                  format: uuid
+                description: Ordered list of Smart Pairing product UUIDs recommended with this item.
               image_url:
                 type: ["string", "null"]
               available:

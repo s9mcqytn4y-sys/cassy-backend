@@ -98,10 +98,28 @@ type Product struct {
 	StockQuantity int        `json:"stock_quantity" db:"stock_quantity"`
 	ProductType   string     `json:"product_type" db:"product_type"`
 	PrepStation   string     `json:"prep_station" db:"prep_station"`
+	BadgeLabel    *string    `json:"badge_label,omitempty" db:"badge_label"`
+	PrepMinutes   *int       `json:"prep_minutes,omitempty" db:"prep_minutes"`
 	DisplayOrder  int        `json:"display_order" db:"display_order"`
 	ArchivedAt    *time.Time `json:"archived_at,omitempty" db:"archived_at"`
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+type ProductRecommendation struct {
+	StoreID              uuid.UUID `json:"store_id" db:"store_id"`
+	ProductID            uuid.UUID `json:"product_id" db:"product_id"`
+	RecommendedProductID uuid.UUID `json:"recommended_product_id" db:"recommended_product_id"`
+	SortOrder            int       `json:"sort_order" db:"sort_order"`
+	CreatedAt            time.Time `json:"created_at" db:"created_at"`
+}
+
+type KitchenStationConfig struct {
+	StoreID               uuid.UUID `json:"store_id" db:"store_id"`
+	PrepStation           string    `json:"prep_station" db:"prep_station"`
+	DefaultPrepMinutes    int       `json:"default_prep_minutes" db:"default_prep_minutes"`
+	PerActiveOrderMinutes int       `json:"per_active_order_minutes" db:"per_active_order_minutes"`
+	UpdatedAt             time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type ProductModifierGroup struct {

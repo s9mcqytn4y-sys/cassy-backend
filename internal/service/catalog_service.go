@@ -97,19 +97,22 @@ type CatalogVariant struct {
 }
 
 type CatalogProduct struct {
-	ID             uuid.UUID        `json:"id"`
-	CategoryID     *uuid.UUID       `json:"category_id"`
-	Name           string           `json:"name"`
-	Description    string           `json:"description"`
-	Type           string           `json:"type"`
-	PrepStation    string           `json:"prep_station"`
-	ImageURL       *string          `json:"image_url"`
-	Available      bool             `json:"available"`
-	SoldOutReason  *string          `json:"sold_out_reason"`
-	TrackStock     bool             `json:"track_stock"`
-	StockQuantity  *int             `json:"stock_quantity,omitempty"`
-	Variants       []CatalogVariant `json:"variants"`
-	ModifierGroups []CatalogGroup   `json:"modifier_groups"`
+	ID                    uuid.UUID        `json:"id"`
+	CategoryID            *uuid.UUID       `json:"category_id"`
+	Name                  string           `json:"name"`
+	Description           string           `json:"description"`
+	Type                  string           `json:"type"`
+	PrepStation           string           `json:"prep_station"`
+	BadgeLabel            *string          `json:"badge_label,omitempty"`
+	PrepMinutes           *int             `json:"prep_minutes,omitempty"`
+	RecommendedProductIDs []uuid.UUID      `json:"recommended_product_ids,omitempty"`
+	ImageURL              *string          `json:"image_url"`
+	Available             bool             `json:"available"`
+	SoldOutReason         *string          `json:"sold_out_reason"`
+	TrackStock            bool             `json:"track_stock"`
+	StockQuantity         *int             `json:"stock_quantity,omitempty"`
+	Variants              []CatalogVariant `json:"variants"`
+	ModifierGroups        []CatalogGroup   `json:"modifier_groups"`
 	// BundleSlots are the parts of a bundle product to choose from (X4).
 	BundleSlots []domain.BundleSlot `json:"bundle_slots,omitempty"`
 }
@@ -317,6 +320,10 @@ func buildCatalogView(store *domain.Store, settings domain.StoreSettings, rows *
 	for _, v := range rows.Variants {
 		variants[v.ProductID] = append(variants[v.ProductID], v)
 	}
+	recs := map[uuid.UUID][]uuid.UUID{}
+	for _, rec := range rows.Recommendations {
+		recs[rec.ProductID] = append(recs[rec.ProductID], rec.RecommendedProductID)
+	}
 
 	for _, p := range rows.Products {
 		if !staff && p.CategoryID != nil && !activeCategory[*p.CategoryID] {
@@ -324,7 +331,8 @@ func buildCatalogView(store *domain.Store, settings domain.StoreSettings, rows *
 		}
 		cp := CatalogProduct{
 			ID: p.ID, CategoryID: p.CategoryID, Name: p.Name, Description: p.Description, Type: p.ProductType,
-			PrepStation: p.PrepStation, ImageURL: p.ImageURL, TrackStock: p.TrackStock,
+			PrepStation: p.PrepStation, BadgeLabel: p.BadgeLabel, PrepMinutes: p.PrepMinutes,
+			RecommendedProductIDs: recs[p.ID], ImageURL: p.ImageURL, TrackStock: p.TrackStock,
 			Variants: []CatalogVariant{}, ModifierGroups: []CatalogGroup{},
 		}
 		anyVariantAvailable := false
