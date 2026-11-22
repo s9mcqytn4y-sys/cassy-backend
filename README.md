@@ -4,7 +4,7 @@ Backend RESTful API dan Realtime Hub untuk platform white-label multi-tenant QR 
 
 ## Tech Stack
 
-- **Language**: Go 1.26.2
+- **Language**: Go 1.27.4
 - **Web Framework**: Gin Gonic (`v1.12.0`)
 - **Database Driver**: `jackc/pgx/v5` dan `jmoiron/sqlx`
 - **Database Engine**: PostgreSQL 18-alpine (Native Row-Level Security & Triple-Role Isolation: `postgres`, `cassy_migrator`, `cassy_app` `NOBYPASSRLS`)
@@ -25,11 +25,11 @@ Backend RESTful API dan Realtime Hub untuk platform white-label multi-tenant QR 
 
 ## Feature Status
 
-Status per modul dan rilis dipelihara terpusat di [Project Management Source of Truth](docs/ProjectManagement/README.md), [Roadmap Arsitektur](docs/Architecture/Roadmap.md), dan [Kontrak Integrasi Frontend](docs/Architecture/FrontendIntegrationContract.md). Skema database saat ini berada di 65 migrasi (`db/migrations/000001` s.d. `000065`).
+Status per modul dan rilis dipelihara terpusat di [Project Management Source of Truth](docs/ProjectManagement/README.md), [Roadmap Arsitektur](docs/Architecture/Roadmap.md), dan [Kontrak Integrasi Frontend](docs/Architecture/FrontendIntegrationContract.md). Skema database saat ini berada di 74 migrasi (`db/migrations/000001` s.d. `000074`).
 
 ## Local Development Setup (Windows)
 
-Prasyarat: Go 1.26.2, Docker Desktop. Perintah harian tersedia di `scripts/Invoke-CassyDev.ps1` (detail: [WindowsDevEnvironment.md](docs/Setup/WindowsDevEnvironment.md)).
+Prasyarat: Go 1.27.4, Docker Desktop. Perintah harian tersedia di `scripts/Invoke-CassyDev.ps1` (detail: [WindowsDevEnvironment.md](docs/Setup/WindowsDevEnvironment.md)).
 
 ```powershell
 ./scripts/Invoke-CassyDev.ps1 setup      # .env dari template, PostgreSQL 18 lokal, migrasi, seed
