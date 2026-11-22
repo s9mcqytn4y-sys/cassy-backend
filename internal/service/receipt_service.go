@@ -38,30 +38,30 @@ var (
 )
 
 type Receipt struct {
-	Kind        string           `json:"kind"`
-	Store       ReceiptStore     `json:"store"`
-	OrderID     uuid.UUID        `json:"order_id"`
-	OrderNumber string           `json:"order_number"`
-	QueueNumber string           `json:"queue_number"`
-	TableNumber string           `json:"table_number,omitempty"`
-	OrderType   string           `json:"order_type"`
-	Status      string           `json:"status"`
-	PaymentStat string           `json:"payment_status"`
-	IssuedAt    time.Time        `json:"issued_at"`
-	LocalTime   string           `json:"local_time"`
-	StaffName   string           `json:"staff_name,omitempty"`
-	Lines       []ReceiptLine    `json:"lines"`
-	Subtotal    int64            `json:"subtotal_amount"`
-	Discount    int64            `json:"discount_amount"`
-	Tax         int64            `json:"tax_amount"`
-	Service     int64            `json:"service_charge_amount"`
-	Total       int64            `json:"total_amount"`
-	Paid        int64            `json:"paid_amount"`
-	Refunded    int64            `json:"refunded_amount"`
-	Payments    []ReceiptPayment `json:"payments"`
-	Refund      *ReceiptRefund   `json:"refund,omitempty"`
-	VoidReason  string           `json:"void_reason,omitempty"`
-	HidePoweredByBadge bool      `json:"hide_powered_by_badge"`
+	Kind               string           `json:"kind"`
+	Store              ReceiptStore     `json:"store"`
+	OrderID            uuid.UUID        `json:"order_id"`
+	OrderNumber        string           `json:"order_number"`
+	QueueNumber        string           `json:"queue_number"`
+	TableNumber        string           `json:"table_number,omitempty"`
+	OrderType          string           `json:"order_type"`
+	Status             string           `json:"status"`
+	PaymentStat        string           `json:"payment_status"`
+	IssuedAt           time.Time        `json:"issued_at"`
+	LocalTime          string           `json:"local_time"`
+	StaffName          string           `json:"staff_name,omitempty"`
+	Lines              []ReceiptLine    `json:"lines"`
+	Subtotal           int64            `json:"subtotal_amount"`
+	Discount           int64            `json:"discount_amount"`
+	Tax                int64            `json:"tax_amount"`
+	Service            int64            `json:"service_charge_amount"`
+	Total              int64            `json:"total_amount"`
+	Paid               int64            `json:"paid_amount"`
+	Refunded           int64            `json:"refunded_amount"`
+	Payments           []ReceiptPayment `json:"payments"`
+	Refund             *ReceiptRefund   `json:"refund,omitempty"`
+	VoidReason         string           `json:"void_reason,omitempty"`
+	HidePoweredByBadge bool             `json:"hide_powered_by_badge"`
 }
 
 type ReceiptStore struct {
@@ -340,26 +340,26 @@ func (s *ReceiptService) Public(ctx context.Context, token string) (*Receipt, er
 
 func (s *ReceiptService) buildTx(ctx context.Context, tx *sqlx.Tx, storeID, orderID uuid.UUID, kind string, paymentID *uuid.UUID) (*Receipt, error) {
 	var head struct {
-		StoreName   string         `db:"store_name"`
-		Address     sql.NullString `db:"address"`
-		Phone       sql.NullString `db:"phone"`
-		Timezone    string         `db:"timezone"`
-		OrderNumber string         `db:"order_number"`
-		QueueNumber string         `db:"queue_number"`
-		TableNumber sql.NullString `db:"table_number"`
-		OrderType   string         `db:"order_type"`
-		Status      string         `db:"status"`
-		PaymentStat string         `db:"payment_status"`
-		Subtotal    int64          `db:"subtotal_amount"`
-		Discount    int64          `db:"discount_amount"`
-		Tax         int64          `db:"tax_amount"`
-		Service     int64          `db:"service_charge_amount"`
-		Total       int64          `db:"total_amount"`
-		Paid        int64          `db:"paid_amount"`
-		Refunded    int64          `db:"refunded_amount"`
-		CreatedAt   time.Time      `db:"created_at"`
-		StaffName   sql.NullString `db:"staff_name"`
-		HidePoweredByBadge bool    `db:"hide_powered_by_badge"`
+		StoreName          string         `db:"store_name"`
+		Address            sql.NullString `db:"address"`
+		Phone              sql.NullString `db:"phone"`
+		Timezone           string         `db:"timezone"`
+		OrderNumber        string         `db:"order_number"`
+		QueueNumber        string         `db:"queue_number"`
+		TableNumber        sql.NullString `db:"table_number"`
+		OrderType          string         `db:"order_type"`
+		Status             string         `db:"status"`
+		PaymentStat        string         `db:"payment_status"`
+		Subtotal           int64          `db:"subtotal_amount"`
+		Discount           int64          `db:"discount_amount"`
+		Tax                int64          `db:"tax_amount"`
+		Service            int64          `db:"service_charge_amount"`
+		Total              int64          `db:"total_amount"`
+		Paid               int64          `db:"paid_amount"`
+		Refunded           int64          `db:"refunded_amount"`
+		CreatedAt          time.Time      `db:"created_at"`
+		StaffName          sql.NullString `db:"staff_name"`
+		HidePoweredByBadge bool           `db:"hide_powered_by_badge"`
 	}
 	err := tx.GetContext(ctx, &head, `
 		SELECT s.name AS store_name, s.address, s.phone, s.timezone,
