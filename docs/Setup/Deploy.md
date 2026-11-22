@@ -1,4 +1,4 @@
-# Production Deploy and Rollback (P0-05)
+﻿# Production Deploy and Rollback (P0-05)
 
 Production runs images pinned by digest (`ghcr.io/...@sha256:...`), never by a mutable tag. `scripts/deploy/DeployRelease.sh` is the only way new images reach a VPS.
 
@@ -18,7 +18,7 @@ Cloudflare, so there is no Certbot and no certificate volume. The firewall and p
 
 ## 2. Deploy
 
-On the VPS, as user `mycaffe`, from `/opt/mycaffe` (the released tag's `deploy/` and `scripts/`, see [BackupAndRestore.md](BackupAndRestore.md) §2):
+On the VPS, as user `mycaffe`, from `/opt/mycaffe` (the released tag's `deploy/` and `scripts/`, see [BackupAndRestore.md](BackupAndRestore.md) Â§2):
 
 ```bash
 scripts/deploy/DeployRelease.sh sha256:<api digest>                      # web keeps its running digest; API-only while none was given
@@ -95,8 +95,8 @@ deployed digest from `/var/lib/mycaffe/deploy/current.env`.
 ## 6. If the rollback also fails (exit code 2)
 
 1. `cat /var/lib/mycaffe/deploy/history.log` and `scripts/deploy/InvokeCompose.sh logs --tail 300 migrate api`.
-2. A migration that broke the old image is a migration bug: restore the pre-deploy backup ([BackupAndRestore.md](BackupAndRestore.md) §3), then deploy the last good digest.
-3. Never edit files or rebuild images on the VPS (ADR-002 §4).
+2. A migration that broke the old image is a migration bug: restore the pre-deploy backup ([BackupAndRestore.md](BackupAndRestore.md) Â§3), then deploy the last good digest.
+3. Never edit files or rebuild images on the VPS (ADR-002 Â§4).
 
 ## 7. Limits
 
@@ -107,14 +107,14 @@ deployed digest from `/var/lib/mycaffe/deploy/current.env`.
 ## 8. Demo host (WSL Ubuntu, decision W2)
 
 The public demo runs the same images and scripts as production on WSL Ubuntu 24.04, provisioned with
-[OperationsRunbook.md](OperationsRunbook.md) §1 steps 1–3 (user `mycaffe`, systemd, Docker Engine, ufw).
+[OperationsRunbook.md](OperationsRunbook.md) Â§1 steps 1â€“3 (user `mycaffe`, systemd, Docker Engine, ufw).
 Differences, all on the host and none in the images:
 
 - `/etc/profile.d/mycaffe-demo.sh` exports `DEPLOY_COMPOSE_OVERRIDE=/opt/mycaffe/deploy/docker/docker-compose.demo-vps.yml`
   (staging config, Midtrans sandbox, no Grafana agent) and `DEPLOY_SKIP_BACKUP=true` until the demo has an R2 backup bucket.
 - `/opt/mycaffe/deploy/docker/.env` links to `/etc/mycaffe/prod.env` (mode 600): fresh database passwords and JWT key,
   provider keys copied from the owner's `.env.demo`.
-- Ingress is the `mycaffe-demo` Named Tunnel: public hostname `demo.abbdullaziz.online` → `http://nginx:80`.
+- Ingress is the `mycaffe-demo` Named Tunnel: public hostname `pos.abbdullaziz.online` â†’ `http://nginx:80`.
 
 ## 9. Self-hosted CI runner (decision W11)
 

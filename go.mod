@@ -1,6 +1,6 @@
 module github.com/s9mcqytn4y-sys/cassy-backend
 
-go 1.27.4
+go 1.27.3
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.48.0

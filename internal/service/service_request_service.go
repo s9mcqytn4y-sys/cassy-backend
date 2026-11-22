@@ -31,12 +31,36 @@ var (
 )
 
 const (
-	serviceRequestBurst    = 5
-	serviceRequestWindow   = 10 * time.Minute
-	maxActiveTemplates     = 12
-	serviceRequestNoteMax  = 80
-	serviceRequestLabelMax = 40
+	serviceRequestMaxActivePerTable = 2
+	serviceRequestCooldownWindow    = 60 * time.Second
+	ServiceRequestCooldownSeconds   = 60
+	serviceRequestMuteDuration      = 15 * time.Minute
+	maxActiveTemplates              = 12
+	serviceRequestNoteMax           = 80
+	serviceRequestLabelMax          = 40
 )
+
+// ServiceRequestRateLimitError carries the remaining cooldown seconds when a guest or table is rate-limited.
+type ServiceRequestRateLimitError struct {
+	RetryAfterSeconds int
+	MutedByStaff      bool
+}
+
+func (e *ServiceRequestRateLimitError) Error() string {
+	return ErrServiceRequestLimited.Error()
+}
+
+func (e *ServiceRequestRateLimitError) Unwrap() error {
+	return ErrServiceRequestLimited
+}
+
+func remainingCooldownSeconds(until, now time.Time) int {
+	rem := int((until.Sub(now) + time.Second - 1) / time.Second)
+	if rem < 1 {
+		return 1
+	}
+	return rem
+}
 
 // ServiceRequestTemplate is one request a guest can pick, e.g. "Minta tisu".
 type ServiceRequestTemplate struct {
@@ -234,21 +258,57 @@ func (s *ServiceRequestService) CreateForGuest(ctx context.Context, guest *Guest
 		if err != nil {
 			return err
 		}
-		var sessionStatus string
-		if err := tx.GetContext(ctx, &sessionStatus, `SELECT status FROM table_sessions WHERE store_id = $1 AND id = $2`,
+		var sess struct {
+			Status     string       `db:"status"`
+			MutedUntil sql.NullTime `db:"service_requests_muted_until"`
+		}
+		if err := tx.GetContext(ctx, &sess, `SELECT status, service_requests_muted_until FROM table_sessions WHERE store_id = $1 AND id = $2`,
 			guest.StoreID, guest.TableSessionID); err != nil {
 			return err
 		}
-		if sessionStatus != "open" {
+		if sess.Status != "open" {
 			return ErrGuestSessionInvalid
 		}
 		now := s.nowFunc().UTC()
-		var recent int
-		if err := tx.GetContext(ctx, &recent, `SELECT COUNT(*) FROM service_requests
-			WHERE store_id = $1 AND guest_session_id = $2 AND created_at > $3`,
-			guest.StoreID, guest.SessionID, now.Add(-serviceRequestWindow)); err != nil {
+		if sess.MutedUntil.Valid && sess.MutedUntil.Time.After(now) {
+			return &ServiceRequestRateLimitError{
+				RetryAfterSeconds: remainingCooldownSeconds(sess.MutedUntil.Time, now),
+				MutedByStaff:      true,
+			}
+		}
+
+		// Idempotent: a repeat tap for a template still live at this table returns the live request.
+		err = tx.GetContext(ctx, &out, serviceRequestSelect+` WHERE r.store_id = $1 AND r.table_id = $2 AND r.template_id = $3
+			AND r.status IN ('open', 'acknowledged')`, guest.StoreID, guest.TableID, templateID)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
+
+		var activeCount int
+		if err := tx.GetContext(ctx, &activeCount, `SELECT COUNT(*) FROM service_requests
+			WHERE store_id = $1 AND table_session_id = $2 AND status IN ('open', 'acknowledged')`,
+			guest.StoreID, guest.TableSessionID); err != nil {
+			return err
+		}
+		if activeCount >= serviceRequestMaxActivePerTable {
+			return &ServiceRequestRateLimitError{RetryAfterSeconds: ServiceRequestCooldownSeconds}
+		}
+
+		var lastCreatedAt time.Time
+		if err := tx.GetContext(ctx, &lastCreatedAt, `SELECT created_at FROM service_requests
+			WHERE store_id = $1 AND table_session_id = $2 AND created_at > $3
+			ORDER BY created_at DESC LIMIT 1`,
+			guest.StoreID, guest.TableSessionID, now.Add(-serviceRequestCooldownWindow)); err == nil {
+			return &ServiceRequestRateLimitError{
+				RetryAfterSeconds: remainingCooldownSeconds(lastCreatedAt.Add(serviceRequestCooldownWindow), now),
+			}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+
 		var notePtr *string
 		if note != "" {
 			notePtr = &note
@@ -256,9 +316,9 @@ func (s *ServiceRequestService) CreateForGuest(ctx context.Context, guest *Guest
 		id := uuid.New()
 		res, err := tx.ExecContext(ctx, `INSERT INTO service_requests
 			(id, store_id, table_id, table_session_id, guest_session_id, template_id, label_snapshot, note, status, created_at)
-			SELECT $1, $2, $3, $4, $5, $6, $7, $8, 'open', $9 WHERE $10
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', $9)
 			ON CONFLICT (store_id, table_id, template_id) WHERE status IN ('open', 'acknowledged') DO NOTHING`,
-			id, guest.StoreID, guest.TableID, guest.TableSessionID, guest.SessionID, templateID, label, notePtr, now, recent < serviceRequestBurst)
+			id, guest.StoreID, guest.TableID, guest.TableSessionID, guest.SessionID, templateID, label, notePtr, now)
 		if err != nil {
 			return fmt.Errorf("failed to create service request: %w", err)
 		}
@@ -268,12 +328,8 @@ func (s *ServiceRequestService) CreateForGuest(ctx context.Context, guest *Guest
 			}
 			return publishServiceRequest(ctx, tx, guest.StoreID, "service_request.created", &out)
 		}
-		err = tx.GetContext(ctx, &out, serviceRequestSelect+` WHERE r.store_id = $1 AND r.table_id = $2 AND r.template_id = $3
+		return tx.GetContext(ctx, &out, serviceRequestSelect+` WHERE r.store_id = $1 AND r.table_id = $2 AND r.template_id = $3
 			AND r.status IN ('open', 'acknowledged')`, guest.StoreID, guest.TableID, templateID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrServiceRequestLimited
-		}
-		return err
 	})
 	if err != nil {
 		return nil, err
@@ -337,13 +393,17 @@ func (s *ServiceRequestService) Advance(ctx context.Context, actor *Authenticate
 		query = `UPDATE service_requests SET status = 'done', done_by = $3, done_at = $4,
 			acknowledged_by = COALESCE(acknowledged_by, $3), acknowledged_at = COALESCE(acknowledged_at, $4)
 			WHERE store_id = $1 AND id = $2 AND status IN ('open', 'acknowledged')`
+	case "cancelled":
+		query = `UPDATE service_requests SET status = 'cancelled', done_by = $3, done_at = $4
+			WHERE store_id = $1 AND id = $2 AND status IN ('open', 'acknowledged')`
 	default:
 		return nil, ErrServiceRequestState
 	}
 	storeID := actor.Staff.Store.ID
 	var out ServiceRequest
 	err := database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
-		res, err := tx.ExecContext(ctx, query, storeID, id, actor.Staff.UserID, s.nowFunc().UTC())
+		now := s.nowFunc().UTC()
+		res, err := tx.ExecContext(ctx, query, storeID, id, actor.Staff.UserID, now)
 		if err != nil {
 			return err
 		}
@@ -357,6 +417,13 @@ func (s *ServiceRequestService) Advance(ctx context.Context, actor *Authenticate
 		}
 		if n == 0 {
 			return ErrServiceRequestState
+		}
+		if to == "cancelled" {
+			if _, err := tx.ExecContext(ctx, `UPDATE table_sessions SET service_requests_muted_until = $3
+				WHERE store_id = $1 AND id = (SELECT table_session_id FROM service_requests WHERE store_id = $1 AND id = $2)`,
+				storeID, id, now.Add(serviceRequestMuteDuration)); err != nil {
+				return err
+			}
 		}
 		return publishServiceRequest(ctx, tx, storeID, "service_request.updated", &out)
 	})

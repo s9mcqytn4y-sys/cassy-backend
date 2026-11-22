@@ -8635,7 +8635,7 @@ components:
           type: boolean
         closed_reason:
           type: string
-          enum: [paused, store_closed, table_inactive]
+          enum: [paused, store_closed, table_inactive, outside_operating_hours]
         operating_hours:
           type: object
           additionalProperties: true
@@ -9224,6 +9224,9 @@ components:
             address: {type: string}
             phone: {type: string}
         order_id: {type: string, format: uuid}
+        hide_powered_by_badge:
+          type: boolean
+          description: Whether the "Powered by Cassy" footer badge should be hidden on public receipt pages.
         order_number: {type: string}
         queue_number: {type: string}
         table_number: {type: string}

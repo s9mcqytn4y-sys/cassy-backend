@@ -61,6 +61,7 @@ type Receipt struct {
 	Payments    []ReceiptPayment `json:"payments"`
 	Refund      *ReceiptRefund   `json:"refund,omitempty"`
 	VoidReason  string           `json:"void_reason,omitempty"`
+	HidePoweredByBadge bool      `json:"hide_powered_by_badge"`
 }
 
 type ReceiptStore struct {
@@ -358,14 +359,17 @@ func (s *ReceiptService) buildTx(ctx context.Context, tx *sqlx.Tx, storeID, orde
 		Refunded    int64          `db:"refunded_amount"`
 		CreatedAt   time.Time      `db:"created_at"`
 		StaffName   sql.NullString `db:"staff_name"`
+		HidePoweredByBadge bool    `db:"hide_powered_by_badge"`
 	}
 	err := tx.GetContext(ctx, &head, `
 		SELECT s.name AS store_name, s.address, s.phone, s.timezone,
+			COALESCE(cms.hide_powered_by_badge, false) AS hide_powered_by_badge,
 			o.order_number, o.queue_number, o.table_number, o.order_type, o.status, o.payment_status,
 			o.subtotal_amount, o.discount_amount, o.tax_amount, o.service_charge_amount, o.total_amount,
 			o.paid_amount, o.refunded_amount, o.created_at, u.full_name AS staff_name
 		FROM orders o
 		JOIN stores s ON s.id = o.store_id
+		LEFT JOIN store_cms_configs cms ON cms.store_id = o.store_id
 		LEFT JOIN users u ON u.store_id = o.store_id AND u.id = o.created_by_user_id
 		WHERE o.store_id = $1 AND o.id = $2`, storeID, orderID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -380,6 +384,7 @@ func (s *ReceiptService) buildTx(ctx context.Context, tx *sqlx.Tx, storeID, orde
 		OrderType: head.OrderType, Status: head.Status, PaymentStat: head.PaymentStat, IssuedAt: head.CreatedAt,
 		StaffName: head.StaffName.String, Subtotal: head.Subtotal, Discount: head.Discount, Tax: head.Tax,
 		Service: head.Service, Total: head.Total, Paid: head.Paid, Refunded: head.Refunded,
+		HidePoweredByBadge: head.HidePoweredByBadge,
 	}
 	if r.Lines, err = receiptLinesTx(ctx, tx, storeID, orderID); err != nil {
 		return nil, err

@@ -151,8 +151,8 @@ func TestHealthHandler_LivenessAndReadiness(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
-	devHealth := handler.NewHealthHandler("MyCaffe POS Backend", "development")
-	prodHealthNoDB := handler.NewHealthHandler("MyCaffe POS Backend", "production")
+	devHealth := handler.NewHealthHandler("Cassy POS Backend", "development")
+	prodHealthNoDB := handler.NewHealthHandler("Cassy POS Backend", "production")
 
 	r.GET("/dev/health/live", devHealth.Liveness)
 	r.GET("/dev/health/ready", devHealth.Check)

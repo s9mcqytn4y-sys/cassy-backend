@@ -1,4 +1,4 @@
-# Print Agent (decision W13)
+﻿# Print Agent (decision W13)
 
 The print agent runs on a device in the cafe's LAN, claims the server's print jobs (PR 9.4) for each
 printer it serves, sends the bytes to the printer's raw port (`IP:9100`) and acknowledges the result. The
@@ -27,7 +27,7 @@ GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o print-agent-arm64
 
 ```json
 {
-  "api_url": "https://demo.abbdullaziz.online",
+  "api_url": "https://pos.abbdullaziz.online",
   "poll_seconds": 3,
   "printers": [
     {"name": "Bar", "token": "<agent token of the bar printer>", "address": "192.168.1.50:9100"},

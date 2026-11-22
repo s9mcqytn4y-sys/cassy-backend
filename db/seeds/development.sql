@@ -311,6 +311,21 @@ VALUES
     ('60000001-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'Laci Kasir Utama Lt. 1', true)
 ON CONFLICT (id) DO NOTHING;
 
+INSERT INTO shifts (id, store_id, drawer_id, opened_by, opening_float, opened_at, status)
+SELECT
+    '61000001-0000-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    '60000001-0000-4000-8000-000000000001',
+    u.id,
+    500000,
+    NOW(),
+    'open'
+FROM users u
+WHERE u.store_id = '11111111-1111-4111-8111-111111111111'
+ORDER BY u.created_at
+LIMIT 1
+ON CONFLICT DO NOTHING;
+
 -- 8. COMPLETED MEDIA UPLOADS LEDGER
 INSERT INTO media_uploads (
     id, store_id, kind, product_id, status, object_key, content_type, size_bytes,

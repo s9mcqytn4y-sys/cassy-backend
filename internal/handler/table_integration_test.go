@@ -202,7 +202,29 @@ func TestTablesIteration5aIntegration(t *testing.T) {
 			t.Fatal("bill splitting must stay off unless GUEST_SPLIT_ENABLED is set")
 		}
 
-		// A store with no open shift is closed.
+		// Outside operating hours must refuse ordering even while a shift is open.
+		inStore(centralID, func(tx *sqlx.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+				INSERT INTO store_cms_configs (store_id, operating_hours)
+				VALUES ($1, '{"sun":"closed","mon":"closed","tue":"closed","wed":"closed","thu":"closed","fri":"closed","sat":"closed"}'::jsonb)
+				ON CONFLICT (store_id) DO UPDATE SET operating_hours = EXCLUDED.operating_hours`, centralID)
+			return err
+		})
+		t.Cleanup(func() {
+			inStore(centralID, func(tx *sqlx.Tx) error {
+				_, err := tx.ExecContext(ctx, `UPDATE store_cms_configs SET operating_hours = '{}'::jsonb WHERE store_id = $1`, centralID)
+				return err
+			})
+		})
+		if code, out := resolve(table.QRToken); code != http.StatusOK || out.OrderingOpen || out.ClosedReason != service.QRClosedOutsideHours {
+			t.Fatalf("store outside operating hours must be closed: %d %+v", code, out)
+		}
+		inStore(centralID, func(tx *sqlx.Tx) error {
+			_, err := tx.ExecContext(ctx, `UPDATE store_cms_configs SET operating_hours = '{}'::jsonb WHERE store_id = $1`, centralID)
+			return err
+		})
+
+		// A store with no open shift is closed and ResolveQR must never auto-open a shift.
 		expressToken := strings.Repeat("e", 30) + uuid.NewString()[:8]
 		inStore(expressID, func(tx *sqlx.Tx) error {
 			_, err := tx.ExecContext(ctx, `INSERT INTO tables (store_id, table_number, qr_token) VALUES ($1, $2, $3)`, expressID, "E-"+uuid.NewString()[:6], expressToken)
@@ -210,6 +232,13 @@ func TestTablesIteration5aIntegration(t *testing.T) {
 		})
 		if code, out := resolve(expressToken); code != http.StatusOK || out.OrderingOpen || out.ClosedReason != service.QRClosedNoShift {
 			t.Fatalf("store without an open shift must be closed: %d %+v", code, out)
+		}
+		var expressOpenShifts int
+		inStore(expressID, func(tx *sqlx.Tx) error {
+			return tx.GetContext(ctx, &expressOpenShifts, `SELECT COUNT(*) FROM shifts WHERE store_id = $1 AND status = 'open'`, expressID)
+		})
+		if expressOpenShifts != 0 {
+			t.Fatalf("ResolveQR must remain read-only and never auto-open shifts, found %d open shifts", expressOpenShifts)
 		}
 	})
 

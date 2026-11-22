@@ -1,4 +1,4 @@
-# Architecture & Executive Decisions (`memory/Decisions.md`)
+﻿# Architecture & Executive Decisions (`memory/Decisions.md`)
 
 ## Re-alignment terbaru
 AL1 sampai AL11 (2026-11-09) ada di `docs/Architecture/DecisionRegister.md` dan mengalahkan ringkasan di bawah bila bertentangan.
@@ -6,7 +6,7 @@ AL1 sampai AL11 (2026-11-09) ada di `docs/Architecture/DecisionRegister.md` dan 
 ## ADR & Executive Decisions Summary
 1. **ADR-002 (Single-VPS Docker Modular Monolith)**:
    - Production target is a single Hostinger KVM 2 VPS running Docker Compose (`postgres:18-alpine`, Go API, Next.js PWA, Nginx).
-   - Demo environment runs on the Director's Windows 11 workstation exposed via Cloudflare Named Tunnel `mycaffe-demo` (`https://demo.abbdullaziz.online`).
+   - Demo environment runs on the Director's Windows 11 workstation exposed via Cloudflare Named Tunnel `mycaffe-demo` (`https://pos.abbdullaziz.online`).
 2. **Payment Gateway Policy (No Midtrans Snap)**:
    - Strictly use Midtrans Core API (`/v2/charge`) in a 2-phase database transaction.
    - `payments.id.String()` is used as both `provider_order_id` and Midtrans `Idempotency-Key`.

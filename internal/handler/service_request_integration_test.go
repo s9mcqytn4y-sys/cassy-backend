@@ -65,6 +65,7 @@ func TestServiceRequestIntegration(t *testing.T) {
 	r.GET("/store/service-requests", ah.RequirePermission(rbac.OrderReadStore), rh.ListForStaff)
 	r.POST("/store/service-requests/:id/acknowledge", ah.RequirePermission(rbac.OrderReadStore), rh.Acknowledge)
 	r.POST("/store/service-requests/:id/done", ah.RequirePermission(rbac.OrderReadStore), rh.Done)
+	r.POST("/store/service-requests/:id/cancel", ah.RequirePermission(rbac.OrderReadStore), rh.Cancel)
 	r.POST("/public/qr/:token/session", gh.StartSession)
 	guest := r.Group("/public/guest", gh.RequireGuest())
 	guest.GET("/service-request-templates", rh.GuestTemplates)
@@ -207,19 +208,44 @@ func TestServiceRequestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("BurstLimitPerSession", func(t *testing.T) {
-		// One request is already spent in this window; four more fit, the next is refused.
-		for i := 0; i < 4; i++ {
-			res := call("POST", "/public/guest/service-requests", req{cookie: guestA}, map[string]any{"template_id": tmpl.ID})
-			if res.Code != http.StatusCreated {
-				t.Fatalf("request %d: %d: %s", i+2, res.Code, res.Body.String())
-			}
-			var sr service.ServiceRequest
-			_ = json.Unmarshal(res.Body.Bytes(), &sr)
-			call("POST", "/store/service-requests/"+sr.ID.String()+"/done", req{bearer: cashier}, nil)
+	t.Run("TableSessionCooldownMaxActiveAndPosMute", func(t *testing.T) {
+		// Create a second template so we can test table-level cooldown and max-2 active per table_session_id.
+		var tmpl2 service.ServiceRequestTemplate
+		resT2 := call("POST", "/store/service-request-templates", req{bearer: owner}, map[string]any{"label": "Minta sendok " + uuid.NewString()[:4], "sort_order": 2})
+		if resT2.Code != http.StatusCreated {
+			t.Fatalf("create template 2: %d: %s", resT2.Code, resT2.Body.String())
 		}
-		if res := call("POST", "/public/guest/service-requests", req{cookie: guestA}, map[string]any{"template_id": tmpl.ID}); res.Code != http.StatusTooManyRequests {
-			t.Fatalf("the sixth request in ten minutes is 429, got %d", res.Code)
+		_ = json.Unmarshal(resT2.Body.Bytes(), &tmpl2)
+
+		// guestB (different session at the same table_session_id) is blocked by the 60s table cooldown after guestA's call.
+		if res := call("POST", "/public/guest/service-requests", req{cookie: guestB}, map[string]any{"template_id": tmpl2.ID}); res.Code != http.StatusTooManyRequests || !strings.Contains(res.Body.String(), `"retry_after_seconds"`) {
+			t.Fatalf("different guest session at same table within 60s must return 429, got %d: %s", res.Code, res.Body.String())
+		}
+
+		// Reset created_at of guestA's done request back > 60s so we can test POS mute on a new call.
+		if err := database.WithTenantTx(ctx, db, storeID, func(tx *sqlx.Tx) error {
+			_, err := tx.ExecContext(ctx, `UPDATE service_requests SET created_at = NOW() - INTERVAL '65 seconds' WHERE store_id = $1 AND table_id = (SELECT table_id FROM service_requests WHERE store_id = $1 AND template_id = $2 LIMIT 1)`, storeID, tmpl.ID)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		resB := call("POST", "/public/guest/service-requests", req{cookie: guestB}, map[string]any{"template_id": tmpl2.ID})
+		if resB.Code != http.StatusCreated {
+			t.Fatalf("guestB call after 60s cooldown: %d: %s", resB.Code, resB.Body.String())
+		}
+		var srB service.ServiceRequest
+		_ = json.Unmarshal(resB.Body.Bytes(), &srB)
+
+		// POS staff cancels/mutes the spamming table for 15 minutes via /cancel.
+		if res := call("POST", "/store/service-requests/"+srB.ID.String()+"/cancel", req{bearer: cashier}, nil); res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `"cancelled"`) {
+			t.Fatalf("POS cancel/mute: %d: %s", res.Code, res.Body.String())
+		}
+
+		// Even a brand-new guest session (guestC) at the muted table is now blocked for 15 minutes.
+		guestC := session()
+		if res := call("POST", "/public/guest/service-requests", req{cookie: guestC}, map[string]any{"template_id": tmpl.ID}); res.Code != http.StatusTooManyRequests || !strings.Contains(res.Body.String(), `"retry_after_seconds"`) {
+			t.Fatalf("muted table must block all new calls for 15 minutes with 429, got %d: %s", res.Code, res.Body.String())
 		}
 	})
 

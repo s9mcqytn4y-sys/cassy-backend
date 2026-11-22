@@ -108,7 +108,7 @@ All agents adhere to `karpathy-guidelines` (installed across `agy`, `gemini-cli`
 - Midtrans Core API runs in two phases: `payments.id.String()` is both `provider_order_id` and the `Idempotency-Key`; never hold a DB transaction or lock during the HTTP call; reconcile with `CheckTransaction`.
 - In `staging` and `production`, endpoints without full tenant binding or durable persistence fail closed with `503`. WebSockets (`internal/realtime/hub.go`) enforce origin checks, per-tenant channels, read limits, ping/pong deadlines and graceful shutdown.
 - Storage: R2 `cassy-media` (public, `https://cdn.abbdullaziz.online`) and `cassy-backups` (private, encrypted `pg_dump`), with separate credentials.
-- Demo runs locally in WSL behind the `https://demo.abbdullaziz.online` tunnel; there is no VPS yet.
+- Demo runs locally in WSL behind the `https://pos.abbdullaziz.online` tunnel; there is no VPS yet.
 - Before reporting completion also run `govulncheck ./...` and `gitleaks git --verbose` when dependencies or secrets-adjacent code change.
 
 ## Communication
