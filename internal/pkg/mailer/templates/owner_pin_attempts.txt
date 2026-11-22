@@ -5,7 +5,9 @@ PIN Owner salah dimasukkan berulang kali di kasir {{.StoreName}} (percobaan tera
 Diblokir hingga: {{.ExpiresAt}}
 Waktu kejadian : {{.EventAt}}
 
-Akun Anda tidak terkunci. Bila bukan Anda yang mencoba, periksa log audit dan segera ganti PIN Owner.
+Akun Anda tidak terkunci. Bila bukan Anda yang mencoba, periksa log audit dan segera ganti PIN Owner.{{if .ReplyTo}}
+Bantuan: {{.ReplyTo}}{{end}}
 
 --
-{{.StoreName}} | Cassy by AzureDevID. Email otomatis, jangan dibalas.
+(c) {{.Year}} {{.StoreName}}
+Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022

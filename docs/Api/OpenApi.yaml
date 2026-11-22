@@ -3019,6 +3019,28 @@ paths:
       responses:
         "200":
           description: The share
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  store_name:
+                    type: string
+                  label:
+                    type: string
+                  amount:
+                    type: integer
+                    format: int64
+                  status:
+                    type: string
+                  cashier_requested_at:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  hide_powered_by_badge:
+                    type: boolean
+                  multi_payment_enabled:
+                    type: boolean
         "404":
           description: Unknown or expired link
   /api/v1/public/split-shares/{token}/payments:
@@ -3026,8 +3048,8 @@ paths:
       security: []
       tags: [Guest]
       operationId: paySplitShare
-      summary: Pay one share with dynamic QRIS
-      description: "Only when `GUEST_SPLIT_ENABLED=true`. Requires `X-CSRF-Protection: 1`."
+      summary: Pay one share via QRIS, Virtual Account, or request cashier settlement (P-06)
+      description: "Only when `GUEST_SPLIT_ENABLED=true`. Requires `X-CSRF-Protection: 1`. Non-QRIS methods (`va`, `cashier`) require store flag `guest_split_multi_payment_enabled`."
       x-implementation-status: implemented
       parameters:
         - $ref: "#/components/parameters/CsrfProtectionHeader"
@@ -3047,11 +3069,53 @@ paths:
                 idempotency_key:
                   type: string
                   maxLength: 50
+                method:
+                  type: string
+                  enum: [qris, va, cashier]
+                  default: qris
+                bank:
+                  type: string
+                  enum: [bca, bni, bri, mandiri, permata]
+                  description: Required when method is `va`.
       responses:
         "200":
-          description: Pending QRIS charge (or idempotent replay)
+          description: Pending QRIS/VA charge or cashier payment intent (`cashier_requested`)
+        "403":
+          description: Multi-payment split disabled for this store
         "404":
           description: Unknown or expired link
+        "409":
+          description: Split share is already paid or cancelled
+  /api/v1/public/guest/orders/{id}/cancel:
+    post:
+      security: []
+      tags: [Guest]
+      operationId: cancelGuestOrder
+      summary: Cancel an unpaid or pending guest order (P-05)
+      description: "Requires guest session cookie and `X-CSRF-Protection: 1`. Gated by store flag `guest_self_cancel_enabled`. Refuses with 409 if any payment is authorized, paid, partially_paid, or refunded; otherwise cancels pending payment attempts, releases unstarted stock, cancels unpaid split shares, frees `UNPAID_ORDER_LIMIT`, and emits `order.cancelled`."
+      x-implementation-status: implemented
+      parameters:
+        - $ref: "#/components/parameters/CsrfProtectionHeader"
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 140
+      responses:
+        "200":
+          description: Order cancelled (idempotent when already cancelled)
+        "403":
+          description: Guest self-cancel disabled for this store or missing CSRF header
+        "404":
+          description: Order not found for this guest session
+        "409":
+          description: Order already has settled/authorized payments (`ORDER_HAS_PAYMENTS`)
   /api/v1/public/guest/orders/{id}/payments:
     post:
       security: []
@@ -5298,7 +5362,7 @@ paths:
     get:
       tags: [Printing]
       operationId: listPosPrinters
-      summary: Active printers the POS tablets print to directly (those with lan_address); any signed-in staff
+      summary: Active printers the POS tablets print to directly (LAN IP or Bluetooth MAC); any signed-in staff
       x-implementation-status: implemented
       security:
         - BearerStaffJWT: []
@@ -8251,7 +8315,7 @@ components:
           description: 'Only in the registration response; send as "Authorization: Device <credential>". Keep it secret.'
     Printer:
       type: object
-      required: [id, name, station, format, paper_width_mm, copies, footer, is_active, created_at]
+      required: [id, name, station, format, paper_width_mm, copies, footer, transport_type, is_active, created_at]
       properties:
         id:
           type: string
@@ -8261,7 +8325,7 @@ components:
         station:
           type: string
           enum: [bar, kitchen, checker, label, receipt]
-          description: receipt is the cashier printer; it is always printed by the tablets and needs lan_address
+          description: receipt is the cashier printer; it is always printed by the tablets and needs lan_address or bluetooth_mac
         format:
           type: string
           enum: [escpos, tspl]
@@ -8278,10 +8342,19 @@ components:
         footer:
           type: string
           maxLength: 100
+        transport_type:
+          type: string
+          enum: [lan, bluetooth]
+          default: lan
+          description: Transport mechanism used by POS tablets (lan TCP 9100 / print agent, or bluetooth Classic SPP)
         lan_address:
           type: string
           example: "192.168.1.50:9100"
           description: Private IPv4 "host:port". Set means the POS tablets print to it directly on the LAN and the print queue skips it
+        bluetooth_mac:
+          type: string
+          example: "AA:BB:CC:DD:EE:FF"
+          description: Colon-separated Bluetooth MAC address for direct SPP ESC/POS printing from POS tablets
         is_active:
           type: boolean
         last_seen_at:
@@ -8315,9 +8388,16 @@ components:
         footer:
           type: string
           maxLength: 100
+        transport_type:
+          type: string
+          enum: [lan, bluetooth]
+          description: Transport mechanism ("lan" or "bluetooth"). Switching clears the opposite address field.
         lan_address:
           type: string
-          description: Private IPv4 with an optional port (default 9100), normalized to "host:port". An empty string clears it. Required for receipt, not allowed for label
+          description: Private IPv4 with an optional port (default 9100), normalized to "host:port". An empty string clears it. Required for receipt when transport_type is lan, not allowed for label
+        bluetooth_mac:
+          type: string
+          description: Colon-separated Bluetooth MAC address (AA:BB:CC:DD:EE:FF). Required when transport_type is bluetooth, not allowed for label
         is_active:
           type: boolean
     AgentJob:
@@ -8660,6 +8740,11 @@ components:
         split_enabled:
           type: boolean
           description: True only when GUEST_SPLIT_ENABLED is on, so the guest page offers an equal split before paying.
+        features:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Per-store guest capability flags (P-08) including guest_self_cancel_enabled, guest_split_equal_enabled, guest_split_by_item_enabled, guest_split_multi_payment_enabled, guest_bell_sound_enabled, cart_pairing_enabled, guest_email_receipt_enabled, call_waiter, and split_bill.
     CashDrawer:
       type: object
       properties:

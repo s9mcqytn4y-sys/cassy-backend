@@ -1,8 +1,13 @@
 Halo {{.RecipientName}},
 
-Masukkan kode 6 digit ini untuk pendaftaran gerai {{.StoreName}} (kode: {{.StoreSlug}}) di Cassy by AzureDevID:
+Masukkan kode verifikasi 6 digit berikut untuk pendaftaran gerai {{.StoreName}} di Cassy oleh AzureDevID:
 
 {{.OTPCode}}
 
 Berlaku sampai {{.ExpiresAt}} ({{.ExpiresIn}}). Jangan bagikan kode ini kepada siapa pun.
-Abaikan pesan ini bila Anda tidak mendaftar di Cassy.
+Abaikan pesan ini bila Anda tidak mendaftar di Cassy.{{if .ReplyTo}}
+Bantuan: {{.ReplyTo}}{{end}}
+
+--
+(c) {{.Year}} {{.StoreName}}
+Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022

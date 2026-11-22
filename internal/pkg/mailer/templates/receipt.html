@@ -1,21 +1,31 @@
 {{define "subject"}}Struk Digital {{.StoreName}} - Pesanan {{.OrderNumber}}{{end}}
-{{define "preheader"}}Struk resmi pesanan {{.OrderNumber}} di {{.StoreName}}, total {{.TotalLabel}}.{{end}}
+{{define "preheader"}}Struk resmi pesanan {{.OrderNumber}} di {{.StoreName}}{{if .TableNumber}} (Meja {{.TableNumber}}){{end}}, total {{.TotalLabel}}.{{end}}
 {{define "html_body"}}<h1 style="margin:0 0 8px 0;font-size:22px;line-height:30px;color:#17211E;">Terima kasih sudah memesan di {{.StoreName}}</h1>
-<p style="margin:0 0 20px 0;color:#4A5954;">Pembayaran pesanan <strong>{{.OrderNumber}}</strong> sudah diterima. Lihat rincian transaksi, status pesanan, atau unduh PDF struk resmi lewat tombol di bawah.</p>
+<p style="margin:0 0 20px 0;color:#4A5954;">Pembayaran pesanan <strong>{{.OrderNumber}}</strong> sudah diterima. Lihat rincian transaksi, unduh PDF struk resmi, atau pantau status pesanan Anda melalui tombol di bawah.</p>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;border-collapse:collapse;border-top:1px solid #E2DDD4;border-bottom:1px solid #E2DDD4;">
   <tr>
-    <td style="padding:12px 0;font-size:13px;color:#4A5954;">Waktu Transaksi</td>
-    <td align="right" style="padding:12px 0;font-size:13px;font-weight:600;color:#17211E;">{{.IssuedAt}}</td>
+    <td style="padding:10px 0;font-size:13px;color:#4A5954;">Outlet</td>
+    <td align="right" style="padding:10px 0;font-size:13px;font-weight:600;color:#17211E;">{{.StoreName}}</td>
+  </tr>
+  {{if .TableNumber}}
+  <tr>
+    <td style="padding:8px 0;font-size:13px;color:#4A5954;">Nomor Meja</td>
+    <td align="right" style="padding:8px 0;font-size:13px;font-weight:600;color:#17211E;">Meja {{.TableNumber}}</td>
+  </tr>
+  {{end}}
+  <tr>
+    <td style="padding:8px 0;font-size:13px;color:#4A5954;">Waktu Transaksi</td>
+    <td align="right" class="tabular-num" style="padding:8px 0;font-size:13px;font-weight:600;color:#17211E;font-variant-numeric:tabular-nums;">{{.IssuedAt}}</td>
   </tr>
   <tr>
-    <td style="padding:8px 0;font-size:13px;color:#4A5954;">Metode Pembayaran</td>
-    <td align="right" style="padding:8px 0;font-size:13px;font-weight:600;color:#17211E;">{{.PaymentMethod}}</td>
+    <td style="padding:8px 0 10px 0;font-size:13px;color:#4A5954;">Metode Pembayaran</td>
+    <td align="right" style="padding:8px 0 10px 0;font-size:13px;font-weight:600;color:#17211E;">{{.PaymentMethod}}</td>
   </tr>
   {{if .ReferenceID}}
   <tr>
-    <td style="padding:8px 0 12px 0;font-size:13px;color:#4A5954;">ID Referensi</td>
-    <td align="right" style="padding:8px 0 12px 0;font-size:12px;font-family:monospace;color:#17211E;">{{.ReferenceID}}</td>
+    <td style="padding:8px 0 10px 0;font-size:13px;color:#4A5954;">ID Referensi</td>
+    <td align="right" class="tabular-num" style="padding:8px 0 10px 0;font-size:12px;font-family:monospace;color:#17211E;font-variant-numeric:tabular-nums;">{{.ReferenceID}}</td>
   </tr>
   {{end}}
 </table>
@@ -32,8 +42,8 @@
       <div style="font-weight:600;font-size:14px;color:#17211E;">{{.Name}}</div>
       {{if .Details}}<div style="font-size:12px;color:#4A5954;margin-top:2px;">{{.Details}}</div>{{end}}
     </td>
-    <td align="center" style="padding:10px 0;font-size:14px;color:#17211E;vertical-align:top;">{{.Quantity}}</td>
-    <td align="right" style="padding:10px 0;font-size:14px;font-weight:600;color:#17211E;vertical-align:top;">{{.SubtotalLabel}}</td>
+    <td align="center" class="tabular-num" style="padding:10px 0;font-size:14px;color:#17211E;vertical-align:top;font-variant-numeric:tabular-nums;">{{.Quantity}}</td>
+    <td align="right" class="tabular-num" style="padding:10px 0;font-size:14px;font-weight:600;color:#17211E;vertical-align:top;font-variant-numeric:tabular-nums;">{{.SubtotalLabel}}</td>
   </tr>
   {{end}}
 </table>
@@ -41,29 +51,29 @@
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;border-collapse:collapse;">
   <tr>
     <td style="padding:4px 0;font-size:13px;color:#4A5954;">Subtotal Produk</td>
-    <td align="right" style="padding:4px 0;font-size:13px;color:#17211E;">{{.SubtotalItemsLabel}}</td>
+    <td align="right" class="tabular-num" style="padding:4px 0;font-size:13px;color:#17211E;font-variant-numeric:tabular-nums;">{{.SubtotalItemsLabel}}</td>
   </tr>
   {{if .DiscountLabel}}
   <tr>
     <td style="padding:4px 0;font-size:13px;color:#1F5F52;">Potongan / Diskon</td>
-    <td align="right" style="padding:4px 0;font-size:13px;color:#1F5F52;">-{{.DiscountLabel}}</td>
+    <td align="right" class="tabular-num" style="padding:4px 0;font-size:13px;color:#1F5F52;font-variant-numeric:tabular-nums;">-{{.DiscountLabel}}</td>
   </tr>
   {{end}}
   {{if .ServiceFeeLabel}}
   <tr>
     <td style="padding:4px 0;font-size:13px;color:#4A5954;">Service Charge</td>
-    <td align="right" style="padding:4px 0;font-size:13px;color:#17211E;">{{.ServiceFeeLabel}}</td>
+    <td align="right" class="tabular-num" style="padding:4px 0;font-size:13px;color:#17211E;font-variant-numeric:tabular-nums;">{{.ServiceFeeLabel}}</td>
   </tr>
   {{end}}
   {{if .TaxLabel}}
   <tr>
     <td style="padding:4px 0;font-size:13px;color:#4A5954;">Pajak Restoran (PB1)</td>
-    <td align="right" style="padding:4px 0;font-size:13px;color:#17211E;">{{.TaxLabel}}</td>
+    <td align="right" class="tabular-num" style="padding:4px 0;font-size:13px;color:#17211E;font-variant-numeric:tabular-nums;">{{.TaxLabel}}</td>
   </tr>
   {{end}}
   <tr style="border-top:2px solid #1F5F52;">
     <td style="padding:12px 0 0 0;font-size:16px;font-weight:700;color:#17211E;">Total Pembayaran</td>
-    <td align="right" style="padding:12px 0 0 0;font-size:18px;font-weight:700;color:#1F5F52;">{{.TotalLabel}}</td>
+    <td align="right" class="tabular-num" style="padding:12px 0 0 0;font-size:18px;font-weight:700;color:#1F5F52;font-variant-numeric:tabular-nums;">{{.TotalLabel}}</td>
   </tr>
 </table>
 
@@ -71,7 +81,7 @@
 {{template "button" .}}
 {{end}}
 {{if .PDFURL}}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px 0;width:100%;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px 0;width:100%;">
   <tr>
     <td align="center" bgcolor="#F7F5F0" style="border-radius:10px;background-color:#F7F5F0;">
       <a href="{{.PDFURL}}" target="_blank" rel="noopener noreferrer" class="email-btn" style="display:block;width:100%;box-sizing:border-box;padding:14px 24px;min-height:48px;line-height:20px;font-size:14px;font-weight:700;color:#1F5F52 !important;text-decoration:none;text-align:center;border-radius:10px;border:1px solid #1F5F52;">Unduh PDF Struk Resmi</a>
@@ -79,5 +89,14 @@
   </tr>
 </table>
 {{end}}
+{{if .TrackURL}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px 0;width:100%;">
+  <tr>
+    <td align="center" bgcolor="#FFFFFF" style="border-radius:10px;background-color:#FFFFFF;">
+      <a href="{{.TrackURL}}" target="_blank" rel="noopener noreferrer" class="email-btn" style="display:block;width:100%;box-sizing:border-box;padding:13px 24px;min-height:48px;line-height:20px;font-size:14px;font-weight:600;color:#17211E !important;text-decoration:none;text-align:center;border-radius:10px;border:1px solid #D3DDD9;">Cek Status Pesanan</a>
+    </td>
+  </tr>
+</table>
+{{end}}
 
-<p style="margin:20px 0 0 0;font-size:13px;line-height:20px;color:#4A5954;">Struk digital ini adalah bukti pembayaran sah dari {{.StoreName}} dengan sistem Cassy by AzureDevID. Hubungi kasir bila ada transaksi yang tidak Anda kenali.</p>{{end}}
+<p style="margin:18px 0 0 0;font-size:13px;line-height:20px;color:#4A5954;">Struk digital ini adalah bukti pembayaran sah dari {{.StoreName}}. Hubungi kasir bila ada transaksi yang tidak Anda kenali.</p>{{end}}

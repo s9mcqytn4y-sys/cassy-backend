@@ -5,7 +5,9 @@ Akun {{.StaffName}} ({{.RoleLabel}}) di {{.StoreName}} dikunci otomatis karena p
 Terkunci hingga: {{.ExpiresAt}}
 Waktu kejadian : {{.EventAt}}
 
-Bila bukan staf Anda yang lupa PIN, cek log aktivitas dan atur ulang PIN staf dari Backoffice.
+Bila bukan staf Anda yang lupa PIN, periksa log aktivitas dan atur ulang PIN staf dari Backoffice.{{if .ReplyTo}}
+Bantuan: {{.ReplyTo}}{{end}}
 
 --
-{{.StoreName}} | Cassy by AzureDevID. Email otomatis, jangan dibalas.
+(c) {{.Year}} {{.StoreName}}
+Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022

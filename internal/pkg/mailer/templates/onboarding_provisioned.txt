@@ -1,7 +1,13 @@
 Selamat datang, {{.RecipientName}}
 
-Gerai {{.StoreName}} (kode login: {{.StoreSlug}}) sudah aktif di Cassy by AzureDevID dalam mode Sandbox awal.
+Gerai {{.StoreName}} (kode login: {{.StoreSlug}}) sudah aktif di Cassy oleh AzureDevID dalam mode Sandbox awal.
 {{if .ActionURL}}
-Masuk ke Backoffice & Cassy POS: {{.ActionURL}}
+Masuk ke Backoffice & Cassy POS:
+{{.ActionURL}}
 {{end}}
-Anda sudah dapat mengatur katalog menu, mencetak QR meja, menguji Midtrans Sandbox BYOK, dan mengunduh skrip MikroTik RouterOS v7 (.rsc). Ubah PIN Owner awal setelah masuk pertama kali.
+Anda sudah dapat mengatur katalog menu, mencetak QR meja, menguji Midtrans Sandbox BYOK, dan mengunduh skrip MikroTik RouterOS v7 (.rsc). Ubah PIN Owner awal setelah masuk pertama kali.{{if .ReplyTo}}
+Bantuan: {{.ReplyTo}}{{end}}
+
+--
+(c) {{.Year}} {{.StoreName}}
+Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022

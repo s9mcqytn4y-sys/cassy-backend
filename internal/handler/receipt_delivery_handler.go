@@ -23,6 +23,8 @@ func writeReceiptDeliveryError(c *gin.Context, err error) {
 		authError(c, http.StatusServiceUnavailable, "WHATSAPP_UNAVAILABLE", "Pengiriman WhatsApp belum diaktifkan. Kirim lewat email.")
 	case errors.Is(err, service.ErrSMSUnavailable):
 		authError(c, http.StatusServiceUnavailable, "SMS_UNAVAILABLE", "Pengiriman SMS belum diaktifkan. Kirim lewat email.")
+	case errors.Is(err, service.ErrGuestEmailReceiptDisabled):
+		authError(c, http.StatusForbidden, "GUEST_EMAIL_RECEIPT_DISABLED", "Pengiriman struk email oleh tamu sedang dinonaktifkan di gerai ini.")
 	case errors.Is(err, service.ErrReceiptNotPaid):
 		authError(c, http.StatusConflict, "RECEIPT_NOT_READY", "Struk tersedia setelah pesanan dibayar.")
 	case errors.Is(err, service.ErrReceiptSendLimit):

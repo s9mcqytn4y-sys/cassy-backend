@@ -25,7 +25,7 @@ Backend RESTful API dan Realtime Hub untuk platform white-label multi-tenant QR 
 
 ## Feature Status
 
-Status per modul dan rilis dipelihara terpusat di [Project Management Source of Truth](docs/ProjectManagement/README.md), [Roadmap Arsitektur](docs/Architecture/Roadmap.md), dan [Kontrak Integrasi Frontend](docs/Architecture/FrontendIntegrationContract.md). Skema database saat ini berada di 74 migrasi (`db/migrations/000001` s.d. `000074`).
+Status per modul dan rilis dipelihara terpusat di [Project Management Source of Truth](docs/ProjectManagement/README.md), [Roadmap Arsitektur](docs/Architecture/Roadmap.md), dan [Kontrak Integrasi Frontend](docs/Architecture/FrontendIntegrationContract.md). Skema database saat ini berada di 77 migrasi (`db/migrations/000001` s.d. `000077`).
 
 ## Local Development Setup (Windows)
 

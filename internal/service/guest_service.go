@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -407,4 +408,106 @@ func (s *GuestService) Track(ctx context.Context, token string) (*postgres.Track
 		out.PaymentStatus = string(domain.OrderPaymentStatusExpired)
 	}
 	return out, nil
+}
+
+// CancelOrder cancels an unpaid or pending pay-first order owned by the guest session (P-05).
+// Any local pending payment attempts and unpaid payment splits are cancelled, unstarted stock is
+// released, the guest's unpaid order quota is freed, and an order.cancelled outbox event is emitted.
+// Orders that already have authorized, paid, partially_paid, or refunded money are rejected with
+// ErrOrderHasPayments (409).
+func (s *GuestService) CancelOrder(ctx context.Context, g *GuestIdentity, orderID uuid.UUID, reason string) error {
+	f := fieldErrors{}
+	cleanReason := f.text("reason", reason, 0, 140)
+	if err := f.err(); err != nil {
+		return err
+	}
+	if cleanReason == "" {
+		cleanReason = "Dibatalkan oleh tamu"
+	}
+	err := database.WithTenantTx(ctx, s.db, g.StoreID, func(tx *sqlx.Tx) error {
+		if err := requireFeatureFlagTx(ctx, tx, g.StoreID, FeatureGuestSelfCancel, ErrGuestSelfCancelDisabled); err != nil {
+			return err
+		}
+		if err := s.ownsOrder(ctx, tx, g, orderID); err != nil {
+			return err
+		}
+		order, _, err := s.payments.orderRepo.GetOrderByIDForUpdate(ctx, tx, g.StoreID, orderID)
+		if err != nil {
+			return err
+		}
+		if order.Status == domain.OrderStatusCancelled {
+			return nil
+		}
+		switch order.PaymentStatus {
+		case domain.OrderPaymentStatusUnpaid, domain.OrderPaymentStatusPending,
+			domain.OrderPaymentStatusFailed, domain.OrderPaymentStatusExpired:
+		default:
+			return ErrOrderHasPayments
+		}
+		var settledMoney bool
+		if err := tx.GetContext(ctx, &settledMoney, `
+			SELECT EXISTS (
+				SELECT 1 FROM payments
+				WHERE store_id = $1 AND order_id = $2
+				  AND status IN ('authorized', 'paid', 'partially_refunded', 'refunded')
+			)
+		`, g.StoreID, order.ID); err != nil {
+			return fmt.Errorf("failed to check settled payments: %w", err)
+		}
+		if settledMoney {
+			return ErrOrderHasPayments
+		}
+
+		now := s.nowFunc().UTC()
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE payments SET status = 'cancelled', updated_at = $3
+			WHERE store_id = $1 AND order_id = $2 AND status = 'pending'
+		`, g.StoreID, order.ID, now); err != nil {
+			return fmt.Errorf("failed to cancel pending payments: %w", err)
+		}
+		if _, err := releaseUnstartedStockTx(ctx, tx, s.payments.orderRepo, order); err != nil {
+			return err
+		}
+		order.Status = domain.OrderStatusCancelled
+		order.ExpiresAt = nil
+		if err := s.payments.orderRepo.UpdateOrderStatusAndStock(ctx, tx, order); err != nil {
+			return fmt.Errorf("failed to cancel guest order: %w", err)
+		}
+		if err := s.payments.orderRepo.UpdatePaymentSplitsStatusByOrder(ctx, tx, g.StoreID, order.ID, domain.SplitBillStatusCancelled, false); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE order_rounds SET status = 'cancelled', updated_at = $3
+			WHERE store_id = $1 AND order_id = $2 AND status <> 'cancelled'
+		`, g.StoreID, order.ID, now); err != nil {
+			return fmt.Errorf("failed to cancel guest order rounds: %w", err)
+		}
+
+		payload, err := json.Marshal(map[string]any{
+			"order_id":       order.ID.String(),
+			"store_id":       g.StoreID.String(),
+			"order_number":   order.OrderNumber,
+			"status":         order.Status,
+			"payment_status": order.PaymentStatus,
+			"stock_status":   order.StockStatus,
+			"reason":         cleanReason,
+			"cancelled_by":   "guest",
+			"voided":         false,
+		})
+		if err != nil {
+			return err
+		}
+		return s.payments.orderRepo.InsertOutboxEvent(ctx, tx, &domain.OutboxEvent{
+			ID:            uuid.New(),
+			StoreID:       g.StoreID,
+			EventType:     "order.cancelled",
+			AggregateType: "order",
+			AggregateID:   order.ID.String(),
+			Payload:       string(payload),
+		})
+	})
+	if errors.Is(err, postgres.ErrOrderNotFound) {
+		return ErrGuestOrderNotFound
+	}
+	return err
 }

@@ -166,12 +166,22 @@ func (s *ReceiptDeliveryService) send(ctx context.Context, storeID, orderID uuid
 		ref := orderID.String()
 		switch channel {
 		case "email":
+			if guestSessionID != nil {
+				if ferr := requireFeatureFlagTx(ctx, tx, storeID, FeatureGuestEmailReceipt, ErrGuestEmailReceiptDisabled); ferr != nil {
+					return ferr
+				}
+			}
 			r, berr := s.receipts.buildTx(ctx, tx, storeID, orderID, ReceiptKindSale, nil)
 			if berr != nil {
 				return berr
 			}
 			d := receiptEmailData(r, link)
 			d.PublicBaseURL = s.receipts.PublicURL()
+			var contactEmail sql.NullString
+			_ = tx.GetContext(ctx, &contactEmail, `SELECT public_contact_email FROM store_cms_configs WHERE store_id = $1`, storeID)
+			if contactEmail.Valid && strings.TrimSpace(contactEmail.String) != "" {
+				d.ReplyTo = strings.TrimSpace(contactEmail.String)
+			}
 			err = s.email.EnqueueTx(ctx, tx, storeID, mailer.TemplateReceipt, to, "", ref, d)
 		case "whatsapp":
 			// Template parameters, one per line: {{1}} store, {{2}} order number, {{3}} link.
@@ -212,8 +222,8 @@ func receiptEmailData(r *Receipt, link *ReceiptLink) mailer.Data {
 		}
 	}
 	d := mailer.Data{
-		ActionURL: link.URL, ActionLabel: "Lihat struk dan status pesanan", PDFURL: pdfURL,
-		OrderNumber: r.OrderNumber, TotalLabel: rupiah(r.Total), ExpiresAt: link.ExpiresAt.Format("02/01/2006"),
+		ActionURL: link.URL, ActionLabel: "Lihat Struk & Unduh PDF", PDFURL: pdfURL, TrackURL: link.URL,
+		TableNumber: r.TableNumber, OrderNumber: r.OrderNumber, TotalLabel: rupiah(r.Total), ExpiresAt: link.ExpiresAt.Format("02/01/2006"),
 		IssuedAt: formatLocalTimeInZone(r.IssuedAt, r.Store.Timezone), SubtotalItemsLabel: rupiah(r.Subtotal),
 	}
 	// r.Payments holds only payments that took money; split bills may repeat a method.

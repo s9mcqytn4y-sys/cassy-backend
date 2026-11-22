@@ -419,6 +419,7 @@ func registerTableAndGuestRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	guest.GET("/session", h.guest.Session)
 	guest.GET("/orders", h.guest.ListOrders)
 	guest.POST("/orders", h.guest.CreateOrder)
+	guest.POST("/orders/:id/cancel", h.guest.CancelOrder)
 	guest.POST("/orders/:id/payments", h.guest.InitiatePayment)
 	guest.POST("/orders/:id/receipt/send", h.receiptOut.SendByGuest)
 	guest.GET("/service-request-templates", h.svcRequest.GuestTemplates)

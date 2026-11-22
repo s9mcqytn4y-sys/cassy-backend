@@ -3,31 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="light dark">
-<meta name="supported-color-schemes" content="light dark">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>{{template "subject" .}}</title>
 <style>
-  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  :root { color-scheme: light; supported-color-schemes: light; }
   body { margin:0; padding:0; width:100% !important; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; background-color:#F7F5F0; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#17211E; }
   table { border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; }
   a { color:#1F5F52; text-decoration:none; }
   .email-btn-primary { display:block !important; width:100% !important; box-sizing:border-box !important; }
+  .tabular-num { font-variant-numeric:tabular-nums; }
   @media only screen and (max-width: 640px) {
     .email-shell { padding: 14px 10px !important; }
     .email-card { padding: 24px 18px !important; border-radius: 12px !important; }
     .email-btn { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; padding: 15px 18px !important; }
     .email-header-store { font-size: 17px !important; }
-  }
-  @media (prefers-color-scheme: dark) {
-    body, .email-shell-table { background-color:#111917 !important; color:#F7F5F0 !important; }
-    .email-card { background-color:#1A2421 !important; border-color:#2D3D38 !important; border-top-color:#2F8573 !important; color:#F7F5F0 !important; }
-    .email-card h1, .email-card h2, .email-card strong, .email-card td, .email-card th { color:#F7F5F0 !important; }
-    .email-card p { color:#D3DDD9 !important; }
-    .email-header-store { color:#F7F5F0 !important; }
-    .email-header-brand { color:#74C2B0 !important; }
-    .email-slug-pill { background-color:#25332F !important; color:#D3DDD9 !important; }
-    .email-footer, .email-footer p { color:#A9B8B2 !important; }
-    .email-footer a, .email-link-fallback { color:#74C2B0 !important; }
   }
 </style>
 </head>
@@ -37,7 +27,7 @@
   <tr>
     <td align="center" class="email-shell" style="padding:28px 14px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;margin:0 auto;">
-        <!-- Header -->
+        <!-- Light Editorial Header (without raw store_slug) -->
         <tr>
           <td style="padding:0 4px 16px 4px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -46,44 +36,38 @@
                   <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                     <tr>
                       <td valign="middle" style="padding-right:12px;">
-                        <img src="{{.LogoURL}}" alt="Cassy" width="38" height="38" style="display:block;width:38px;height:38px;border-radius:10px;border:1px solid #1F5F52;outline:none;text-decoration:none;background-color:#1F5F52;color:#F7F5F0;font-size:11px;font-weight:700;text-align:center;line-height:38px;">
+                        <img src="{{.LogoURL}}" alt="{{.StoreName}}" width="38" height="38" style="display:block;width:38px;height:38px;border-radius:10px;border:1px solid #1F5F52;outline:none;text-decoration:none;background-color:#1F5F52;color:#F7F5F0;font-size:11px;font-weight:700;text-align:center;line-height:38px;">
                       </td>
                       <td valign="middle">
                         <div class="email-header-store" style="font-size:18px;font-weight:700;letter-spacing:-0.2px;color:#17211E;line-height:22px;">{{.StoreName}}</div>
-                        <div class="email-header-brand" style="font-size:11px;font-weight:600;color:#1F5F52;letter-spacing:0.3px;line-height:16px;">Cassy by AzureDevID</div>
+                        <div class="email-header-brand" style="font-size:11px;font-weight:600;color:#1F5F52;letter-spacing:0.3px;line-height:16px;">Cassy oleh AzureDevID</div>
                       </td>
                     </tr>
                   </table>
                 </td>
-                {{if .StoreSlug}}
-                <td align="right" valign="middle" class="email-slug-pill" style="font-size:12px;font-family:'Courier New',monospace;color:#4A5954;background-color:#EDE9E0;padding:5px 10px;border-radius:6px;white-space:nowrap;">{{.StoreSlug}}</td>
-                {{end}}
               </tr>
             </table>
           </td>
         </tr>
-        <!-- Main Card Body -->
+        <!-- Main Editorial Card Body -->
         <tr>
           <td class="email-card" style="background-color:#FFFFFF;border:1px solid #E2DDD4;border-top:4px solid #1F5F52;border-radius:14px;padding:32px 28px;font-size:15px;line-height:24px;color:#17211E;box-shadow:0 2px 8px rgba(23,33,30,0.04);">
             {{template "html_body" .}}
           </td>
         </tr>
-        <!-- Legal & System Footer -->
+        <!-- Legal & Deliverability Footer -->
         <tr>
           <td class="email-footer" style="padding:20px 8px 0 8px;font-size:12px;line-height:19px;color:#4A5954;">
             <p style="margin:0 0 8px 0;">
-              Email transaksional otomatis dari <strong>Cassy by AzureDevID</strong> untuk operasional gerai <strong>{{.StoreName}}</strong>. Mohon tidak membalas langsung ke alamat pengirim ini{{if .ReplyTo}}; untuk bantuan hubungi <a href="mailto:{{.ReplyTo}}" style="color:#1F5F52;text-decoration:underline;font-weight:600;">{{.ReplyTo}}</a>{{end}}.
-            </p>
-            <p style="margin:0 0 10px 0;color:#667570;font-size:11px;line-height:17px;">
-              <strong>Perlindungan Data &amp; Privasi:</strong> Pesan ini beserta informasi di dalamnya bersifat rahasia untuk penerima yang dituju dan diproses sesuai Undang-Undang Pelindungan Data Pribadi (UU No. 27 Tahun 2022) serta ketentuan Penyelenggara Sistem Elektronik di Indonesia.
+              Email transaksional resmi untuk operasional gerai <strong>{{.StoreName}}</strong>.{{if .ReplyTo}} Untuk bantuan pelanggan, balas ke <a href="mailto:{{.ReplyTo}}" style="color:#1F5F52;text-decoration:underline;font-weight:600;">{{.ReplyTo}}</a>.{{end}}
             </p>
             <p style="margin:0 0 10px 0;font-size:12px;">
               <a href="{{.PublicBaseURL}}/legal" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 10px 6px 0;color:#1F5F52;text-decoration:underline;font-weight:600;">Ketentuan &amp; Privasi Tamu</a>
               &bull;
               <a href="{{.PublicBaseURL}}/legal/mitra" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 0 6px 10px;color:#1F5F52;text-decoration:underline;font-weight:600;">Dokumen Hukum Mitra</a>
             </p>
-            <p style="margin:0;color:#667570;font-size:11px;">
-              &copy; {{.Year}} {{.StoreName}} &bull; Didukung oleh <strong>Cassy POS &amp; QR Ordering</strong> &bull; AzureDevID (Jakarta, Indonesia)
+            <p style="margin:0;color:#667570;font-size:11px;line-height:17px;">
+              &copy; {{.Year}} {{.StoreName}} &bull; Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022
             </p>
           </td>
         </tr>
@@ -94,7 +78,7 @@
 </body>
 </html>
 
-{{define "button"}}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 16px 0;width:100%;">
+{{define "button"}}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 14px 0;width:100%;">
   <tr>
     <td align="center" bgcolor="#1F5F52" style="border-radius:10px;background-color:#1F5F52;">
       <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{.ActionURL}}" style="height:48px;v-text-anchor:middle;width:100%;" arcsize="20%" strokecolor="#1F5F52" fillcolor="#1F5F52"><w:anchorlock/><center style="color:#F7F5F0;font-family:sans-serif;font-size:15px;font-weight:bold;">{{.ActionLabel}}</center></v:roundrect><![endif]-->
@@ -102,4 +86,4 @@
     </td>
   </tr>
 </table>
-<p style="margin:0 0 16px 0;font-size:12px;line-height:19px;color:#4A5954;">Jika tombol di atas tidak dapat dibuka, ketuk atau salin tautan berikut ke peramban:<br><a href="{{.ActionURL}}" class="email-link-fallback" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 0;color:#1F5F52;word-break:break-all;text-decoration:underline;font-weight:600;">{{.ActionURL}}</a></p>{{end}}
+<p style="margin:0 0 16px 0;font-size:12px;line-height:19px;color:#4A5954;">Jika tombol di atas tidak dapat dibuka, salin tautan berikut ke peramban:<br><a href="{{.ActionURL}}" class="email-link-fallback" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 0;color:#1F5F52;word-break:break-all;text-decoration:underline;font-weight:600;">{{.ActionURL}}</a></p>{{end}}

@@ -1,11 +1,13 @@
 Halo {{.RecipientName}},
 
-Invoice {{.InvoiceNumber}} dari {{.StoreName}} {{.DueStatus}}.
+Pengingat tagihan untuk Invoice {{.InvoiceNumber}} dari {{.StoreName}} ({{.DueStatus}}).
 
 Sisa tagihan: {{.TotalLabel}}
 Jatuh tempo : {{.DueDate}}
 
-Abaikan pesan ini bila Anda sudah menyelesaikan pembayaran.
+Abaikan pesan ini bila Anda sudah menyelesaikan pembayaran.{{if .ReplyTo}}
+Bantuan: {{.ReplyTo}}{{end}}
 
 --
-{{.StoreName}} | Cassy by AzureDevID. Email otomatis, jangan dibalas.
+(c) {{.Year}} {{.StoreName}}
+Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022

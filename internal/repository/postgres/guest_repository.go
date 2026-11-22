@@ -173,10 +173,13 @@ type SplitShare struct {
 
 // SplitShareView is everything a link holder may see.
 type SplitShareView struct {
-	StoreName string `json:"store_name" db:"store_name"`
-	Label     string `json:"label" db:"label"`
-	Amount    int64  `json:"amount" db:"amount"`
-	Status    string `json:"status" db:"status"`
+	StoreName           string     `json:"store_name" db:"store_name"`
+	Label               string     `json:"label" db:"label"`
+	Amount              int64      `json:"amount" db:"amount"`
+	Status              string     `json:"status" db:"status"`
+	CashierRequestedAt  *time.Time `json:"cashier_requested_at,omitempty" db:"cashier_requested_at"`
+	HidePoweredByBadge  bool       `json:"hide_powered_by_badge" db:"hide_powered_by_badge"`
+	MultiPaymentEnabled bool       `json:"multi_payment_enabled" db:"-"`
 }
 
 func (r *GuestRepository) InsertSplitShare(ctx context.Context, tx *sqlx.Tx, storeID, orderID, splitID uuid.UUID, tokenHash []byte, expiresAt time.Time) error {
@@ -205,8 +208,11 @@ func (r *GuestRepository) ResolveSplitShare(ctx context.Context, db *sqlx.DB, to
 func (r *GuestRepository) GetSplitShareView(ctx context.Context, tx *sqlx.Tx, storeID, splitID uuid.UUID) (*SplitShareView, error) {
 	var out SplitShareView
 	err := tx.GetContext(ctx, &out, `
-		SELECT st.name AS store_name, ps.label, ps.total_amount AS amount, ps.status
-		FROM payment_splits ps JOIN stores st ON st.id = ps.store_id
+		SELECT st.name AS store_name, ps.label, ps.total_amount AS amount, ps.status, ps.cashier_requested_at,
+		       COALESCE(cms.hide_powered_by_badge, false) AS hide_powered_by_badge
+		FROM payment_splits ps
+		JOIN stores st ON st.id = ps.store_id
+		LEFT JOIN store_cms_configs cms ON cms.store_id = ps.store_id
 		WHERE ps.store_id = $1 AND ps.id = $2`, storeID, splitID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load split share: %w", err)
