@@ -26,7 +26,6 @@ CREATE INDEX IF NOT EXISTS idx_product_recommendations_lookup
     ON product_recommendations (store_id, product_id, sort_order);
 
 ALTER TABLE product_recommendations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE product_recommendations FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS store_isolation_product_recommendations ON product_recommendations;
 CREATE POLICY store_isolation_product_recommendations ON product_recommendations
@@ -43,7 +42,6 @@ CREATE TABLE IF NOT EXISTS kitchen_station_configs (
 );
 
 ALTER TABLE kitchen_station_configs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE kitchen_station_configs FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS store_isolation_kitchen_station_configs ON kitchen_station_configs;
 CREATE POLICY store_isolation_kitchen_station_configs ON kitchen_station_configs
