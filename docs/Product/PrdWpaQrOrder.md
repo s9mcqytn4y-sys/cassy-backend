@@ -1,4 +1,4 @@
-# PRD: WPA QR Order Meja
+﻿# PRD: WPA QR Order Meja
 
 Status: disetujui arah (ADR-010), 2026-11-09. Label bukti: **[V]** dicek di kode atau demo, **[S]** sumber sekunder, **[A]** asumsi.
 
@@ -69,7 +69,7 @@ Uji penetrasi aktif belum dijalankan. Daftar ini berasal dari pembacaan kode dan
 Compose, Ktor, Koin, dan CameraX layak dipertahankan. Celahnya [V]:
 
 - Tidak ada navigasi multi-layar yang mencakup meja, menu, KDS, dan setup layar.
-- Alamat API di-hardcode ke `api.abbdullaziz.online`, sedangkan demo memakai `demo.abbdullaziz.online`.
+- Alamat API di-hardcode ke `api.abbdullaziz.online`, sedangkan demo memakai `pos.abbdullaziz.online`.
 - Hanya ada 2 file test. Perilaku sinkron dan login belum teruji.
 - `security-crypto` dan `biometric` memakai versi alpha.
 - Data contoh terlihat di `PosLandscapeScreen.kt` dan `PaymentChannel.kt`, belum diperiksa rinci.

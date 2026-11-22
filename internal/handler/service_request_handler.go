@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -25,7 +26,24 @@ func writeServiceRequestError(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrServiceRequestNotFound):
 		authError(c, http.StatusNotFound, "NOT_FOUND", "Data tidak ditemukan.")
 	case errors.Is(err, service.ErrServiceRequestLimited):
-		authError(c, http.StatusTooManyRequests, "TOO_MANY_REQUESTS", "Permintaan terlalu sering. Tunggu sebentar, staf sedang menuju meja Anda.")
+		retryAfter := service.ServiceRequestCooldownSeconds
+		msg := "Permintaan terlalu sering. Tunggu 60 detik sebelum memanggil pelayan kembali."
+		var rateErr *service.ServiceRequestRateLimitError
+		if errors.As(err, &rateErr) {
+			if rateErr.RetryAfterSeconds > 0 {
+				retryAfter = rateErr.RetryAfterSeconds
+			}
+			if rateErr.MutedByStaff {
+				msg = "Panggilan pelayan untuk meja ini sedang diredam sementara selama 15 menit oleh staf."
+			}
+		}
+		c.Header("Retry-After", strconv.Itoa(retryAfter))
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"code":                "TOO_MANY_REQUESTS",
+			"error":               msg,
+			"retry_after_seconds": retryAfter,
+			"cooldown_seconds":    service.ServiceRequestCooldownSeconds,
+		})
 	case errors.Is(err, service.ErrServiceRequestState):
 		authError(c, http.StatusConflict, "INVALID_STATE", "Permintaan ini sudah diproses.")
 	case errors.Is(err, service.ErrGuestSessionInvalid):
@@ -79,7 +97,7 @@ func (h *ServiceRequestHandler) ListForStaff(c *gin.Context) {
 		writeServiceRequestError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"service_requests": out})
+	c.JSON(http.StatusOK, gin.H{"service_requests": out, "cooldown_seconds": service.ServiceRequestCooldownSeconds})
 }
 
 // Acknowledge handles POST /api/v1/store/service-requests/:id/acknowledge.
@@ -87,6 +105,9 @@ func (h *ServiceRequestHandler) Acknowledge(c *gin.Context) { h.advance(c, "ackn
 
 // Done handles POST /api/v1/store/service-requests/:id/done.
 func (h *ServiceRequestHandler) Done(c *gin.Context) { h.advance(c, "done") }
+
+// Cancel handles POST /api/v1/store/service-requests/:id/cancel (dismisses request and mutes table for 5 minutes).
+func (h *ServiceRequestHandler) Cancel(c *gin.Context) { h.advance(c, "cancelled") }
 
 func (h *ServiceRequestHandler) advance(c *gin.Context, to string) {
 	id, ok := pathID(c, "id")
@@ -137,5 +158,5 @@ func (h *ServiceRequestHandler) ListForGuest(c *gin.Context) {
 		writeServiceRequestError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"service_requests": out})
+	c.JSON(http.StatusOK, gin.H{"service_requests": out, "cooldown_seconds": service.ServiceRequestCooldownSeconds})
 }

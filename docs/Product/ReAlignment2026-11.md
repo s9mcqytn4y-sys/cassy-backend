@@ -1,4 +1,4 @@
-# Re-Alignment Cassy by AzureDevID (Draft, 2026-11-09)
+﻿# Re-Alignment Cassy by AzureDevID (Draft, 2026-11-09)
 
 Revisi Director 2026-11-09: domain wajib `abbdullaziz.online`, landing page dan jualan ditunda, fokus stabilitas demo cloud dan client. Bagian analisis yang menyarankan domain baru tetap sebagai catatan, keputusan yang berlaku ada di bagian 11.
 
@@ -37,7 +37,7 @@ Lima koreksi terhadap asumsi Anda:
 2. **14 metode untuk akun yang hanya menagih langganan terlalu banyak.** Lane 1 hanya menjual SaaS Rp 149 ribu sampai Rp 599 ribu. Akulaku, Kredivo, Alfamart, dan kartu menambah beban review tanpa alasan bisnis. Rekomendasi: QRIS dan VA dulu, kartu menyusul. Paylater tidak perlu untuk Lane 1.
 3. **Label "Aggregator" perlu ditanyakan.** Tidak ada definisinya di docs yang terbaca [V]. Bisa berarti model akuisisi Midtrans sendiri, bisa juga klasifikasi yang berbenturan dengan ADR-009. Tanyakan tertulis ke Wawa.
 4. **Surat Pelimpahan Dana di vault belum saya baca**, PDF-nya tidak bisa diekstrak di mesin ini. Pastikan isinya hanya rekening milik sendiri.
-5. **Dokumen vault masih memakai nama lama**: `MyCaffe`, `online.abbdullaziz.mycaffe`, dan `api-demo.abbdullaziz.online`. Reviewer akan melihat tiga nama untuk satu usaha.
+5. **Dokumen vault masih memakai nama lama**: `MyCaffe`, `online.abbdullaziz.mycaffe`, dan `api-pos.abbdullaziz.online`. Reviewer akan melihat tiga nama untuk satu usaha.
 6. **Sumber override notifikasi.** Kode memakai `X-Override-Notification` lewat SDK (`internal/pkg/midtrans/midtrans.go:164`), sementara halaman header dan webhook yang terbaca tidak mencantumkannya [V]. Uji di sandbox per tenant, dan jadikan URL dashboard tenant sebagai jalur utama.
 
 ### 2.3 Biaya dan risiko per channel (harga publik, belum termasuk negosiasi)

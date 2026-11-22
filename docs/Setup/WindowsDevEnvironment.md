@@ -1,6 +1,6 @@
-# Windows 11 Laptop: Environments, Networking & Developer Workflow
+﻿# Windows 11 Laptop: Environments, Networking & Developer Workflow
 
-Until a production VPS and domain exist, this laptop runs **development and demo only** — no real
+Until a production VPS and domain exist, this laptop runs **development and demo only** â€” no real
 cafe transactions (owner decision I1). Everything is driven by `scripts/Invoke-CassyDev.ps1` (decision I4).
 
 ## 1. Environments
@@ -9,7 +9,7 @@ cafe transactions (owner decision I1). Everything is driven by `scripts/Invoke-C
 | ------------- | ------------- | ----------- | ---------- | ---------------- | --------- |
 | **dev** | `go run ./cmd/api` on Windows + PostgreSQL 18 in Docker | `development` | `mycaffe-postgres-dev` (`127.0.0.1:5432`), seed data | this laptop only | daily coding, debugging (VS Code F5), full order/payment simulation |
 | **test** | `Invoke-CassyDev.ps1 test-int`: throwaway PostgreSQL 18 container | `test` | `mycaffe-pg-integration` (`127.0.0.1:55432`), created and deleted per run | this laptop only | integration tests identical to CI |
-| **demo / staging** | `Invoke-CassyDev.ps1 demo-up`: whole stack in Docker + Cloudflare Named Tunnel (`mycaffe-demo`) | `staging` | `mycaffe-demo` volume, seed data | `https://demo.abbdullaziz.online` (HTTPS) | live client demo on tablets/phones, Midtrans Sandbox Core API webhooks |
+| **demo / staging** | `Invoke-CassyDev.ps1 demo-up`: whole stack in Docker + Cloudflare Named Tunnel (`mycaffe-demo`) | `staging` | `mycaffe-demo` volume, seed data | `https://pos.abbdullaziz.online` (HTTPS) | live client demo on tablets/phones, Midtrans Sandbox Core API webhooks |
 | **production** | `deploy/docker/docker-compose.prod.yml` on client Hostinger KVM 2 VPS | `production` | VPS PostgreSQL | client production domain | ready for cutover once client provisions VPS |
 
 Run **one stack at a time** on 8 GB RAM: `Invoke-CassyDev.ps1 down` before `demo-up` and vice versa.
@@ -21,12 +21,12 @@ Nothing listens on the Wi-Fi/LAN interface. Devices reach the demo only through 
 | Port | Bound to | Service | Environment |
 | ------ | ---------- | --------- | ------------- |
 | 5432 | `127.0.0.1` | PostgreSQL (dev compose) | dev |
-| 8080 | all interfaces (Go default) — keep Windows Firewall blocking inbound | Go API (`go run`) | dev |
+| 8080 | all interfaces (Go default) â€” keep Windows Firewall blocking inbound | Go API (`go run`) | dev |
 | 80 | `127.0.0.1` | Nginx (dev compose, only if started) | dev |
 | 3000 | Next.js default | POS frontend dev server (separate repo) | dev / demo |
 | 8088 | `127.0.0.1` | Nginx (demo) | demo |
 | 55432 | `127.0.0.1` | throwaway PostgreSQL | test |
-| — | outbound 443/7844 only | `cloudflared` → Cloudflare edge | demo |
+| â€” | outbound 443/7844 only | `cloudflared` â†’ Cloudflare edge | demo |
 
 `./scripts/Invoke-CassyDev.ps1 doctor` lists what is listening and warns about firewall state.
 

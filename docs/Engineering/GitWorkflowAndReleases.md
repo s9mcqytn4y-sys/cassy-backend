@@ -1,4 +1,4 @@
-# Git Workflow and Release Policy
+﻿# Git Workflow and Release Policy
 
 Keputusan AL11 (2026-11-09): trunk-based. Berlaku seragam untuk `cassy-backend`, `cassy-client`, dan `cassy-docker`. Branch `staging` sudah dihapus dan tidak dihidupkan lagi.
 
@@ -17,12 +17,12 @@ Keputusan AL11 (2026-11-09): trunk-based. Berlaku seragam untuk `cassy-backend`,
 
 ```text
 feat/* fix/* docs/* chore/*  (branch pendek dari main, 1 sampai 2 hari)
-    │  Pull Request, CI hijau, persetujuan Owner
-    ▼
-main  ──▶ demo (https://demo.abbdullaziz.online)
-    │  tag vX.Y.Z, persetujuan Owner
-    ▼
-image GHCR immutable ──▶ produksi (scripts/deploy/DeployRelease.sh <digest>)
+    â”‚  Pull Request, CI hijau, persetujuan Owner
+    â–¼
+main  â”€â”€â–¶ demo (https://pos.abbdullaziz.online)
+    â”‚  tag vX.Y.Z, persetujuan Owner
+    â–¼
+image GHCR immutable â”€â”€â–¶ produksi (scripts/deploy/DeployRelease.sh <digest>)
 ```
 
 Status: deploy `main` ke demo masih manual. Demo berjalan di workstation Owner, jadi otomasinya perlu runner atau skrip lokal dan belum dibangun.
@@ -42,6 +42,11 @@ Kedua repo saat ini publik, jadi branch protection tersedia tapi belum diaktifka
 ## 3. Quality gates
 
 Setiap PR wajib lolos job CI: lint dan vet, govulncheck, Docker build, migrasi PostgreSQL 18 triple-role, seed idempotency, dan integration test `-race`. Integration test hanya benar-benar jalan di job PostgreSQL.
+
+### Pre-Push Checklist Wajib (Lokal)
+1. **Formatting**: Jalankan `gofmt -l .` di root `CassyBackend`. Output wajib kosong sebelum membuat commit.
+2. **Go Toolchain**: Seluruh workflow CI membaca versi Go via `go-version-file: 'go.mod'`, bukan hardcoded version string.
+3. **Secret & Dummy Token Hygiene**: Dilarang menggunakan token atau string acak ber-entropy tinggi pada test mock, contoh skenario, atau template dokumen untuk mencegah false positive pada `gitleaks`. Gunakan nama semantik (`demo-order-14`).
 
 ## 4. Versi
 

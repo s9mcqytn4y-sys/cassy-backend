@@ -56,7 +56,7 @@ func wireHandlers(workerCtx context.Context, cfg *config.Config, db *sqlx.DB, hu
 	midtransClient := midtrans.NewClient(cfg)
 	h := &handlerSet{
 		guestSplit: cfg.GuestSplitEnabled,
-		health:     handler.NewHealthHandler("MyCaffe POS Backend", cfg.AppEnv, db),
+		health:     handler.NewHealthHandler("Cassy POS Backend", cfg.AppEnv, db),
 		midtrans:   handler.NewMidtransHandler(midtransClient, hub),
 	}
 	if db == nil {
@@ -274,6 +274,7 @@ func registerStoreAndPOSRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	store.GET("/service-requests", h.auth.RequirePermission(rbac.OrderReadStore), h.svcRequest.ListForStaff)
 	store.POST("/service-requests/:id/acknowledge", h.auth.RequirePermission(rbac.OrderReadStore), h.svcRequest.Acknowledge)
 	store.POST("/service-requests/:id/done", h.auth.RequirePermission(rbac.OrderReadStore), h.svcRequest.Done)
+	store.POST("/service-requests/:id/cancel", h.auth.RequirePermission(rbac.OrderReadStore), h.svcRequest.Cancel)
 
 	// POS (ADR-003 D8 "staff" class): store and actor come from the access token only.
 	pos := v1.Group("/pos")

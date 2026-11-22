@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -33,9 +32,10 @@ var (
 
 // QR ordering refusal reasons shown to guests (decision QR4 and the emergency pause).
 const (
-	QRClosedPaused   = "paused"
-	QRClosedNoShift  = "store_closed"
-	QRClosedInactive = "table_inactive"
+	QRClosedPaused       = "paused"
+	QRClosedNoShift      = "store_closed"
+	QRClosedInactive     = "table_inactive"
+	QRClosedOutsideHours = "outside_operating_hours"
 )
 
 type TableService struct {
@@ -355,21 +355,21 @@ func (s *TableService) ResolveQR(ctx context.Context, token string) (*PublicTabl
 		if err != nil {
 			return err
 		}
-		if err := s.repo.CloseSettledSessions(ctx, tx, storeID, settings.TableIdleCloseMinutes, s.nowFunc().UTC()); err != nil {
+		now := s.nowFunc().UTC()
+		if err := s.repo.CloseSettledSessions(ctx, tx, storeID, settings.TableIdleCloseMinutes, now); err != nil {
 			return err
 		}
-		reason, err := qrClosedReason(ctx, tx, s.repo, settings, storeID, active)
+		tz, hoursRaw, err := s.repo.GetStoreOperatingSchedule(ctx, tx, storeID)
+		if err != nil {
+			return err
+		}
+		reason, err := qrClosedReason(ctx, tx, s.repo, settings, storeID, active, now, tz, hoursRaw)
 		if err != nil {
 			return err
 		}
 		out = &PublicTable{StoreName: store.Name, StoreSlug: store.Slug, TableNumber: t.TableNumber, Label: t.Label,
 			OrderingOpen: reason == "", ClosedReason: reason, PaymentMethods: []string{}, ServiceMode: settings.QRServiceMode}
-		var hoursRaw []byte
-		if err := tx.QueryRowxContext(ctx, `SELECT operating_hours FROM store_cms_configs WHERE store_id = $1`, storeID).Scan(&hoursRaw); err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-		} else if len(hoursRaw) > 0 && string(hoursRaw) != "{}" {
+		if len(hoursRaw) > 0 && string(hoursRaw) != "{}" {
 			out.OperatingHours = json.RawMessage(hoursRaw)
 		}
 		features, err := loadFeatureFlagsTx(ctx, tx, storeID)
@@ -392,13 +392,15 @@ func (s *TableService) ResolveQR(ctx context.Context, token string) (*PublicTabl
 }
 
 // qrClosedReason says why QR ordering is refused right now, or "" when it is open: inactive table,
-// emergency pause, or no open shift on any drawer (decision QR4).
-func qrClosedReason(ctx context.Context, tx *sqlx.Tx, repo *postgres.TableRepository, settings domain.StoreSettings, storeID uuid.UUID, tableActive bool) (string, error) {
+// emergency pause, outside configured operating hours, or no open shift on any drawer (decision QR4).
+func qrClosedReason(ctx context.Context, tx *sqlx.Tx, repo *postgres.TableRepository, settings domain.StoreSettings, storeID uuid.UUID, tableActive bool, nowUTC time.Time, timezone string, hoursRaw []byte) (string, error) {
 	switch {
 	case !tableActive:
 		return QRClosedInactive, nil
 	case settings.QROrderingPaused:
 		return QRClosedPaused, nil
+	case !isWithinOperatingHours(nowUTC, timezone, hoursRaw):
+		return QRClosedOutsideHours, nil
 	}
 	open, err := repo.HasOpenShift(ctx, tx, storeID)
 	if err != nil || open {

@@ -1,4 +1,4 @@
-# Transactional Email & Domain Routing (`abbdullaziz.online`)
+﻿# Transactional Email & Domain Routing (`abbdullaziz.online`)
 
 MyCaffe sends transactional email (staff PIN setup/reset links and notifications) through the transactional `email_outbox` table and a background worker in [`internal/service/email_service.go`](file:///c:/Projects/myCaffe-backend/internal/service/email_service.go) (owner decision **E5**).
 
@@ -28,5 +28,5 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USERNAME=your-account@gmail.com
 SMTP_PASSWORD=your-16-char-google-app-password
-APP_PUBLIC_URL=https://demo.abbdullaziz.online
+APP_PUBLIC_URL=https://pos.abbdullaziz.online
 ```

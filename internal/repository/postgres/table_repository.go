@@ -240,6 +240,23 @@ func (r *TableRepository) HasOpenShift(ctx context.Context, tx *sqlx.Tx, storeID
 	return open, nil
 }
 
+// GetStoreOperatingSchedule returns the store's IANA timezone and raw operating_hours JSONB
+// (nil when no store_cms_configs row exists).
+func (r *TableRepository) GetStoreOperatingSchedule(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) (string, []byte, error) {
+	var row struct {
+		Timezone       string `db:"timezone"`
+		OperatingHours []byte `db:"operating_hours"`
+	}
+	if err := tx.GetContext(ctx, &row, `
+		SELECT s.timezone, c.operating_hours
+		FROM stores s
+		LEFT JOIN store_cms_configs c ON c.store_id = s.id
+		WHERE s.id = $1`, storeID); err != nil {
+		return "", nil, fmt.Errorf("failed to load store operating schedule: %w", err)
+	}
+	return row.Timezone, row.OperatingHours, nil
+}
+
 // MoveSession seats the whole session at another table; its orders placed at the old table follow.
 func (r *TableRepository) MoveSession(ctx context.Context, tx *sqlx.Tx, storeID, sessionID uuid.UUID, from, to *domain.Table) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE table_sessions SET table_id = $3 WHERE store_id = $1 AND id = $2`,

@@ -156,7 +156,11 @@ func (s *GuestService) ensureOrderingOpen(ctx context.Context, tx *sqlx.Tx, stor
 	if err != nil {
 		return err
 	}
-	reason, err := qrClosedReason(ctx, tx, s.tables, settings, storeID, tableActive)
+	tz, hoursRaw, err := s.tables.GetStoreOperatingSchedule(ctx, tx, storeID)
+	if err != nil {
+		return err
+	}
+	reason, err := qrClosedReason(ctx, tx, s.tables, settings, storeID, tableActive, s.nowFunc().UTC(), tz, hoursRaw)
 	switch {
 	case err != nil:
 		return err
@@ -164,7 +168,7 @@ func (s *GuestService) ensureOrderingOpen(ctx context.Context, tx *sqlx.Tx, stor
 		return ErrTableInactive
 	case reason == QRClosedPaused:
 		return ErrQROrderingPaused
-	case reason == QRClosedNoShift:
+	case reason == QRClosedNoShift || reason == QRClosedOutsideHours:
 		return ErrStoreClosed
 	}
 	return nil

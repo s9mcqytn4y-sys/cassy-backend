@@ -1,4 +1,4 @@
-# Roadmap, Iterations & Checklist
+﻿# Roadmap, Iterations & Checklist
 
 Reviewed 2026-11-07 against `staging` through migration **000051** (v0.8 money & operations, v0.9 cafe floor,
 v0.10 per-device offline sync, v0.11 promotions/bundles/inventory/purchasing/sales-channels, and v0.12
@@ -10,15 +10,15 @@ multi-tenant SaaS governance & BYOK). Master QR Table Order plan (archive):
 only when its route, authorization, tests, and docs exist. Audit tickets and their status:
 [AuditBacklog.md](../Engineering/AuditBacklog.md).
 
-**Owner direction (2026-11-04, V1–V15): the freeze is lifted.** Release train v0.8 money & operations →
-v0.9 cafe floor → v0.10 per-device offline → v0.11 channels & customers → v0.12 services; the
+**Owner direction (2026-11-04, V1â€“V15): the freeze is lifted.** Release train v0.8 money & operations â†’
+v0.9 cafe floor â†’ v0.10 per-device offline â†’ v0.11 channels & customers â†’ v0.12 services; the
 prospective-client demo waits for v0.8. Benchmark: [CompetitorAnalysisMajoo.md](../Product/CompetitorAnalysisMajoo.md).
 
 ## v0.8 plan (one PR per row, merged into `staging` on green CI per V3)
 
 | PR | Scope | Decisions | Notes |
 |----|-------|-----------|-------|
-| 8.1 | Outbox dead-letter, attempts, backoff, purge of technical tables (P0-08) | — | **Done** (PR #59, migration 000025) |
+| 8.1 | Outbox dead-letter, attempts, backoff, purge of technical tables (P0-08) | â€” | **Done** (PR #59, migration 000025) |
 | 8.2 | Messaging: `message_outbox` + sender interface (`log`, SMS aggregator), `otp_challenges`, `customers` with verified phone, staff PIN reset by SMS; demo owner e-mail back to the owner's Gmail | V4, V5, V6 | **Done** (migration 000026): drivers `log`/`disabled`; the provider driver waits for the owner to pick a vendor; WhatsApp waits for a domain (V8) |
 | 8.3 | Multi-payment (direct methods free, dynamic QRIS last), split by amount, cash rounding | V11, V12 | **Done** (migration 000027). Split by amount is covered by partial tenders (each payer pays an amount on the same split), so no separate split mode |
 | 8.4 | Outlet cash fund, expense categories, daily limit with `outlet_expense` approval, cashier settings (default float, blind count) | V13 | **Done** (migration 000028): fixed categories (ingredients, operational, other) instead of a category table; ADR-007 action `outlet_expense` |
@@ -29,7 +29,7 @@ prospective-client demo waits for v0.8. Benchmark: [CompetitorAnalysisMajoo.md](
 
 Blocked by dependency: Web Push, WhatsApp sending (Meta business verification).
 
-## v0.9 plan: cafe floor ([PrdV09CafeFloor.md](../Product/PrdV09CafeFloor.md), decisions W5–W10)
+## v0.9 plan: cafe floor ([PrdV09CafeFloor.md](../Product/PrdV09CafeFloor.md), decisions W5â€“W10)
 
 | PR | Scope | Decisions | Notes |
 |----|-------|-----------|-------|
@@ -39,7 +39,7 @@ Blocked by dependency: Web Push, WhatsApp sending (Meta business verification).
 | 9.4 | Print job queue per station, checker, TSPL labels, print agent API | W8 | **Done** (migration 000036 `printers`, `print_jobs`; purge after 30 days) |
 | 9.5 | Digital receipts: e-mail, WhatsApp Cloud API driver, SMS link | W9 | **Done** (migration 000037 `receipt_deliveries`; WhatsApp waits for the Meta token) |
 
-Analytics for these events: [AnalyticsPlan.md](../Product/AnalyticsPlan.md). Demo host: WSL Ubuntu behind the `mycaffe-demo` Named Tunnel at `demo.abbdullaziz.online` (W2).
+Analytics for these events: [AnalyticsPlan.md](../Product/AnalyticsPlan.md). Demo host: WSL Ubuntu behind the `mycaffe-demo` Named Tunnel at `pos.abbdullaziz.online` (W2).
 
 **Schema (37 tables, 24 migrations):** approval_requests (v0.7); receipt_tokens, media_uploads, payment_refunds (v0.6.0); stores, users, auth_sessions, account_tokens, email_outbox,
 store_settings, audit_logs; categories, products, product_variants, modifier_groups, modifier_options,
@@ -48,7 +48,7 @@ order_item_options, order_rounds, payment_splits, payment_split_items, payments,
 payment_notification_logs; shifts, cash_drawers, cash_movements; tables, table_sessions, guest_sessions;
 outbox_events, store_event_sequences, ws_tickets; kds_tickets.
 
-**Live HTTP surface:** health (live/ready); staff auth (login/refresh/logout/me, PIN forgot·setup·change);
+**Live HTTP surface:** health (live/ready); staff auth (login/refresh/logout/me, PIN forgotÂ·setupÂ·change);
 staff management; store settings; catalog read (staff + public, ETag) and catalog CRUD incl. modifiers;
 POS quote, orders, payments, void, refund, stock override; shifts, drawers, cash movements, X/Z reports;
 tabs, rounds, split bill; tables, table sessions, QR rotate; guest QR session, guest orders and payments,
@@ -59,29 +59,29 @@ guest); Midtrans webhook. Metrics on the internal `METRICS_ADDR` only.
 
 | Area | Status | Evidence |
 | ------ | -------- | ---------- |
-| 01 Database runtime, triple-role RLS, migrator | Implemented & Tested | migrations 000001–000003, verify script |
+| 01 Database runtime, triple-role RLS, migrator | Implemented & Tested | migrations 000001â€“000003, verify script |
 | 01 Pricing engine, transactional orders, stock reservation | Implemented & Tested | `pricing.go`, order integration tests |
 | 01.04 Payment ledger, webhook inbox, reconciliation, duplicate settlement | Implemented & Tested | migration 000004, payment integration tests |
 | 02.01-A/B Auth design, staff login, rotating sessions, lockout, operator CLI | Implemented & Tested | migration 000005, ADR-003, auth tests |
 | 02 Email outbox, invite/reset PIN, 6-digit PIN | Implemented & Tested | migration 000006, lifecycle tests |
 | 02.01-C RBAC, store settings, token-bound POS routes | Implemented & Tested | migration 000007, RBAC HTTP tests |
-| 3 Catalog C1–C3, variants, standard error contract, R2 buckets provisioned | Implemented & Tested | migration 000008, [ApiConventions.md](ApiConventions.md) |
+| 3 Catalog C1â€“C3, variants, standard error contract, R2 buckets provisioned | Implemented & Tested | migration 000008, [ApiConventions.md](ApiConventions.md) |
 | 4a Modifier groups/options CRUD, quote API (P8) | Implemented & Tested | iteration 4 design |
 | 4b Shift & cash drawer, X/Z report (P6, P7, C1, H1) | Implemented & Tested | [Iteration4bShiftDrawerDesign.md](../Archive/Iteration4bShiftDrawerDesign.md) |
-| 4c Open tab, rounds, split bill (P2, P3, P10–P14) | Implemented & Tested | [Iteration4c2SplitBillPlan.md](../Archive/Iteration4c2SplitBillPlan.md) |
-| 4d Void / refund, hotfix v0.4.3 | Implemented & Tested | [Iteration4dVoidRefundStockPlan.md](../Archive/Iteration4dVoidRefundStockPlan.md); review follow-ups F1–F3 open (PR A) |
+| 4c Open tab, rounds, split bill (P2, P3, P10â€“P14) | Implemented & Tested | [Iteration4c2SplitBillPlan.md](../Archive/Iteration4c2SplitBillPlan.md) |
+| 4d Void / refund, hotfix v0.4.3 | Implemented & Tested | [Iteration4dVoidRefundStockPlan.md](../Archive/Iteration4dVoidRefundStockPlan.md); review follow-ups F1â€“F3 open (PR A) |
 | ADR-004 Catalog cleanup (variant-only pricing) | Implemented & Tested | [Adr004CatalogSchemaModernization.md](Adr004CatalogSchemaModernization.md) |
 | 5a Tables, table sessions, QR resolve | Implemented & Tested | migration 000016 |
 | 5b Guest session, QR pay-first orders, tracker | Implemented & Tested | migration 000017 |
-| 5c Outbox relay → WebSocket, WS tickets | Implemented & Tested | migration 000018 |
+| 5c Outbox relay â†’ WebSocket, WS tickets | Implemented & Tested | migration 000018 |
 | 5d KDS tickets, late-payment flag (Q7) | Implemented & Tested | migration 000019; Q7 integration test open (P1-12) |
-| Audit P0-01..P0-06: CI integration tests, backups, logs/metrics, alerting, deploy by digest, supply chain | Implemented & Tested | PR #38–#43 |
+| Audit P0-01..P0-06: CI integration tests, backups, logs/metrics, alerting, deploy by digest, supply chain | Implemented & Tested | PR #38â€“#43 |
 
-## Go-live plan (ordered; each PR waits for owner approval before merge; steps 0–B4 released in v0.6.0)
+## Go-live plan (ordered; each PR waits for owner approval before merge; steps 0â€“B4 released in v0.6.0)
 
 | Step | Item | Acceptance criteria | Ticket |
 | ------ | ------ | --------------------- | -------- |
-| 0 | **Housekeeping**: this roadmap, [AuditBacklog.md](../Engineering/AuditBacklog.md); then promote `staging` → `main` | docs match the code | P0-12 (part) |
+| 0 | **Housekeeping**: this roadmap, [AuditBacklog.md](../Engineering/AuditBacklog.md); then promote `staging` â†’ `main` | docs match the code | P0-12 (part) |
 | A | **Review debt v0.5.2**: F1 shop-wide owner-PIN guess limit (HF5), F2 PIN policy from config, F3 by-item refund stock release/waste, WebSocket revocation + connection caps, at-least-once delivery docs | named tests per item | 4d review |
 | B1 | **Receipts** (R1): structured payload, ESC/POS 58/80 mm, 90-day digital link, void/refund receipts | snapshot-only, no recalculation; implemented (migration 000020) | P0-11 |
 | B2 | **Owner reports**: per business day (store time zone), payment method, category/item, hour, void/refund, discount, tax & service; date range; CSV | consistent with Z-report; read-only with indexes; implemented (migration 000021, calendar day until PD5 cutoff) | P1-02 |
@@ -104,7 +104,7 @@ Previously frozen items now **Implemented & Tested**:
 | JSON logs with request id, internal Prometheus metrics, Sentry Free Plan PII-scrubbed capture (P0-03, R6) | Implemented & Tested |
 | Grafana Cloud metrics and tested alert rules (P0-04) | Implemented; Grafana Cloud account pending (owner) |
 | Nginx TLS bootstrap, HSTS, request id, rate limits; internal-only DB network | Implemented & Tested |
-| Domain `abbdullaziz.online`, Cloudflare DNS/WAF, Named Tunnel `mycaffe-demo` (`demo.abbdullaziz.online`), R2 CDN (`cdn.abbdullaziz.online`) | Implemented & Tested |
+| Domain `abbdullaziz.online`, Cloudflare DNS/WAF, Named Tunnel `mycaffe-demo` (`pos.abbdullaziz.online`), R2 CDN (`cdn.abbdullaziz.online`) | Implemented & Tested |
 | Outbox dead-letter and purge (P0-08) | Implemented & Tested (v0.8 PR 8.1) |
 | Provisioning and incident runbook (P0-09) | Implemented ([OperationsRunbook.md](../Setup/OperationsRunbook.md)) |
 | Dual-Lane Midtrans Sandbox Core API + Tenant BYOK AES-256-GCM + Static QRIS Fallback | Implemented & Tested (ADR-009) |

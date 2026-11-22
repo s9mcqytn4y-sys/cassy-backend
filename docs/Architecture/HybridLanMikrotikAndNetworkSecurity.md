@@ -1,4 +1,4 @@
-# Arsitektur Jaringan Hybrid Cloud-to-LAN, Otomasi MikroTik RouterOS v7, & Keamanan Operasional Gerai
+﻿# Arsitektur Jaringan Hybrid Cloud-to-LAN, Otomasi MikroTik RouterOS v7, & Keamanan Operasional Gerai
 
 Dokumen ini merinci standar jaringan lokal (LAN) dan koneksi internet (WAN) untuk setiap tenant **MyCaffe** (`com.azuredevid.cassy`), mencakup segmentasi VLAN MikroTik, panduan anti-salah-konfigurasi Winbox, kebijakan transfer berkas SFTP-only (FileZilla), serta sinkronisasi transaksi saat internet terputus (Offline-First).
 
@@ -31,7 +31,7 @@ flowchart TD
    - Masalah paling umum di kafe adalah IP printer thermal berubah setelah mati listrik sehingga struk gagal tercetak.
    - Generator `/api/v1/store/network/mikrotik/generate-rsc` membaca seluruh perangkat pada tabel `store_network_nodes` yang memiliki MAC Address dan mengunci IP statisnya secara otomatis di `/ip dhcp-server lease`.
 3. **Dual-WAN Recursive Failover & QoS (`Queue Simple` / Packet Mark)**:
-   - Jalur menuju `abbdullaziz.online`, `demo.abbdullaziz.online` (HTTPS & WebSocket `wss://`), dan `api.midtrans.com` / `api.sandbox.midtrans.com` diberi prioritas tertinggi (`priority=1/1`) dengan jaminan bandwidth minimum (`POSReservedMbps`).
+   - Jalur menuju `abbdullaziz.online`, `pos.abbdullaziz.online` (HTTPS & WebSocket `wss://`), dan `api.midtrans.com` / `api.sandbox.midtrans.com` diberi prioritas tertinggi (`priority=1/1`) dengan jaminan bandwidth minimum (`POSReservedMbps`).
    - Trafik WiFi tamu dibatasi secara adil dengan `PCQ` (`GuestRateLimitMbps`) agar unduhan video pelanggan tidak pernah membuat pembayaran QRIS kasir lambat.
 4. **Kebijakan FileZilla & Administrasi Berkas: SFTP-Only (Port 21 Diblokir Keras)**:
    - Protokol **FTP murni (port 21)** mengirimkan username dan password dalam teks terbuka (*cleartext*) yang sangat berbahaya di lingkungan WiFi publik. Constraint PostgreSQL `chk_mikrotik_sftp_no_plain_ftp` dan skrip RouterOS (`set ftp disabled=yes`) melarang keras port `21`.
