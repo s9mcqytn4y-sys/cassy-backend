@@ -1,15 +1,34 @@
-========================================
 STRUK DIGITAL {{.StoreName}}
-Pesanan: {{.OrderNumber}}
-Waktu  : {{.IssuedAt}}
-Metode : {{.PaymentMethod}}
 ========================================
-Total Pembayaran: {{.TotalLabel}}
+Pesanan : {{.OrderNumber}}{{if .TableNumber}}
+Meja    : Meja {{.TableNumber}}{{end}}
+Waktu   : {{.IssuedAt}}
+Metode  : {{.PaymentMethod}}{{if .ReferenceID}}
+Ref ID  : {{.ReferenceID}}{{end}}
+========================================
+{{if .Items}}
+RINCIAN PESANAN:
+{{range .Items}}- {{.Quantity}}x {{.Name}}{{if .Details}} ({{.Details}}){{end}} : {{.SubtotalLabel}}
+{{end}}
+----------------------------------------
+{{end}}Subtotal Produk : {{.SubtotalItemsLabel}}{{if .DiscountLabel}}
+Potongan/Diskon : -{{.DiscountLabel}}{{end}}{{if .ServiceFeeLabel}}
+Service Charge  : {{.ServiceFeeLabel}}{{end}}{{if .TaxLabel}}
+Pajak (PB1)     : {{.TaxLabel}}{{end}}
+TOTAL BAYAR     : {{.TotalLabel}}
+========================================
 
-Lihat struk dan status pesanan terbaru:
+Lihat Struk & Unduh PDF:
 {{.ActionURL}}
 {{if .PDFURL}}
 Unduh PDF Struk Resmi:
 {{.PDFURL}}
+{{end}}{{if .TrackURL}}
+Cek Status Pesanan:
+{{.TrackURL}}
+{{end}}{{if .ReplyTo}}
+Bantuan pelanggan: {{.ReplyTo}}
 {{end}}
-(c) {{.Year}} {{.StoreName}} | Cassy by AzureDevID
+--
+(c) {{.Year}} {{.StoreName}}
+Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022

@@ -38,6 +38,18 @@ func TestRenderAllTemplates(t *testing.T) {
 		if !strings.Contains(r.Text, "Kopi <Senja> & Co") {
 			t.Errorf("%s: text body must keep the raw store name", name)
 		}
+		if strings.Contains(r.HTML, "prefers-color-scheme: dark") {
+			t.Errorf("%s: html must stay Light Editorial without dark-mode override", name)
+		}
+		if strings.Contains(r.HTML, "email-slug-pill") {
+			t.Errorf("%s: header must not render raw store_slug pill", name)
+		}
+		if !strings.Contains(r.HTML, "Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022") {
+			t.Errorf("%s: html missing UU PDP footer", name)
+		}
+		if !strings.Contains(r.Text, "Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022") {
+			t.Errorf("%s: text missing UU PDP footer", name)
+		}
 	}
 	invite, _ := mailer.Render(mailer.TemplateStaffInvite, data)
 	if !strings.Contains(invite.HTML, data.ActionURL) || !strings.Contains(invite.Text, data.ActionURL) {

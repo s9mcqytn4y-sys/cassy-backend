@@ -328,6 +328,8 @@ type PublicTable struct {
 	ServiceMode string `json:"service_mode"`
 	// SplitEnabled tells the guest page it may offer an equal split before paying (W13, off by default).
 	SplitEnabled bool `json:"split_enabled"`
+	// Features exposes safe per-store guest capability flags (P-08) for conditional UI rendering.
+	Features map[string]bool `json:"features"`
 }
 
 // ResolveQR maps a scanned token to its table. Unknown tokens and archived tables or stores are
@@ -378,6 +380,17 @@ func (s *TableService) ResolveQR(ctx context.Context, token string) (*PublicTabl
 		}
 		out.CallWaiterEnabled = features[FeatureCallWaiter]
 		out.SplitEnabled = s.GuestSplit && features[FeatureSplitBill]
+		out.Features = map[string]bool{
+			FeatureCallWaiter:             features[FeatureCallWaiter],
+			FeatureSplitBill:              out.SplitEnabled,
+			FeatureGuestSelfCancel:        features[FeatureGuestSelfCancel],
+			FeatureGuestSplitEqual:        out.SplitEnabled && features[FeatureGuestSplitEqual],
+			FeatureGuestSplitByItem:       out.SplitEnabled && features[FeatureGuestSplitByItem],
+			FeatureGuestSplitMultiPayment: out.SplitEnabled && features[FeatureGuestSplitMultiPayment],
+			FeatureGuestBellSound:         features[FeatureGuestBellSound],
+			FeatureCartPairing:            features[FeatureCartPairing],
+			FeatureGuestEmailReceipt:      features[FeatureGuestEmailReceipt],
+		}
 		for _, m := range []domain.PaymentMethod{domain.PaymentMethodQRIS, domain.PaymentMethodGoPay, domain.PaymentMethodShopeePay, domain.PaymentMethodBankTransfer} {
 			if isPaymentMethodEnabled(store.EnabledPaymentMethods, m) {
 				out.PaymentMethods = append(out.PaymentMethods, string(m))

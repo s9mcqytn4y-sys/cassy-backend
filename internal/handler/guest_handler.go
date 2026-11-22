@@ -41,6 +41,12 @@ func writeGuestError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrSplitBillDisabled):
 		authError(c, http.StatusForbidden, "SPLIT_BILL_DISABLED", "Fitur bagi tagihan tidak aktif di gerai ini.")
+	case errors.Is(err, service.ErrGuestSelfCancelDisabled):
+		authError(c, http.StatusForbidden, "GUEST_SELF_CANCEL_DISABLED", "Pembatalan pesanan mandiri tidak aktif di gerai ini.")
+	case errors.Is(err, service.ErrSplitMultiPaymentDisabled):
+		authError(c, http.StatusForbidden, "SPLIT_MULTI_PAYMENT_DISABLED", "Metode pembayaran ini tidak aktif untuk bagi tagihan di gerai ini.")
+	case errors.Is(err, service.ErrOrderHasPayments):
+		authError(c, http.StatusConflict, "ORDER_HAS_PAYMENTS", "Pesanan yang sudah dibayar tidak dapat dibatalkan.")
 	case errors.Is(err, service.ErrGuestSessionInvalid):
 		authError(c, http.StatusUnauthorized, "GUEST_SESSION_EXPIRED", "Sesi pemesanan berakhir. Pindai ulang QR di meja.")
 	case errors.Is(err, service.ErrQROrderingPaused):
@@ -209,7 +215,8 @@ func (h *GuestHandler) InitiatePayment(c *gin.Context) {
 }
 
 func writeGuestPaymentError(c *gin.Context, err error) {
-	if errors.Is(err, service.ErrGuestOrderNotFound) || errors.Is(err, service.ErrSplitShareNotFound) {
+	if errors.Is(err, service.ErrGuestOrderNotFound) || errors.Is(err, service.ErrSplitShareNotFound) ||
+		errors.Is(err, service.ErrSplitMultiPaymentDisabled) || errors.Is(err, service.ErrGuestSplitNotAllowed) {
 		writeGuestError(c, err)
 		return
 	}
@@ -264,7 +271,28 @@ func (h *GuestHandler) SplitShare(c *gin.Context) {
 	c.JSON(http.StatusOK, view)
 }
 
-// PaySplitShare handles POST /api/v1/public/split-shares/:token/payments (dynamic QRIS only).
+// CancelOrder handles POST /api/v1/public/guest/orders/:id/cancel (unpaid/pending orders only, P-05).
+func (h *GuestHandler) CancelOrder(c *gin.Context) {
+	orderID, ok := pathID(c, "id")
+	if !ok {
+		return
+	}
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if c.Request.ContentLength > 0 {
+		if !bindJSON(c, &req) {
+			return
+		}
+	}
+	if err := h.guests.CancelOrder(c.Request.Context(), currentGuest(c), orderID, req.Reason); err != nil {
+		writeGuestError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "cancelled"})
+}
+
+// PaySplitShare handles POST /api/v1/public/split-shares/:token/payments (qris, va, or cashier, P-06).
 func (h *GuestHandler) PaySplitShare(c *gin.Context) {
 	if !requireCSRF(c) {
 		return
@@ -277,11 +305,13 @@ func (h *GuestHandler) PaySplitShare(c *gin.Context) {
 	h.sharePayPerIP.RecordFailure(ip)
 	var req struct {
 		IdempotencyKey string `json:"idempotency_key"`
+		Method         string `json:"method"`
+		Bank           string `json:"bank"`
 	}
 	if !bindJSON(c, &req) {
 		return
 	}
-	res, err := h.guests.PaySplitShare(c.Request.Context(), c.Param("token"), req.IdempotencyKey)
+	res, err := h.guests.PaySplitShare(c.Request.Context(), c.Param("token"), req.IdempotencyKey, req.Method, req.Bank)
 	if err != nil {
 		writeGuestPaymentError(c, err)
 		return

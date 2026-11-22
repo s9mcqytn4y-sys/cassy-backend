@@ -18,35 +18,59 @@ import (
 // Per-tenant feature flags (W4.2). Defaults keep today's behaviour: existing features stay on, new ones
 // (call_waiter) and ones needing setup (whatsapp) start off. Keys mirror chk_store_feature_flags_key.
 var featureDefaults = map[string]bool{
-	"call_waiter":   false,
-	"kds":           true,
-	"queue_display": true,
-	"dual_screen":   true,
-	"open_bill":     true,
-	"split_bill":    true,
-	"stock":         true,
-	"whatsapp":      false,
+	"call_waiter":                       false,
+	"kds":                               true,
+	"queue_display":                     true,
+	"dual_screen":                       true,
+	"open_bill":                         true,
+	"split_bill":                        true,
+	"stock":                             true,
+	"whatsapp":                          false,
+	"guest_self_cancel_enabled":         true,
+	"guest_split_equal_enabled":         true,
+	"guest_split_by_item_enabled":       true,
+	"guest_split_multi_payment_enabled": true,
+	"guest_bell_sound_enabled":          true,
+	"cart_pairing_enabled":              true,
+	"guest_email_receipt_enabled":       true,
 }
 
-// FeatureCallWaiter gates guest service requests (W4.3).
+// Feature flag keys exposed to services and public table bootstrap.
 const (
-	FeatureCallWaiter = "call_waiter"
-	FeatureSplitBill  = "split_bill"
+	FeatureCallWaiter             = "call_waiter"
+	FeatureSplitBill              = "split_bill"
+	FeatureGuestSelfCancel        = "guest_self_cancel_enabled"
+	FeatureGuestSplitEqual        = "guest_split_equal_enabled"
+	FeatureGuestSplitByItem       = "guest_split_by_item_enabled"
+	FeatureGuestSplitMultiPayment = "guest_split_multi_payment_enabled"
+	FeatureGuestBellSound         = "guest_bell_sound_enabled"
+	FeatureCartPairing            = "cart_pairing_enabled"
+	FeatureGuestEmailReceipt      = "guest_email_receipt_enabled"
 )
 
-// ErrSplitBillDisabled means the owner turned split_bill off; no new shares may be created.
-var ErrSplitBillDisabled = errors.New("split bill is disabled for this store")
+// Feature-disabled domain errors returned when an owner turns a capability off.
+var (
+	ErrSplitBillDisabled         = errors.New("split bill is disabled for this store")
+	ErrGuestSelfCancelDisabled   = errors.New("guest self-cancel is disabled for this store")
+	ErrSplitMultiPaymentDisabled = errors.New("split share multi-payment is disabled for this store")
+	ErrGuestEmailReceiptDisabled = errors.New("guest email receipt is disabled for this store")
+)
 
-// requireSplitBill fails closed when the store has turned split_bill off.
-func requireSplitBill(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) error {
+// requireFeatureFlagTx fails closed when the store has turned a feature flag off.
+func requireFeatureFlagTx(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID, key string, errDisabled error) error {
 	flags, err := loadFeatureFlagsTx(ctx, tx, storeID)
 	if err != nil {
 		return err
 	}
-	if !flags[FeatureSplitBill] {
-		return ErrSplitBillDisabled
+	if !flags[key] {
+		return errDisabled
 	}
 	return nil
+}
+
+// requireSplitBill fails closed when the store has turned split_bill off.
+func requireSplitBill(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) error {
+	return requireFeatureFlagTx(ctx, tx, storeID, FeatureSplitBill, ErrSplitBillDisabled)
 }
 
 // FeatureService reads and changes the flags of the caller's store.

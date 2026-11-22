@@ -1,9 +1,11 @@
 Halo {{.RecipientName}},
 
 PIN akun Anda di {{.StoreName}} telah diubah pada {{.EventAt}}.
-Seluruh sesi perangkat aktif sudah dikeluarkan.
+Seluruh sesi perangkat aktif sudah dikeluarkan demi keamanan akun.
 
-BUKAN ANDA? Hubungi pemilik toko sekarang agar akun dinonaktifkan dan PIN diatur ulang.
+BUKAN ANDA? Hubungi pemilik gerai segera agar akun dinonaktifkan dan PIN diatur ulang.{{if .ReplyTo}}
+Bantuan: {{.ReplyTo}}{{end}}
 
 --
-{{.StoreName}} | Cassy by AzureDevID. Email otomatis, jangan dibalas.
+(c) {{.Year}} {{.StoreName}}
+Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022

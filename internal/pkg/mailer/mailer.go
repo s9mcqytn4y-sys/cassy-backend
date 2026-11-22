@@ -188,8 +188,10 @@ func BuildMIME(fromAddr, fromName string, msg Message, now time.Time) ([]byte, e
 	header := func(k, v string) { fmt.Fprintf(&out, "%s: %s\r\n", k, v) }
 	header("From", from)
 	header("To", to)
-	if msg.ReplyTo != "" {
-		header("Reply-To", (&mail.Address{Address: clean(msg.ReplyTo)}).String())
+	if replyTo := clean(msg.ReplyTo); replyTo != "" {
+		if parsed, err := mail.ParseAddress(replyTo); err == nil {
+			header("Reply-To", parsed.String())
+		}
 	}
 	header("Subject", mime.QEncoding.Encode("UTF-8", clean(msg.Subject)))
 	header("Date", now.Format(time.RFC1123Z))

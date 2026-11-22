@@ -50,14 +50,16 @@ type Printer struct {
 	LabelHeightMM *int       `json:"label_height_mm,omitempty" db:"label_height_mm"`
 	Copies        int        `json:"copies" db:"copies"`
 	Footer        string     `json:"footer" db:"footer"`
+	TransportType string     `json:"transport_type" db:"transport_type"`
 	LanAddress    *string    `json:"lan_address,omitempty" db:"lan_address"`
+	BluetoothMac  *string    `json:"bluetooth_mac,omitempty" db:"bluetooth_mac"`
 	IsActive      bool       `json:"is_active" db:"is_active"`
 	LastSeenAt    *time.Time `json:"last_seen_at,omitempty" db:"last_seen_at"`
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
 	AgentToken    string     `json:"agent_token,omitempty" db:"-"`
 }
 
-const printerColumns = `id, name, station, format, paper_width_mm, label_height_mm, copies, footer, lan_address, is_active, last_seen_at, created_at`
+const printerColumns = `id, name, station, format, paper_width_mm, label_height_mm, copies, footer, transport_type, lan_address, bluetooth_mac, is_active, last_seen_at, created_at`
 
 // PrinterInput creates or patches a printer; the format follows the station (label = TSPL).
 type PrinterInput struct {
@@ -67,10 +69,14 @@ type PrinterInput struct {
 	LabelHeightMM *int    `json:"label_height_mm"`
 	Copies        *int    `json:"copies"`
 	Footer        *string `json:"footer"`
+	// TransportType is "lan" (TCP port 9100 or print agent) or "bluetooth" (tablet SPP ESC/POS).
+	TransportType *string `json:"transport_type"`
 	// LanAddress "host:port" on a private network makes the POS tablets print this printer directly;
 	// an empty string hands it back to the print agent.
 	LanAddress *string `json:"lan_address"`
-	IsActive   *bool   `json:"is_active"`
+	// BluetoothMac "AA:BB:CC:DD:EE:FF" pairs a thermal printer directly to POS tablets over SPP.
+	BluetoothMac *string `json:"bluetooth_mac"`
+	IsActive     *bool   `json:"is_active"`
 }
 
 // AgentJob is what a print agent receives: raw printer bytes, base64 encoded.
@@ -111,6 +117,13 @@ func applyPrinter(p *Printer, in PrinterInput) error {
 	if in.IsActive != nil {
 		p.IsActive = *in.IsActive
 	}
+	if p.TransportType == "" {
+		p.TransportType = "lan"
+	}
+	if in.TransportType != nil {
+		f.oneOf("transport_type", *in.TransportType, "lan", "bluetooth")
+		p.TransportType = *in.TransportType
+	}
 	if in.LanAddress != nil {
 		p.LanAddress = nil
 		if raw := strings.TrimSpace(*in.LanAddress); raw != "" {
@@ -121,11 +134,31 @@ func applyPrinter(p *Printer, in PrinterInput) error {
 			}
 		}
 	}
-	if p.Station == "receipt" && p.LanAddress == nil {
-		f.add("lan_address", "printer struk wajib punya alamat IP")
+	if in.BluetoothMac != nil {
+		p.BluetoothMac = nil
+		if raw := strings.TrimSpace(*in.BluetoothMac); raw != "" {
+			if mac, ok := normalizeBluetoothMac(raw); ok {
+				p.BluetoothMac = &mac
+			} else {
+				f.add("bluetooth_mac", "alamat MAC Bluetooth harus berformat AA:BB:CC:DD:EE:FF")
+			}
+		}
 	}
-	if p.Station == "label" && p.LanAddress != nil {
-		f.add("lan_address", "printer label dicetak lewat print agent, kosongkan alamat")
+	if p.TransportType == "bluetooth" {
+		p.LanAddress = nil
+		if p.Station == "label" {
+			f.add("transport_type", "printer label dicetak lewat print agent, tidak mendukung Bluetooth")
+		} else if p.BluetoothMac == nil {
+			f.add("bluetooth_mac", "alamat MAC Bluetooth wajib diisi")
+		}
+	} else {
+		p.BluetoothMac = nil
+		if p.Station == "receipt" && p.LanAddress == nil {
+			f.add("lan_address", "printer struk wajib punya alamat IP atau gunakan Bluetooth")
+		}
+		if p.Station == "label" && p.LanAddress != nil {
+			f.add("lan_address", "printer label dicetak lewat print agent, kosongkan alamat")
+		}
 	}
 	if in.PaperWidthMM != nil {
 		p.PaperWidthMM = *in.PaperWidthMM
@@ -179,6 +212,25 @@ func normalizeLanAddress(raw string) (string, bool) {
 	return net.JoinHostPort(ip.String(), strconv.Itoa(n)), true
 }
 
+// normalizeBluetoothMac validates a 6-octet colon-separated Bluetooth MAC address and uppercases it.
+func normalizeBluetoothMac(raw string) (string, bool) {
+	parts := strings.Split(strings.TrimSpace(raw), ":")
+	if len(parts) != 6 {
+		return "", false
+	}
+	out := make([]string, 6)
+	for i, part := range parts {
+		if len(part) != 2 {
+			return "", false
+		}
+		if _, err := strconv.ParseUint(part, 16, 8); err != nil {
+			return "", false
+		}
+		out[i] = strings.ToUpper(part)
+	}
+	return strings.Join(out, ":"), true
+}
+
 // CreatePrinter registers a printer and returns its agent token once.
 func (s *PrintService) CreatePrinter(ctx context.Context, actor *AuthenticatedStaff, in PrinterInput) (*Printer, error) {
 	if err := requireStoreSettings(actor); err != nil {
@@ -187,7 +239,7 @@ func (s *PrintService) CreatePrinter(ctx context.Context, actor *AuthenticatedSt
 	if in.Station == nil {
 		return nil, &ValidationError{Fields: map[string]string{"station": "wajib diisi"}}
 	}
-	p := &Printer{ID: uuid.New(), Copies: 1, IsActive: true, CreatedAt: s.nowFunc().UTC()}
+	p := &Printer{ID: uuid.New(), Copies: 1, TransportType: "lan", IsActive: true, CreatedAt: s.nowFunc().UTC()}
 	if err := applyPrinter(p, in); err != nil {
 		return nil, err
 	}
@@ -201,13 +253,13 @@ func (s *PrintService) CreatePrinter(ctx context.Context, actor *AuthenticatedSt
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO printers (id, store_id, name, station, format, paper_width_mm, label_height_mm,
-			copies, footer, agent_token_hash, is_active, created_by, created_at, updated_at, lan_address)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, $14)`,
+			copies, footer, agent_token_hash, is_active, created_by, created_at, updated_at, transport_type, lan_address, bluetooth_mac)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, $14, $15, $16)`,
 			p.ID, storeID, p.Name, p.Station, p.Format, p.PaperWidthMM, p.LabelHeightMM, p.Copies, p.Footer, hash, p.IsActive,
-			actor.Staff.UserID, p.CreatedAt, p.LanAddress); err != nil {
+			actor.Staff.UserID, p.CreatedAt, p.TransportType, p.LanAddress, p.BluetoothMac); err != nil {
 			return fmt.Errorf("failed to create printer: %w", err)
 		}
-		return s.audit(ctx, tx, actor, "PRINTER_CREATED", "Printer didaftarkan", p.ID, map[string]any{"name": p.Name, "station": p.Station})
+		return s.audit(ctx, tx, actor, "PRINTER_CREATED", "Printer didaftarkan", p.ID, map[string]any{"name": p.Name, "station": p.Station, "transport_type": p.TransportType})
 	})
 	if err != nil {
 		return nil, err
@@ -227,8 +279,8 @@ func (s *PrintService) ListPrinters(ctx context.Context, actor *AuthenticatedSta
 	return out, err
 }
 
-// ListPosPrinters returns the active printers the POS tablets print to directly (those with a LAN
-// address). Any signed-in staff may read it: it carries no agent token.
+// ListPosPrinters returns the active printers the POS tablets print to directly (LAN IP or Bluetooth MAC).
+// Any signed-in staff may read it: it carries no agent token.
 func (s *PrintService) ListPosPrinters(ctx context.Context, actor *AuthenticatedStaff) ([]Printer, error) {
 	if actor == nil {
 		return nil, ErrInvalidSession
@@ -236,7 +288,8 @@ func (s *PrintService) ListPosPrinters(ctx context.Context, actor *Authenticated
 	out := []Printer{}
 	err := database.WithTenantTx(ctx, s.db, actor.Staff.Store.ID, func(tx *sqlx.Tx) error {
 		return tx.SelectContext(ctx, &out, `SELECT `+printerColumns+` FROM printers
-			WHERE store_id = $1 AND is_active AND lan_address IS NOT NULL ORDER BY station, lower(name)`, actor.Staff.Store.ID)
+			WHERE store_id = $1 AND is_active AND (lan_address IS NOT NULL OR bluetooth_mac IS NOT NULL)
+			ORDER BY station, lower(name)`, actor.Staff.Store.ID)
 	})
 	return out, err
 }
@@ -261,8 +314,8 @@ func (s *PrintService) UpdatePrinter(ctx context.Context, actor *AuthenticatedSt
 			}
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE printers SET name = $3, station = $4, format = $5, paper_width_mm = $6,
-			label_height_mm = $7, copies = $8, footer = $9, is_active = $10, updated_at = $11, lan_address = $12 WHERE store_id = $1 AND id = $2`,
-			storeID, id, p.Name, p.Station, p.Format, p.PaperWidthMM, p.LabelHeightMM, p.Copies, p.Footer, p.IsActive, s.nowFunc().UTC(), p.LanAddress); err != nil {
+			label_height_mm = $7, copies = $8, footer = $9, is_active = $10, updated_at = $11, transport_type = $12, lan_address = $13, bluetooth_mac = $14 WHERE store_id = $1 AND id = $2`,
+			storeID, id, p.Name, p.Station, p.Format, p.PaperWidthMM, p.LabelHeightMM, p.Copies, p.Footer, p.IsActive, s.nowFunc().UTC(), p.TransportType, p.LanAddress, p.BluetoothMac); err != nil {
 			return fmt.Errorf("failed to update printer: %w", err)
 		}
 		return s.audit(ctx, tx, actor, "PRINTER_UPDATED", "Pengaturan printer diubah", id, map[string]any{"before": before, "after": p})
@@ -423,7 +476,7 @@ func (s *PrintService) agentTx(ctx context.Context, token string, fn func(tx *sq
 			StoreActive bool   `db:"store_active"`
 		}
 		err := tx.GetContext(ctx, &row, `SELECT p.id, p.name, p.station, p.format, p.paper_width_mm, p.label_height_mm, p.copies,
-				p.footer, p.is_active, p.last_seen_at, p.created_at, p.agent_token_hash, s.is_active AS store_active
+				p.footer, p.transport_type, p.lan_address, p.bluetooth_mac, p.is_active, p.last_seen_at, p.created_at, p.agent_token_hash, s.is_active AS store_active
 			FROM printers p JOIN stores s ON s.id = p.store_id WHERE p.store_id = $1 AND p.id = $2`, storeID, printerID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrPrinterTokenInvalid
@@ -485,11 +538,11 @@ type printScope struct {
 	reprintBy *uuid.UUID
 }
 
-// enqueuePrintJobsTx renders and queues one job per active agent printer (no LAN address: tablets print
-// those directly) that has lines to print. Stores without printers pay one indexed query.
+// enqueuePrintJobsTx renders and queues one job per active agent printer (no LAN address or Bluetooth MAC:
+// tablets print those directly) that has lines to print. Stores without printers pay one indexed query.
 func enqueuePrintJobsTx(ctx context.Context, tx *sqlx.Tx, orders *postgres.OrderRepository, order *domain.Order, sc printScope, now time.Time) (int, error) {
 	var printers []Printer
-	if err := tx.SelectContext(ctx, &printers, `SELECT `+printerColumns+` FROM printers WHERE store_id = $1 AND is_active AND lan_address IS NULL`, order.StoreID); err != nil {
+	if err := tx.SelectContext(ctx, &printers, `SELECT `+printerColumns+` FROM printers WHERE store_id = $1 AND is_active AND lan_address IS NULL AND bluetooth_mac IS NULL`, order.StoreID); err != nil {
 		return 0, fmt.Errorf("failed to load printers: %w", err)
 	}
 	if len(printers) == 0 {

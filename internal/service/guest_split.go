@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,13 +43,17 @@ type GuestSplitStatus struct {
 	Status      string `json:"status"`
 }
 
-// GuestSharePayment is the QRIS charge shown to a link holder, without order or payer details.
+// GuestSharePayment is the charge or cashier-intent view shown to a link holder, without order or payer details.
 type GuestSharePayment struct {
-	ID        uuid.UUID  `json:"id"`
-	QRString  string     `json:"qr_string"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	Amount    int64      `json:"amount"`
-	Status    string     `json:"status"`
+	ID           uuid.UUID  `json:"id,omitempty"`
+	Method       string     `json:"method,omitempty"`
+	Bank         string     `json:"bank,omitempty"`
+	QRString     string     `json:"qr_string,omitempty"`
+	VANumber     string     `json:"va_number,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	Amount       int64      `json:"amount"`
+	Status       string     `json:"status"`
+	Instructions string     `json:"instructions,omitempty"`
 }
 
 func (s *GuestService) ownsOrder(ctx context.Context, tx *sqlx.Tx, g *GuestIdentity, orderID uuid.UUID) error {
@@ -72,6 +78,15 @@ func (s *GuestService) CreateSplits(ctx context.Context, g *GuestIdentity, order
 	}
 	var links []GuestSplitLink
 	err := database.WithTenantTx(ctx, s.db, g.StoreID, func(tx *sqlx.Tx) error {
+		if in.Strategy == "equal" {
+			if err := requireFeatureFlagTx(ctx, tx, g.StoreID, FeatureGuestSplitEqual, ErrSplitBillDisabled); err != nil {
+				return err
+			}
+		} else if in.Strategy == "by_item" {
+			if err := requireFeatureFlagTx(ctx, tx, g.StoreID, FeatureGuestSplitByItem, ErrSplitBillDisabled); err != nil {
+				return err
+			}
+		}
 		if err := s.ownsOrder(ctx, tx, g, orderID); err != nil {
 			return err
 		}
@@ -212,7 +227,15 @@ func (s *GuestService) SplitShare(ctx context.Context, token string) (*postgres.
 	err = database.WithTenantTx(ctx, s.db, share.StoreID, func(tx *sqlx.Tx) error {
 		var err error
 		view, err = s.repo.GetSplitShareView(ctx, tx, share.StoreID, share.SplitID)
-		return err
+		if err != nil {
+			return err
+		}
+		flags, err := loadFeatureFlagsTx(ctx, tx, share.StoreID)
+		if err != nil {
+			return err
+		}
+		view.MultiPaymentEnabled = flags[FeatureGuestSplitMultiPayment]
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -220,26 +243,131 @@ func (s *GuestService) SplitShare(ctx context.Context, token string) (*postgres.
 	return view, nil
 }
 
-// PaySplitShare starts (or replays) the dynamic QRIS charge for one share.
-func (s *GuestService) PaySplitShare(ctx context.Context, token, idempotencyKey string) (*GuestSharePayment, error) {
+// PaySplitShare starts (or replays) a payment charge (qris or va) or records a cashier payment intent
+// (method="cashier") for one split share (P-06).
+func (s *GuestService) PaySplitShare(ctx context.Context, token, idempotencyKey, method, bank string) (*GuestSharePayment, error) {
 	f := fieldErrors{}
 	key := f.text("idempotency_key", idempotencyKey, 1, maxGuestIdempotentKey)
+	normalizedMethod := strings.ToLower(strings.TrimSpace(method))
+	if normalizedMethod == "" {
+		normalizedMethod = "qris"
+	}
+	if normalizedMethod == "bank_transfer" {
+		normalizedMethod = "va"
+	}
+	normalizedBank := strings.ToLower(strings.TrimSpace(bank))
+	switch normalizedMethod {
+	case "qris", "cashier":
+	case "va":
+		if !allowedVABanks[normalizedBank] {
+			f.add("bank", "harus bca, bni, bri, mandiri, atau permata")
+		}
+	default:
+		f.add("method", "harus qris, va, atau cashier")
+	}
 	if err := f.err(); err != nil {
 		return nil, err
 	}
+
 	share, err := s.resolveShare(ctx, token)
 	if err != nil {
 		return nil, err
+	}
+
+	if normalizedMethod != "qris" {
+		err = database.WithTenantTx(ctx, s.db, share.StoreID, func(tx *sqlx.Tx) error {
+			return requireFeatureFlagTx(ctx, tx, share.StoreID, FeatureGuestSplitMultiPayment, ErrSplitMultiPaymentDisabled)
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if normalizedMethod == "cashier" {
+		var out *GuestSharePayment
+		err = database.WithTenantTx(ctx, s.db, share.StoreID, func(tx *sqlx.Tx) error {
+			var split struct {
+				ID          uuid.UUID `db:"id"`
+				SplitNumber int       `db:"split_number"`
+				Label       string    `db:"label"`
+				TotalAmount int64     `db:"total_amount"`
+				Status      string    `db:"status"`
+			}
+			if err := tx.GetContext(ctx, &split, `
+				SELECT id, split_number, label, total_amount, status
+				FROM payment_splits
+				WHERE store_id = $1 AND id = $2
+				FOR UPDATE`, share.StoreID, share.SplitID); err != nil {
+				return fmt.Errorf("failed to lock split share: %w", err)
+			}
+			if split.Status != string(domain.SplitBillStatusUnpaid) && split.Status != string(domain.SplitBillStatusPending) {
+				return ErrGuestSplitNotAllowed
+			}
+			now := s.nowFunc().UTC()
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE payment_splits SET cashier_requested_at = $3, updated_at = $3
+				WHERE store_id = $1 AND id = $2`, share.StoreID, share.SplitID, now); err != nil {
+				return fmt.Errorf("failed to mark split cashier request: %w", err)
+			}
+			payload, err := json.Marshal(map[string]any{
+				"store_id":     share.StoreID.String(),
+				"order_id":     share.OrderID.String(),
+				"split_id":     split.ID.String(),
+				"split_number": split.SplitNumber,
+				"label":        split.Label,
+				"amount":       split.TotalAmount,
+				"requested_at": now.Format(time.RFC3339),
+			})
+			if err != nil {
+				return err
+			}
+			if err := s.payments.orderRepo.InsertOutboxEvent(ctx, tx, &domain.OutboxEvent{
+				ID:            uuid.New(),
+				StoreID:       share.StoreID,
+				EventType:     "split.cashier_requested",
+				AggregateType: "order",
+				AggregateID:   share.OrderID.String(),
+				Payload:       string(payload),
+			}); err != nil {
+				return err
+			}
+			out = &GuestSharePayment{
+				Method:       "cashier",
+				Amount:       split.TotalAmount,
+				Status:       "cashier_requested",
+				Instructions: "Tunjukkan layar ini ke kasir untuk menyelesaikan pembayaran bagian Anda.",
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return out, nil
+	}
+
+	payMethod := domain.PaymentMethodQRIS
+	if normalizedMethod == "va" {
+		payMethod = domain.PaymentMethodBankTransfer
 	}
 	res, err := s.payments.InitiatePayment(ctx, share.StoreID, InitiatePaymentInput{
 		OrderID:        share.OrderID,
 		SplitID:        &share.SplitID,
 		IdempotencyKey: "s:" + share.SplitID.String() + ":" + key,
-		Method:         domain.PaymentMethodQRIS,
+		Method:         payMethod,
+		Bank:           normalizedBank,
 	})
 	if err != nil {
 		return nil, err
 	}
 	p := res.Payment
-	return &GuestSharePayment{ID: p.ID, QRString: p.QRString, ExpiresAt: p.ExpiresAt, Amount: p.Amount, Status: string(p.Status)}, nil
+	return &GuestSharePayment{
+		ID:        p.ID,
+		Method:    normalizedMethod,
+		Bank:      p.Bank,
+		QRString:  p.QRString,
+		VANumber:  p.VANumber,
+		ExpiresAt: p.ExpiresAt,
+		Amount:    p.Amount,
+		Status:    string(p.Status),
+	}, nil
 }

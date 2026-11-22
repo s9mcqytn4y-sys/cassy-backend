@@ -1,7 +1,7 @@
 Halo {{.RecipientName}},
 
 {{.ActorName}} mengundang Anda sebagai {{.RoleLabel}} di {{.StoreName}}.
-Buat PIN 6 digit untuk mulai masuk ke Cassy POS:
+Buat PIN 6 digit untuk mulai masuk ke Cassy POS melalui tautan berikut:
 
 {{.ActionURL}}
 
@@ -9,7 +9,9 @@ Kode gerai    : {{.StoreSlug}}
 Email masuk   : {{.RecipientEmail}}
 Berlaku hingga: {{.ExpiresAt}}
 
-Jangan bagikan PIN kepada siapa pun. Abaikan email ini bila Anda tidak merasa diundang.
+Jangan bagikan PIN kepada siapa pun. Abaikan email ini bila Anda tidak merasa diundang.{{if .ReplyTo}}
+Bantuan: {{.ReplyTo}}{{end}}
 
 --
-{{.StoreName}} | Cassy by AzureDevID. Email otomatis, jangan dibalas.
+(c) {{.Year}} {{.StoreName}}
+Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022

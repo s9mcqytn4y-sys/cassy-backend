@@ -103,8 +103,8 @@ func TestFeatureFlagIntegration(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("staff can read flags, got %d", res.Code)
 	}
-	if got := decode(res); len(got) != 8 || !got["kds"] {
-		t.Fatalf("all 8 flags with defaults are returned: %v", got)
+	if got := decode(res); len(got) != 15 || !got["kds"] || !got["guest_self_cancel_enabled"] {
+		t.Fatalf("all 15 flags with defaults are returned: %v", got)
 	}
 	if res := call("PUT", "/store/features/call_waiter", cashier, map[string]any{"enabled": true}); res.Code != http.StatusForbidden {
 		t.Fatalf("a cashier cannot change flags, got %d", res.Code)

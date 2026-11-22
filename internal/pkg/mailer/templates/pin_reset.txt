@@ -7,7 +7,9 @@ Buat PIN 6 digit baru melalui tautan berikut:
 
 Tautan berlaku hingga {{.ExpiresAt}} (satu kali pakai). Setelah PIN disimpan, semua perangkat yang masuk akan dikeluarkan.
 
-Abaikan email ini bila Anda tidak meminta reset PIN.
+Abaikan email ini bila Anda tidak meminta reset PIN.{{if .ReplyTo}}
+Bantuan: {{.ReplyTo}}{{end}}
 
 --
-{{.StoreName}} | Cassy by AzureDevID. Email otomatis, jangan dibalas.
+(c) {{.Year}} {{.StoreName}}
+Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022

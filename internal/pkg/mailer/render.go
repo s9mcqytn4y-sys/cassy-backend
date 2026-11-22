@@ -84,6 +84,8 @@ type Data struct {
 	ActionURL      string
 	ActionLabel    string
 	PDFURL         string
+	TrackURL       string
+	TableNumber    string
 	OTPCode        string
 	PlanLabel      string
 	ExpiresIn      string
