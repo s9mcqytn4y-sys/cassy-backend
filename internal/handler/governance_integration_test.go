@@ -318,15 +318,17 @@ func TestGovernanceIntegration(t *testing.T) {
 			}
 		}
 
-		// Guest texts (N6, W3): only the reviewed final 1.1.0 is shown, without the draft line; its hash matches the text.
+		// Guest texts (N6, W3): only the reviewed final versions (1.2.0 for privacy, 1.1.0 for terms) are shown, without the draft line; hashes match the text.
 		guestShown := map[domain.LegalDocumentType]int{}
 		for _, d := range legalBody.Documents {
 			if d.DocType != domain.LegalDocGuestPrivacy && d.DocType != domain.LegalDocGuestTerms {
 				continue
 			}
 			guestShown[d.DocType]++
-			if d.Version != "1.1.0" || strings.HasPrefix(d.ContentMarkdown, "Draf") {
-				t.Fatalf("guest %s shows version %s, want the final 1.1.0 without a draft line", d.DocType, d.Version)
+			if (d.DocType == domain.LegalDocGuestPrivacy && d.Version != "1.2.0") ||
+				(d.DocType == domain.LegalDocGuestTerms && d.Version != "1.1.0") ||
+				strings.HasPrefix(d.ContentMarkdown, "Draf") {
+				t.Fatalf("guest %s shows version %s, want final active without a draft line", d.DocType, d.Version)
 			}
 			sum := sha256.Sum256([]byte(d.ContentMarkdown))
 			if hex.EncodeToString(sum[:]) != strings.TrimSpace(d.ContentSHA256) {

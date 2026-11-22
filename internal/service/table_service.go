@@ -406,10 +406,6 @@ func qrClosedReason(ctx context.Context, tx *sqlx.Tx, repo *postgres.TableReposi
 	if err != nil || open {
 		return "", err
 	}
-	canAuto, err := repo.CanAutoOpenSingleShift(ctx, tx, storeID)
-	if err != nil || canAuto {
-		return "", err
-	}
 	return QRClosedNoShift, nil
 }
 

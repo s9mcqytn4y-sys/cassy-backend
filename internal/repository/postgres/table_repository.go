@@ -240,58 +240,6 @@ func (r *TableRepository) HasOpenShift(ctx context.Context, tx *sqlx.Tx, storeID
 	return open, nil
 }
 
-// CanAutoOpenSingleShift reports whether a single_auto store has an active drawer and staff user
-// so an open shift can be created automatically when a guest starts a session.
-func (r *TableRepository) CanAutoOpenSingleShift(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) (bool, error) {
-	var ok bool
-	err := tx.GetContext(ctx, &ok, `
-		SELECT EXISTS (
-			SELECT 1
-			FROM stores s
-			JOIN cash_drawers d ON d.store_id = s.id AND d.is_active = true
-			JOIN users u ON u.store_id = s.id AND u.is_active = true
-			WHERE s.id = $1 AND s.shift_mode = 'single_auto'
-		)`, storeID)
-	if err != nil {
-		return false, fmt.Errorf("failed to check single_auto shift eligibility: %w", err)
-	}
-	return ok, nil
-}
-
-// EnsureSingleAutoShift opens a shift on the primary active drawer for single_auto stores
-// when no open shift currently exists. Safe under concurrency via ON CONFLICT DO NOTHING.
-func (r *TableRepository) EnsureSingleAutoShift(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) (bool, error) {
-	open, err := r.HasOpenShift(ctx, tx, storeID)
-	if err != nil || open {
-		return open, err
-	}
-	res, err := tx.ExecContext(ctx, `
-		INSERT INTO shifts (id, store_id, drawer_id, opened_by, opening_float, opened_at, status)
-		SELECT
-			gen_random_uuid(),
-			s.id,
-			d.id,
-			u.id,
-			COALESCE(ss.default_opening_float, 0),
-			NOW(),
-			'open'
-		FROM stores s
-		JOIN cash_drawers d ON d.store_id = s.id AND d.is_active = true
-		JOIN users u ON u.store_id = s.id AND u.is_active = true
-		LEFT JOIN store_settings ss ON ss.store_id = s.id
-		WHERE s.id = $1 AND s.shift_mode = 'single_auto'
-		ORDER BY d.created_at, u.created_at
-		LIMIT 1
-		ON CONFLICT DO NOTHING`, storeID)
-	if err != nil {
-		return false, fmt.Errorf("failed to auto-open single_auto shift: %w", err)
-	}
-	if n, _ := res.RowsAffected(); n > 0 {
-		return true, nil
-	}
-	return r.HasOpenShift(ctx, tx, storeID)
-}
-
 // GetStoreOperatingSchedule returns the store's IANA timezone and raw operating_hours JSONB
 // (nil when no store_cms_configs row exists).
 func (r *TableRepository) GetStoreOperatingSchedule(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) (string, []byte, error) {

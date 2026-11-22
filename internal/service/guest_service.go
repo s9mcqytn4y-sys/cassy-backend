@@ -171,9 +171,6 @@ func (s *GuestService) ensureOrderingOpen(ctx context.Context, tx *sqlx.Tx, stor
 	case reason == QRClosedNoShift || reason == QRClosedOutsideHours:
 		return ErrStoreClosed
 	}
-	if _, err := s.tables.EnsureSingleAutoShift(ctx, tx, storeID); err != nil {
-		return err
-	}
 	return nil
 }
 
