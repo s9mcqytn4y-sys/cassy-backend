@@ -46,6 +46,7 @@ type CatalogRows struct {
 	ModifierOptions []domain.ModifierOption
 	ProductGroups   []domain.ProductModifierGroup
 	OptionGroups    []domain.OptionModifierGroup
+	Recommendations []domain.ProductRecommendation
 }
 
 func (r *CatalogRepository) LoadCatalog(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) (*CatalogRows, error) {
@@ -57,7 +58,7 @@ func (r *CatalogRepository) LoadCatalog(ctx context.Context, tx *sqlx.Tx, storeI
 		{&out.Categories, `SELECT id, store_id, name, display_order, is_active, created_at, updated_at
 			FROM categories WHERE store_id = $1 ORDER BY display_order, name`},
 		{&out.Products, `SELECT id, store_id, category_id, name, COALESCE(description, '') AS description, base_price,
-			image_url, is_available, track_stock, stock_quantity, product_type, prep_station, display_order,
+			image_url, is_available, track_stock, stock_quantity, product_type, prep_station, badge_label, prep_minutes, display_order,
 			archived_at, created_at, updated_at
 			FROM products WHERE store_id = $1 AND archived_at IS NULL ORDER BY display_order, name`},
 		{&out.Variants, `SELECT id, store_id, product_id, name, sku, price, is_default, is_available, display_order,
@@ -73,6 +74,8 @@ func (r *CatalogRepository) LoadCatalog(ctx context.Context, tx *sqlx.Tx, storeI
 			FROM product_modifier_groups WHERE store_id = $1 ORDER BY product_id, display_order`},
 		{&out.OptionGroups, `SELECT store_id, parent_option_id, child_group_id, display_order, created_at
 			FROM option_modifier_groups WHERE store_id = $1 ORDER BY parent_option_id, display_order`},
+		{&out.Recommendations, `SELECT store_id, product_id, recommended_product_id, sort_order, created_at
+			FROM product_recommendations WHERE store_id = $1 ORDER BY product_id, sort_order`},
 	}
 	for _, q := range queries {
 		if err := tx.SelectContext(ctx, q.dest, q.query, storeID); err != nil {
@@ -137,7 +140,7 @@ func (r *CatalogRepository) InsertProduct(ctx context.Context, tx *sqlx.Tx, p *d
 func (r *CatalogRepository) GetProductForUpdate(ctx context.Context, tx *sqlx.Tx, storeID, id uuid.UUID) (*domain.Product, error) {
 	var p domain.Product
 	err := tx.GetContext(ctx, &p, `SELECT id, store_id, category_id, name, COALESCE(description, '') AS description,
-		base_price, image_url, is_available, track_stock, stock_quantity, product_type, prep_station, display_order,
+		base_price, image_url, is_available, track_stock, stock_quantity, product_type, prep_station, badge_label, prep_minutes, display_order,
 		archived_at, created_at, updated_at
 		FROM products WHERE store_id = $1 AND id = $2 AND archived_at IS NULL FOR UPDATE`, storeID, id)
 	if errors.Is(err, sql.ErrNoRows) {
