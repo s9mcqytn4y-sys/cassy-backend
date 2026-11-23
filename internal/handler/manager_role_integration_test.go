@@ -58,10 +58,13 @@ func TestIntegrationManagerRole(t *testing.T) {
 	opSvc.SetPINPolicy(policy, nil)
 	pos := handler.NewPOSHandler(service.NewOrderService(db, orderRepo), service.NewPaymentService(db, paymentRepo, orderRepo, nil), service.NewSettingsService(db))
 	pos.SetOperational(opSvc)
+	sh := handler.NewShiftHandler(service.NewShiftService(db))
 
 	r := gin.New()
 	r.POST("/login", ah.Login)
 	r.POST("/pos/products/:id/stock-override", ah.RequirePermission(rbac.StockOverride), pos.OverrideStock)
+	r.POST("/pos/shifts", ah.RequirePermission(rbac.ShiftOpen), sh.OpenShift)
+	r.GET("/pos/shifts/:id/x-report", ah.RequireStaff(), sh.GetXReport)
 	r.GET("/owner-only", ah.RequirePermission(rbac.StoreSettingsManage), func(c *gin.Context) { c.Status(http.StatusNoContent) })
 	r.GET("/force-close-gate", ah.RequirePermission(rbac.ShiftForceClose), func(c *gin.Context) { c.Status(http.StatusNoContent) })
 	call := func(method, path, token string, body any) *httptest.ResponseRecorder {
@@ -122,7 +125,7 @@ func TestIntegrationManagerRole(t *testing.T) {
 		_ = json.Unmarshal(res.Body.Bytes(), &body)
 		return body.AccessToken
 	}
-	managerToken, cashierToken := login("manager", managerPIN), login("cashier", cashierPIN)
+	managerToken, cashierToken, ownerToken := login("manager", managerPIN), login("cashier", cashierPIN), login("owner", ownerPIN)
 	override := func(token string, body map[string]any) *httptest.ResponseRecorder {
 		body["reason"] = "Opname"
 		return call(http.MethodPost, fmt.Sprintf("/pos/products/%s/stock-override", productID), token, body)
@@ -150,6 +153,36 @@ func TestIntegrationManagerRole(t *testing.T) {
 		}
 		if res := call(http.MethodGet, "/owner-only", managerToken, nil); res.Code != http.StatusForbidden {
 			t.Fatalf("manager must not pass store.settings.manage: %d", res.Code)
+		}
+	})
+	t.Run("BlindCountHoldsOnManagersOwnShift", func(t *testing.T) {
+		res := call(http.MethodPost, "/pos/shifts", managerToken, map[string]any{"opening_float": 100000})
+		if res.Code != http.StatusCreated {
+			t.Fatalf("manager open shift: %d: %s", res.Code, res.Body.String())
+		}
+		var opened struct {
+			Shift struct {
+				ID string `json:"id"`
+			} `json:"shift"`
+		}
+		_ = json.Unmarshal(res.Body.Bytes(), &opened)
+		redacted := func(token string) bool {
+			t.Helper()
+			res := call(http.MethodGet, fmt.Sprintf("/pos/shifts/%s/x-report", opened.Shift.ID), token, nil)
+			if res.Code != http.StatusOK {
+				t.Fatalf("x-report: %d: %s", res.Code, res.Body.String())
+			}
+			var report struct {
+				ExpectedRedacted bool `json:"expected_redacted"`
+			}
+			_ = json.Unmarshal(res.Body.Bytes(), &report)
+			return report.ExpectedRedacted
+		}
+		if !redacted(managerToken) {
+			t.Fatal("a manager running the drawer must not see expected cash before the blind count")
+		}
+		if redacted(ownerToken) {
+			t.Fatal("the owner must see expected cash on a manager's shift")
 		}
 	})
 }

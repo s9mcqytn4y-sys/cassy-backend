@@ -368,7 +368,7 @@ func (s *ApprovalService) Approve(ctx context.Context, actor *AuthenticatedStaff
 			WHERE store_id = $1 AND id = $2`, actor.Staff.Store.ID, id, actor.Staff.UserID, now, now.Add(approvalWindow)); err != nil {
 			return fmt.Errorf("failed to approve request: %w", err)
 		}
-		return s.recordTx(ctx, tx, actor, id, "APPROVAL_APPROVED", "approval.decided", "Permintaan persetujuan disetujui owner", now)
+		return s.recordTx(ctx, tx, actor, id, "APPROVAL_APPROVED", "approval.decided", "Permintaan persetujuan disetujui "+strings.ToLower(roleLabels[actor.Staff.Role]), now)
 	})
 	if err != nil {
 		return nil, err
@@ -394,7 +394,7 @@ func (s *ApprovalService) Reject(ctx context.Context, actor *AuthenticatedStaff,
 			WHERE store_id = $1 AND id = $2`, actor.Staff.Store.ID, id, actor.Staff.UserID, now, note); err != nil {
 			return fmt.Errorf("failed to reject request: %w", err)
 		}
-		reason := "Permintaan persetujuan ditolak owner"
+		reason := "Permintaan persetujuan ditolak " + strings.ToLower(roleLabels[actor.Staff.Role])
 		if note != "" {
 			reason += ": " + note
 		}
