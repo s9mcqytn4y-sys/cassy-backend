@@ -121,7 +121,7 @@ func (g *pinGuard) verifyOwner(ctx context.Context, tx *sqlx.Tx, actor *Authenti
 		return uuid.Nil, ErrPINAttemptsExceeded
 	}
 
-	owners, err := g.repo.ListActiveOwners(ctx, tx, storeID)
+	owners, err := g.repo.ListActiveApprovers(ctx, tx, storeID)
 	if err != nil {
 		return uuid.Nil, err
 	}

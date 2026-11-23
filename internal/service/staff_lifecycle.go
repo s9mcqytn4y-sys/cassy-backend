@@ -49,7 +49,7 @@ func WithAuthEmail(email *EmailService, publicURL, replyTo string) AuthServiceOp
 }
 
 var roleLabels = map[domain.UserRole]string{
-	domain.RoleOwner: "Pemilik", domain.RoleCashier: "Kasir", domain.RoleBarista: "Barista", domain.RoleKitchen: "Dapur",
+	domain.RoleOwner: "Pemilik", domain.RoleManager: "Manajer", domain.RoleCashier: "Kasir", domain.RoleBarista: "Barista", domain.RoleKitchen: "Dapur",
 }
 
 type StaffSummary struct {

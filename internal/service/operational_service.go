@@ -97,7 +97,7 @@ func (s *OperationalService) authorizeAmount(ctx context.Context, tx *sqlx.Tx, a
 		if ownerPIN != nil {
 			owner = strings.TrimSpace(*ownerPIN)
 		}
-		if owner == "" && actor.Staff.Role == domain.RoleOwner {
+		if owner == "" && actor.Staff.Role.IsApprover() {
 			owner = pin
 		}
 		if owner == "" && approval.ID != nil {
@@ -803,7 +803,7 @@ func (s *OperationalService) checkRefundWindow(ctx context.Context, tx *sqlx.Tx,
 	if days > settings.RefundWindowOwnerDays {
 		return false, ErrRefundWindowExceeded
 	}
-	return days > settings.RefundWindowCashierDays && actor.Staff.Role != domain.RoleOwner, nil
+	return days > settings.RefundWindowCashierDays && !actor.Staff.Role.IsApprover(), nil
 }
 
 // paymentRefund is one row of the append-only refund ledger (payment_refunds).

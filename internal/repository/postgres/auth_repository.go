@@ -279,6 +279,17 @@ func (r *AuthRepository) SetUserPIN(ctx context.Context, tx *sqlx.Tx, storeID, u
 	return nil
 }
 
+// ListActiveApprovers returns owners and managers whose PIN may authorise an override (K-04).
+func (r *AuthRepository) ListActiveApprovers(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) ([]domain.User, error) {
+	var users []domain.User
+	err := tx.SelectContext(ctx, &users, `SELECT `+userAuthColumns+` FROM users
+		WHERE store_id = $1 AND role IN ('owner', 'manager') AND is_active = true AND pin_set_at IS NOT NULL ORDER BY created_at`, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list approvers: %w", err)
+	}
+	return users, nil
+}
+
 // ListActiveOwners returns owners who can receive security notifications.
 func (r *AuthRepository) ListActiveOwners(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) ([]domain.User, error) {
 	var owners []domain.User

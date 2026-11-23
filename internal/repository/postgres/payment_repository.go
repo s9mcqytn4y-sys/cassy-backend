@@ -451,7 +451,7 @@ func (r *PaymentRepository) GetActiveCashierOrOwnerActor(
 		WHERE store_id = $1
 		  AND id = $2
 		  AND is_active = true
-		  AND role IN ('owner', 'cashier')
+		  AND role IN ('owner', 'manager', 'cashier')
 	`
 	if err := tx.GetContext(ctx, &user, query, storeID, userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
