@@ -19,11 +19,14 @@ Lihat antrean terpusat lintas repositori pada [BacklogAndDebt.md](../docs/Projec
 - [x] Pembulatan split `by_item`: alokasi kini pas ke subtotal baris lewat `lineShare` (backend PR #154).
 - [x] Android: tiket dapur tidak lagi tercetak ulang saat tagihan meja dibayar (client PR #101).
 - [x] Android: struk per bagian split (client PR #102).
-- [ ] Android: `copies` dan `footer` printer server belum dipakai; struk per bagian belum memuat item per orang (split per item).
+- [x] Android: `copies` dan `footer` printer server dipakai (`PosPrintDispatcher`); dibuktikan test live S2 `LiveCashierLifecycleTest`.
+- [ ] Android: struk per bagian belum memuat item per orang (split per item).
 - [x] Android: menu KDS dan Meja di layout HP, flag `split_bill` dibaca dari profil perangkat (client PR #102).
-- [ ] Backend: flag `split_bill` belum ditegakkan di endpoint split kasir (hanya disembunyikan di client).
+- [x] Backend: flag `split_bill` ditegakkan di `dividePayFirstOrderTx` (split kasir non-tab dan tamu) dan `CloseTab` (split meja).
+- [x] Role `manager` K-04 (PR #167, migrasi 000078) dan tender EDC Android (client PR #118).
+- [x] Seed uji `db/seeds/E2eLifecycle.sql` untuk stack test (PR #168).
 - [x] A2: client PR #100 dan backend PR #153 merged.
 - [ ] A2: uji RoleGate di tablet sungguhan (ubah peran perangkat ke `kds`, cek penahan saat shift terbuka); peran `backoffice` sementara tetap di kasir sampai layar A3 ada.
 - [x] KDS sebagai layar utama: tombol kembali disembunyikan (client PR #100).
 - [ ] A2 sisa: target PRD tiket pos ke kds di bawah 2 detik di LAN belum diukur.
-- [ ] Lanjut A3 backoffice.
+- [ ] Lanjut A3 backoffice setelah Ops Close Gate dan PWA Close Gate hijau (`Docs/PRD/PrdOpsAndPwaClose.md`).

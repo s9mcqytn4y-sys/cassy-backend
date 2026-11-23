@@ -1,8 +1,8 @@
 # Cassy Backend: Status (`memory/Status.md`)
 
-**Last Updated**: 2026-11-22
+**Last Updated**: 2026-11-24
 **Branch dasar**: `main` (trunk-based across `cassy-backend`, `cassy-client`, `cassy-docker`)
-**Skema DB**: 77 migrasi PostgreSQL 18 RLS (`db/migrations/000001` s.d. `20261122000077`)
+**Skema DB**: 78 migrasi PostgreSQL 18 RLS (`db/migrations/000001` s.d. `20261123000078`)
 **Source of Truth PM**: [docs/ProjectManagement/SprintAndReleasePlan.md](../docs/ProjectManagement/SprintAndReleasePlan.md)
 
 | Area | Status | Catatan |
