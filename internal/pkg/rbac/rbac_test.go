@@ -22,7 +22,7 @@ func TestRolesInLockStep(t *testing.T) {
 	if len(auth.ValidRoles) != len(domain.ValidUserRoles()) {
 		t.Fatalf("JWT roles %v and domain roles %v differ", auth.ValidRoles, domain.ValidUserRoles())
 	}
-	if got := rbac.Permissions("manager", rbac.Options{}); len(got) != 0 {
+	if got := rbac.Permissions("supervisor", rbac.Options{}); len(got) != 0 {
 		t.Fatalf("unknown role must have no permissions, got %v", got)
 	}
 }
@@ -48,6 +48,20 @@ func TestMatrix(t *testing.T) {
 		{domain.RoleBarista, rbac.Options{CashierHandlesBar: true}, rbac.PaymentTenderDirect, false},
 		{domain.RoleKitchen, rbac.Options{}, rbac.KDSKitchenUpdate, true},
 		{domain.RoleKitchen, rbac.Options{}, rbac.KDSBaristaRead, false},
+		// K-04: manager runs the outlet and approves, but store settings, staff, invoices and cost stay owner-only.
+		{domain.RoleManager, rbac.Options{}, rbac.OrderPOSCreate, true},
+		{domain.RoleManager, rbac.Options{}, rbac.ShiftForceClose, true},
+		{domain.RoleManager, rbac.Options{}, rbac.CashDrawerManage, true},
+		{domain.RoleManager, rbac.Options{}, rbac.ApprovalDecide, true},
+		{domain.RoleManager, rbac.Options{}, rbac.CatalogManage, true},
+		{domain.RoleManager, rbac.Options{}, rbac.TableQRManage, true},
+		{domain.RoleManager, rbac.Options{}, rbac.DeviceManage, true},
+		{domain.RoleManager, rbac.Options{}, rbac.ReportFinanceRead, true},
+		{domain.RoleManager, rbac.Options{}, rbac.StoreSettingsManage, false},
+		{domain.RoleManager, rbac.Options{}, rbac.StaffManage, false},
+		{domain.RoleManager, rbac.Options{}, rbac.InvoiceManage, false},
+		{domain.RoleManager, rbac.Options{}, rbac.CatalogCostRead, false},
+		{domain.RoleManager, rbac.Options{}, rbac.InventoryManage, false},
 	}
 	for _, tc := range cases {
 		if got := rbac.Has(tc.role, tc.opts, tc.perm); got != tc.want {

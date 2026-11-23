@@ -135,7 +135,7 @@ func (s *OperationalService) ApplyDiscount(ctx context.Context, actor *Authentic
 		now := s.nowFunc().UTC()
 		var approvedBy *uuid.UUID
 		claim := &approvalClaim{ID: in.ApprovalID, Action: ApprovalDiscount, Ref: order.ID, Params: approvalParams{Amount: &discount}}
-		if discountNeedsOwner(discount, order.SubtotalAmount, settings.CashierMaxDiscountBPS) && actor.Staff.Role != domain.RoleOwner {
+		if discountNeedsOwner(discount, order.SubtotalAmount, settings.CashierMaxDiscountBPS) && !actor.Staff.Role.IsApprover() {
 			switch {
 			case in.OwnerPIN != nil && strings.TrimSpace(*in.OwnerPIN) != "":
 				owner, err := s.pins.verifyOwner(ctx, tx, actor, strings.TrimSpace(*in.OwnerPIN))

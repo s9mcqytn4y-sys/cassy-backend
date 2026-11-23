@@ -157,8 +157,8 @@ func (s *ApprovalService) Create(ctx context.Context, actor *AuthenticatedStaff,
 	if len(fields) > 0 {
 		return nil, &ValidationError{Fields: fields}
 	}
-	if !actor.Can(perm) || actor.Staff.Role == domain.RoleOwner {
-		return nil, ErrForbidden // owners use their PIN directly
+	if !actor.Can(perm) || actor.Staff.Role.IsApprover() {
+		return nil, ErrForbidden // owners and managers use their PIN directly
 	}
 
 	storeID, now := actor.Staff.Store.ID, s.nowFunc().UTC()
@@ -362,7 +362,7 @@ func (s *ApprovalService) Approve(ctx context.Context, actor *AuthenticatedStaff
 			return err
 		}
 		if ownerID != actor.Staff.UserID {
-			return ErrInvalidOwnerPIN // another owner's PIN: the decider confirms with their own
+			return ErrInvalidOwnerPIN // another approver's PIN: the decider confirms with their own
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE approval_requests SET status = 'approved', decided_by = $3, decided_at = $4, expires_at = $5
 			WHERE store_id = $1 AND id = $2`, actor.Staff.Store.ID, id, actor.Staff.UserID, now, now.Add(approvalWindow)); err != nil {

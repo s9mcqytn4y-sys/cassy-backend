@@ -808,7 +808,7 @@ func (s *ShiftService) GetXReport(ctx context.Context, actor *AuthenticatedStaff
 		}
 
 		// Blind count security: jika kasir mengakses X report saat shift masih 'open', redact expected_cash
-		isOwner := actor.Staff.Role == domain.RoleOwner
+		isOwner := actor.Staff.Role.IsApprover()
 		settings, err := s.settings.GetStoreSettings(ctx, tx, actor.Staff.Store.ID)
 		if err != nil {
 			return err

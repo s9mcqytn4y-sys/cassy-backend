@@ -244,7 +244,7 @@ func (r *OrderRepository) VerifyActiveStaffActor(ctx context.Context, tx *sqlx.T
 			WHERE store_id = $1
 			  AND id = $2
 			  AND is_active = true
-			  AND role IN ('owner', 'cashier')
+			  AND role IN ('owner', 'manager', 'cashier')
 		)
 	`
 	if err := tx.GetContext(ctx, &exists, query, storeID, userID); err != nil {

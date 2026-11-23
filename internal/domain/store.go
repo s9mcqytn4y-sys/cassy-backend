@@ -32,13 +32,20 @@ type UserRole string
 
 const (
 	RoleOwner   UserRole = "owner"
+	RoleManager UserRole = "manager"
 	RoleCashier UserRole = "cashier"
 	RoleBarista UserRole = "barista"
 	RoleKitchen UserRole = "kitchen"
 )
 
+// IsApprover reports whether the role may authorise void, refund and discount overrides with its own PIN
+// (owner and store manager, K-04).
+func (r UserRole) IsApprover() bool {
+	return r == RoleOwner || r == RoleManager
+}
+
 func ValidUserRoles() []UserRole {
-	return []UserRole{RoleOwner, RoleCashier, RoleBarista, RoleKitchen}
+	return []UserRole{RoleOwner, RoleManager, RoleCashier, RoleBarista, RoleKitchen}
 }
 
 type User struct {

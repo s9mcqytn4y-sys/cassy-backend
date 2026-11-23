@@ -9614,7 +9614,7 @@ components:
 
     StaffRole:
       type: string
-      enum: [owner, cashier, barista, kitchen]
+      enum: [owner, manager, cashier, barista, kitchen]
 
     StaffLoginRequest:
       type: object

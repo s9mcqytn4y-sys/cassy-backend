@@ -86,8 +86,18 @@ var cashierBase = []Permission{
 	InventoryCount,
 }
 
+// managerExtra is what a store manager gets on top of the cashier set (K-04). Store settings
+// (BYOK, flags), staff, B2B invoices, cost data and inventory master data stay owner-only.
+var managerExtra = []Permission{
+	ShiftForceClose, CashDrawerManage, ApprovalDecide,
+	CatalogManage, AvailabilityToggleBeverage, AvailabilityToggleFood,
+	KDSBaristaUpdate, KDSKitchenUpdate,
+	TableManage, TableQRManage, DeviceManage, ReportFinanceRead,
+}
+
 var roleMatrix = map[domain.UserRole][]Permission{
 	domain.RoleOwner:   all,
+	domain.RoleManager: append(slices.Clone(cashierBase), managerExtra...),
 	domain.RoleCashier: cashierBase,
 	domain.RoleBarista: {KDSBaristaRead, KDSBaristaUpdate, AvailabilityToggleBeverage, InventoryCount},
 	domain.RoleKitchen: {KDSKitchenRead, KDSKitchenUpdate, AvailabilityToggleFood, InventoryCount},
