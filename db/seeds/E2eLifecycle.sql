@@ -95,3 +95,14 @@ VALUES
     ('e2e00050-0000-4000-8000-000000000002', 'e2e00000-0000-4000-8000-000000000001', 'Dapur Uji', 'kitchen', 'escpos', 80,
      1, '', repeat('0', 64), true, 'e2e00001-0000-4000-8000-000000000001', 'lan', '10.0.2.2:9100')
 ON CONFLICT (id) DO NOTHING;
+
+-- S4-Q3: cup label printer behind the print agent (no lan_address, so the server queues TSPL jobs).
+-- Agent token for the test stack only: "<store_id>.<printer_id>.e2e-label-agent-secret-for-the-test-stack-x" (43 chars, as the parser requires).
+INSERT INTO printers (
+    id, store_id, name, station, format, paper_width_mm, label_height_mm, copies, footer, agent_token_hash,
+    is_active, created_by, transport_type
+)
+VALUES
+    ('e2e00050-0000-4000-8000-000000000003', 'e2e00000-0000-4000-8000-000000000001', 'Label Cup Uji', 'label', 'tspl', 50, 30,
+     1, '', '9795adfd1c2d0904ff25026d688df2aa44cb68b93f7d450a9a4543b6c9fddbc0', true, 'e2e00001-0000-4000-8000-000000000001', 'lan')
+ON CONFLICT (id) DO NOTHING;
