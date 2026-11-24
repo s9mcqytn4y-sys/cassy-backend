@@ -79,6 +79,9 @@ type DeviceCatalog struct {
 	Version       string          `json:"catalog_version"`
 	FirstServedAt time.Time       `json:"first_served_at"`
 	Catalog       *CatalogView    `json:"catalog"`
+	// CashRoundingStep lets an offline device collect the cash the server will ask for at sync
+	// (0, 100 or 500 rupiah, decision V11); it is not part of the pricing snapshot or its version.
+	CashRoundingStep int `json:"cash_rounding_step"`
 }
 
 type DeviceService struct {
@@ -312,7 +315,7 @@ func (s *DeviceService) Catalog(ctx context.Context, credential string) (*Device
 		if err != nil {
 			return err
 		}
-		out = &DeviceCatalog{Role: device.Role, Features: features, Version: version, Catalog: view}
+		out = &DeviceCatalog{Role: device.Role, Features: features, Version: version, Catalog: view, CashRoundingStep: settings.CashRoundingStep}
 		return tx.GetContext(ctx, &out.FirstServedAt, `SELECT first_served_at FROM catalog_versions WHERE store_id = $1 AND version = $2`, storeID, version)
 	})
 	if err != nil {

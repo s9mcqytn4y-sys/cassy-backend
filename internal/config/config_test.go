@@ -351,3 +351,28 @@ func TestValidateConfigSMSDriver(t *testing.T) {
 		t.Error("unknown SMS driver must be refused")
 	}
 }
+
+// S4-Q8: the Midtrans stub override is for the Docker test stack only; production must never accept it.
+func TestValidateConfigMidtransStubOverride(t *testing.T) {
+	strong := strings.Repeat("strong", 6)
+	stub := func(env string) *config.Config {
+		return &config.Config{AppEnv: env, JWTSecret: strong, EmailDriver: "log", MidtransAPIBaseURL: "http://midtrans-stub:9200"}
+	}
+	if err := config.ValidateConfig(stub("staging")); err != nil {
+		t.Errorf("staging with a stub must pass: %v", err)
+	}
+	for name, c := range map[string]*config.Config{
+		"production env":          stub("production"),
+		"production tenant keys":  func() *config.Config { c := stub("staging"); c.MidtransIsProduction = true; return c }(),
+		"production platform key": func() *config.Config { c := stub("staging"); c.PlatformMidtransIsProduction = true; return c }(),
+	} {
+		if err := config.ValidateConfig(c); err == nil || !strings.Contains(err.Error(), "MIDTRANS_API_BASE_URL") {
+			t.Errorf("%s: override must be refused, got %v", name, err)
+		}
+	}
+	bad := stub("staging")
+	bad.MidtransAPIBaseURL = "midtrans-stub:9200"
+	if err := config.ValidateConfig(bad); err == nil {
+		t.Error("a base without scheme must be refused")
+	}
+}

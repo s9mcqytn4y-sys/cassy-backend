@@ -83,6 +83,9 @@ type Config struct {
 	MidtransClientKey    string
 	MidtransIsProduction bool
 	MidtransQRISAcquirer string
+	// MidtransAPIBaseURL points every Midtrans call at a stub (Docker test stack). Refused in production
+	// and with production Midtrans keys; empty means the SDK's real endpoints.
+	MidtransAPIBaseURL string
 
 	// Multi-Tenant SaaS Governance & Dual-Lane Billing (ADR-009)
 	// CredentialEncryptionKey seals tenant BYOK Midtrans, SMTP, and WhatsApp secrets via AES-256-GCM.
@@ -244,6 +247,7 @@ func LoadConfig() (*Config, error) {
 		MidtransClientKey:            getEnv("MIDTRANS_CLIENT_KEY", ""),
 		MidtransIsProduction:         isProd,
 		MidtransQRISAcquirer:         strings.ToLower(strings.TrimSpace(getEnv("MIDTRANS_QRIS_ACQUIRER", "gopay"))),
+		MidtransAPIBaseURL:           strings.TrimRight(strings.TrimSpace(getEnv("MIDTRANS_API_BASE_URL", "")), "/"),
 		CredentialEncryptionKey:      strings.TrimSpace(getEnv("CREDENTIAL_ENCRYPTION_KEY", "")),
 		PlatformAdminAPIKey:          strings.TrimSpace(getEnv("PLATFORM_ADMIN_API_KEY", "")),
 		PlatformMidtransServerKey:    strings.TrimSpace(getEnv("PLATFORM_MIDTRANS_SERVER_KEY", getEnv("MIDTRANS_SERVER_KEY", ""))),
@@ -345,6 +349,15 @@ func ValidateConfig(cfg *Config) error {
 	}
 	if !isValidEnv {
 		return fmt.Errorf("[SECURITY FAIL-CLOSED] invalid APP_ENV %q: allowed values are development, test, staging, production", cfg.AppEnv)
+	}
+
+	if cfg.MidtransAPIBaseURL != "" {
+		if cfg.AppEnv == "production" || cfg.MidtransIsProduction || cfg.PlatformMidtransIsProduction {
+			return errors.New("[SECURITY FAIL-CLOSED] MIDTRANS_API_BASE_URL is for test stubs only and cannot be set in production or with production Midtrans keys")
+		}
+		if u, err := url.Parse(cfg.MidtransAPIBaseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return fmt.Errorf("invalid MIDTRANS_API_BASE_URL %q: want http(s)://host[:port]", cfg.MidtransAPIBaseURL)
+		}
 	}
 
 	// staging is the publicly tunnelled demo (L-2): a guessable JWT secret there lets anyone forge staff tokens.

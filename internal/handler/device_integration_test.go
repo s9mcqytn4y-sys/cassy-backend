@@ -169,6 +169,7 @@ func TestDeviceIntegration(t *testing.T) {
 			Role          string    `json:"device_role"`
 			Version       string    `json:"catalog_version"`
 			FirstServedAt time.Time `json:"first_served_at"`
+			RoundingStep  int       `json:"cash_rounding_step"`
 			Catalog       struct {
 				Products []json.RawMessage `json:"products"`
 			} `json:"catalog"`
@@ -189,6 +190,13 @@ func TestDeviceIntegration(t *testing.T) {
 		}
 		if len(first.Version) != 64 || len(first.Catalog.Products) == 0 {
 			t.Fatalf("expected a SHA-256 version and the POS catalog, got %q with %d products", first.Version, len(first.Catalog.Products))
+		}
+		var step int
+		inStore(func(tx *sqlx.Tx) error {
+			return tx.GetContext(ctx, &step, `SELECT cash_rounding_step FROM store_settings WHERE store_id = $1`, storeID)
+		})
+		if first.RoundingStep != step {
+			t.Fatalf("an offline device must collect what the server will round to: got step %d, store has %d", first.RoundingStep, step)
 		}
 		// Other tests may change prices concurrently; only compare when the content is the same.
 		if second.Version == first.Version && !second.FirstServedAt.Equal(first.FirstServedAt) {
