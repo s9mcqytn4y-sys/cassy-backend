@@ -21,6 +21,9 @@ Lihat antrean terpusat lintas repositori pada [BacklogAndDebt.md](../docs/Projec
 - [x] Android: struk per bagian split (client PR #102).
 - [x] Android: `copies` dan `footer` printer server dipakai (`PosPrintDispatcher`); dibuktikan test live S2 `LiveCashierLifecycleTest`.
 - [ ] Android: struk per bagian belum memuat item per orang (split per item).
+- [x] S3 OPS-06..08 terbukti live di CI (client #132, backend #170/#171, docker #12); merge #171 dulu agar govulncheck hijau.
+- [ ] Android: `MobileBootstrapData` membaca `hardware_config`, server mengirim `hardware`; konfigurasi hardware dari bootstrap tidak pernah terbaca.
+- [ ] S4: OPS-09 offline (TD-04 `enqueueCashOrder` tanpa pemanggil) dan gate PWA-01..07, PWA-10.
 - [x] Android: menu KDS dan Meja di layout HP, flag `split_bill` dibaca dari profil perangkat (client PR #102).
 - [x] Backend: flag `split_bill` ditegakkan di `dividePayFirstOrderTx` (split kasir non-tab dan tamu) dan `CloseTab` (split meja).
 - [x] Role `manager` K-04 (PR #167, migrasi 000078) dan tender EDC Android (client PR #118).

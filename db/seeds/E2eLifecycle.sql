@@ -1,7 +1,7 @@
 -- E2E cashier lifecycle store (Sprint S2, Docs/PRD/PrdOpsAndPwaClose.md section 10, decision S2-Q2).
 -- Loaded only by the disposable test stack (cassy-docker Core/DockerComposeTest.yml) after development.sql.
 -- Deterministic: two drawers and no open shift, so tests open, use and close shifts themselves.
--- PINs are test values for a throwaway database: owner 482913, manager 739164, cashier 528307.
+-- PINs are test values for a throwaway database: owner 482913, manager 739164, cashier 528307, kitchen 615842.
 -- Printers point at the virtual ESC/POS printer as seen from the Android emulator (10.0.2.2:9100).
 
 INSERT INTO stores (
@@ -26,7 +26,11 @@ VALUES
      '$argon2id$v=19$m=19456,t=2,p=1$opm8iFnn7ciL8qhwzae3KA$cM8kww65lhjTHe2xfYaBvIk113r19NKC+picnak5P1g', true, NOW()),
     ('e2e00003-0000-4000-8000-000000000003', 'e2e00000-0000-4000-8000-000000000001', 'cashier.e2e@cassy.local',
      'Kasir Uji', 'cashier', '+628000000003',
-     '$argon2id$v=19$m=19456,t=2,p=1$PjUwaGwK2KEcAkdOXuFDSw$m2N+IMv1R7huTSukVy9xm0YRti/DRU95UVLsBLoXweY', true, NOW())
+     '$argon2id$v=19$m=19456,t=2,p=1$PjUwaGwK2KEcAkdOXuFDSw$m2N+IMv1R7huTSukVy9xm0YRti/DRU95UVLsBLoXweY', true, NOW()),
+    -- Kitchen tablet for the S3 KDS live tests (PrdOpsAndPwaClose.md section 11, S3-Q3).
+    ('e2e00004-0000-4000-8000-000000000004', 'e2e00000-0000-4000-8000-000000000001', 'kitchen.e2e@cassy.local',
+     'Dapur Uji', 'kitchen', '+628000000004',
+     '$argon2id$v=19$m=19456,t=2,p=1$PwJMkaEEkAxY5AoWmFfIDg$EUmF/C8oEIuxxrVOKUIQU/EAMEVN27aSQEdGSQI4k+s', true, NOW())
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO store_settings (
