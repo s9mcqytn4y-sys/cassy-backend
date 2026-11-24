@@ -92,3 +92,37 @@ func TestLabels(t *testing.T) {
 		t.Error("20 mm labels must be rejected")
 	}
 }
+
+// S4-Q3: three cups of one drink print 1/3..3/3 with the table, notes, name and clock; a short label
+// gives up options before the header, item, notes or the name/time line.
+func TestLabelsCupDetails(t *testing.T) {
+	ticket := &Ticket{QueueNumber: "E004", TableNumber: "4", CustomerName: "Rani", LocalTime: "24/11/2026 10:32",
+		Lines: []Line{{Name: "Iced Latte", Quantity: 3, Options: []string{"Less Sugar", "Oat Milk", "Extra Shot"}, Notes: "es sedikit"}}}
+
+	full := string(must(Labels(ticket, 50, 30, 1)))
+	for _, want := range []string{"E004  1/3  MJ 4", "E004  2/3  MJ 4", "E004  3/3  MJ 4", "+ Oat Milk", "+ Extra Shot", "* es sedikit", "Rani  10:32"} {
+		if !strings.Contains(full, want) {
+			t.Errorf("cup label misses %q", want)
+		}
+	}
+	if strings.Contains(full, "24/11/2026") {
+		t.Error("the label keeps the clock only")
+	}
+
+	short := string(must(Labels(ticket, 40, 15, 1)))
+	for _, want := range []string{"E004  1/3  MJ 4", "Iced Latte", "* es sedikit", "Rani  10:32"} {
+		if !strings.Contains(short, want) {
+			t.Errorf("a 15 mm label still needs %q", want)
+		}
+	}
+	if strings.Contains(short, "+ Less Sugar") {
+		t.Error("options go first when the label is short")
+	}
+}
+
+func must(b []byte, err error) []byte {
+	if err != nil {
+		panic(err)
+	}
+	return b
+}

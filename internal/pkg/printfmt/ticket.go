@@ -109,8 +109,10 @@ func StationTicket(t *Ticket, widthMM, copies int, footer string) ([]byte, error
 	return p.Bytes(), nil
 }
 
-// Labels prints one TSPL label per cup: queue number, item, up to three options and the guest's
-// name. 203 dpi: 8 dots per mm; font "2" is 12x20 dots.
+// Labels prints one TSPL label per cup (S4-Q3): the queue number with the cup's place in the order
+// (1/3, 2/3, 3/3) and the table, the item, up to three options, the line notes, then the guest's
+// name with the print time. A short label drops options first, so the header, item, notes and the
+// name/time line always print. 203 dpi: 8 dots per mm; font "2" is 12x20 dots.
 func Labels(t *Ticket, widthMM, heightMM, copies int) ([]byte, error) {
 	if widthMM < 25 || widthMM > 110 || heightMM < 15 || heightMM > 100 {
 		return nil, fmt.Errorf("label size %dx%d mm is out of range", widthMM, heightMM)
@@ -122,25 +124,35 @@ func Labels(t *Ticket, widthMM, heightMM, copies int) ([]byte, error) {
 	for _, l := range t.Lines {
 		total += l.Quantity
 	}
+	footer := strings.TrimSpace(strings.TrimSpace(t.CustomerName) + "  " + labelTime(t.LocalTime))
 	n := 0
 	for _, l := range t.Lines {
+		name := l.Name
+		if l.Variant != "" {
+			name += " " + l.Variant
+		}
+		var options []string
+		for i, o := range l.Options {
+			if i == 3 {
+				break
+			}
+			options = append(options, "+ "+strings.TrimPrefix(o, "- "))
+		}
 		for unit := 0; unit < l.Quantity; unit++ {
 			n++
-			text := []string{fmt.Sprintf("%s  %d/%d", t.QueueNumber, n, total)}
-			name := l.Name
-			if l.Variant != "" {
-				name += " " + l.Variant
+			header := fmt.Sprintf("%s  %d/%d", t.QueueNumber, n, total)
+			if t.TableNumber != "" {
+				header += "  MJ " + t.TableNumber
 			}
-			text = append(text, name)
-			for i, o := range l.Options {
-				if i == 3 {
-					break
-				}
-				text = append(text, "+ "+strings.TrimPrefix(o, "- "))
+			fixed := []string{header, name}
+			if notes := strings.TrimSpace(l.Notes); notes != "" {
+				fixed = append(fixed, "* "+notes)
 			}
-			if t.CustomerName != "" {
-				text = append(text, t.CustomerName)
+			if footer != "" {
+				fixed = append(fixed, footer)
 			}
+			keep := min(len(options), max(rows-len(fixed), 0))
+			text := append(append(fixed[:2:2], options[:keep]...), fixed[2:]...)
 			fmt.Fprintf(&b, "SIZE %d mm,%d mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1\r\nCLS\r\n", widthMM, heightMM)
 			for i, s := range text {
 				if i == rows {
@@ -159,4 +171,12 @@ func Labels(t *Ticket, widthMM, heightMM, copies int) ([]byte, error) {
 		return nil, fmt.Errorf("no label lines")
 	}
 	return b.Bytes(), nil
+}
+
+// labelTime keeps the clock of "02/01/2006 15:04" so the name/time line fits a 40 mm cup label.
+func labelTime(local string) string {
+	if i := strings.LastIndex(local, " "); i >= 0 {
+		return local[i+1:]
+	}
+	return local
 }
