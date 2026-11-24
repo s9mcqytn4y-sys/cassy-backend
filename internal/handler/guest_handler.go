@@ -20,8 +20,11 @@ const (
 type GuestHandler struct {
 	guests *service.GuestService
 	// Sliding-window rate limiters (Redis-backed when REDIS_ADDR is set, in-memory fallback).
-	sessionsPerIP  *loginFailureLimiter
-	ordersPerGuest *loginFailureLimiter
+	// QR5, S5-Q4: per table per IP, so one table cannot spam sessions, plus a looser cap per IP
+	// because a cafe puts every guest behind one NAT address.
+	sessionsPerTable *loginFailureLimiter
+	sessionsPerIP    *loginFailureLimiter
+	ordersPerGuest   *loginFailureLimiter
 	// Every attempt opens a new gateway charge; switching method or renewing an expired QRIS stays well under it.
 	paymentsPerGuest *loginFailureLimiter
 	sharePayPerIP    *loginFailureLimiter
@@ -30,7 +33,8 @@ type GuestHandler struct {
 func NewGuestHandler(guests *service.GuestService) *GuestHandler {
 	return &GuestHandler{
 		guests:           guests,
-		sessionsPerIP:    newLoginFailureLimiter(10, 10*time.Minute), // decision QR5
+		sessionsPerTable: newLoginFailureLimiter(10, 10*time.Minute),
+		sessionsPerIP:    newLoginFailureLimiter(120, 10*time.Minute),
 		ordersPerGuest:   newLoginFailureLimiter(10, 10*time.Minute),
 		paymentsPerGuest: newLoginFailureLimiter(20, 10*time.Minute),
 		sharePayPerIP:    newLoginFailureLimiter(30, 10*time.Minute),
@@ -90,12 +94,10 @@ func (h *GuestHandler) StartSession(c *gin.Context) {
 	if !requireCSRF(c) {
 		return
 	}
-	ip := c.ClientIP()
-	if h.sessionsPerIP.Blocked(ip) {
+	if !h.allowSession(c.ClientIP(), c.Param("token")) {
 		authError(c, http.StatusTooManyRequests, "TOO_MANY_REQUESTS", "Terlalu banyak percobaan. Coba lagi beberapa menit lagi.")
 		return
 	}
-	h.sessionsPerIP.RecordFailure(ip)
 	cookie, view, err := h.guests.StartSession(c.Request.Context(), c.Param("token"))
 	if err != nil {
 		writeGuestError(c, err)
@@ -108,6 +110,17 @@ func (h *GuestHandler) StartSession(c *gin.Context) {
 	})
 	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusCreated, view)
+}
+
+// allowSession counts one session start for the table and the IP; false when either limit is spent.
+func (h *GuestHandler) allowSession(ip, tableToken string) bool {
+	table := ip + "|" + tableToken
+	if h.sessionsPerIP.Blocked(ip) || h.sessionsPerTable.Blocked(table) {
+		return false
+	}
+	h.sessionsPerIP.RecordFailure(ip)
+	h.sessionsPerTable.RecordFailure(table)
+	return true
 }
 
 // RequireGuest authenticates the guest cookie; mutating requests also need X-CSRF-Protection: 1.

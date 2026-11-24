@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/s9mcqytn4y-sys/cassy-backend/internal/repository/postgres"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/service"
 )
 
@@ -230,7 +229,7 @@ func writeTabServiceError(c *gin.Context, err error) {
 		authError(c, http.StatusForbidden, "FORBIDDEN", "Peran Anda tidak diizinkan mengelola tab.")
 	case errors.Is(err, service.ErrInvalidSession):
 		authError(c, http.StatusUnauthorized, "SESSION_INVALID", "Sesi tidak valid. Silakan masuk kembali.")
-	case errors.Is(err, service.ErrTabNotFound), errors.Is(err, postgres.ErrOrderNotFound):
+	case errors.Is(err, service.ErrTabNotFound), errors.Is(err, service.ErrOrderNotFound):
 		authError(c, http.StatusNotFound, "NOT_FOUND", "Tab tidak ditemukan.")
 	case errors.As(err, &validation):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{

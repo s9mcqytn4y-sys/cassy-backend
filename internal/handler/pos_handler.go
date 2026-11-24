@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/domain"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/rbac"
-	"github.com/s9mcqytn4y-sys/cassy-backend/internal/repository/postgres"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/service"
 )
 
@@ -255,7 +254,7 @@ func paymentError(c *gin.Context, err error) {
 		authError(c, http.StatusConflict, "GATEWAY_AMOUNT_MUST_BE_REMAINING", "QRIS dan pembayaran gateway harus melunasi seluruh sisa tagihan.")
 	case errors.Is(err, service.ErrUnauthorizedCashierTender):
 		authError(c, http.StatusForbidden, "FORBIDDEN", err.Error())
-	case errors.Is(err, postgres.ErrOrderNotFound), errors.Is(err, postgres.ErrStoreNotFound):
+	case errors.Is(err, service.ErrOrderNotFound), errors.Is(err, service.ErrStoreNotFound):
 		authError(c, http.StatusNotFound, "NOT_FOUND", err.Error())
 	case errors.Is(err, service.ErrNoOpenShift):
 		authError(c, http.StatusConflict, "NO_OPEN_SHIFT", err.Error())
@@ -533,7 +532,7 @@ func writeOperationalError(c *gin.Context, err error) {
 			"code":  "NOT_REFUNDABLE",
 			"error": "Transaksi tidak dalam status yang dapat di-refund.",
 		})
-	case errors.Is(err, postgres.ErrOrderNotFound), errors.Is(err, postgres.ErrPaymentNotFound), errors.Is(err, service.ErrProductNotFound):
+	case errors.Is(err, service.ErrOrderNotFound), errors.Is(err, service.ErrPaymentNotFound), errors.Is(err, service.ErrProductNotFound):
 		c.JSON(http.StatusNotFound, gin.H{
 			"code":  "NOT_FOUND",
 			"error": "Data pesanan atau pembayaran tidak ditemukan.",
@@ -579,7 +578,7 @@ func divideOrderError(c *gin.Context, err error) {
 		authError(c, http.StatusUnprocessableEntity, "INVALID_SPLIT_COUNT", "Tagihan bisa dibagi untuk 2 sampai 20 orang.")
 	case errors.Is(err, service.ErrItemAllocationMismatch):
 		authError(c, http.StatusUnprocessableEntity, "ITEM_ALLOCATION_MISMATCH", "Setiap item harus dibagi tepat satu kali.")
-	case errors.Is(err, postgres.ErrOrderNotFound):
+	case errors.Is(err, service.ErrOrderNotFound):
 		authError(c, http.StatusNotFound, "NOT_FOUND", "Pesanan tidak ditemukan.")
 	default:
 		writeServiceError(c, err)

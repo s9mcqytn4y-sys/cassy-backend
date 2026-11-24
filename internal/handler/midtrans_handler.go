@@ -12,7 +12,6 @@ import (
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/metrics"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/midtrans"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/realtime"
-	"github.com/s9mcqytn4y-sys/cassy-backend/internal/repository/postgres"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/service"
 )
 
@@ -280,7 +279,7 @@ func (h *MidtransHandler) processVerifiedNotification(c *gin.Context, body []byt
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payment notification"})
 			return
 		}
-		if errors.Is(err, postgres.ErrPaymentNotFound) {
+		if errors.Is(err, service.ErrPaymentNotFound) {
 			metrics.MidtransWebhookEvents.WithLabelValues("tenant", "not_found").Inc()
 			c.JSON(http.StatusNotFound, gin.H{"error": "payment attempt not found"})
 			return
