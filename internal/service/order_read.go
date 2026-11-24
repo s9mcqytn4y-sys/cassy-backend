@@ -27,10 +27,7 @@ const (
 	orderListMaxLimit     = 100
 )
 
-var (
-	ErrOrderNotFound   = errors.New("order not found")
-	orderSearchPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,30}$`)
-)
+var orderSearchPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,30}$`)
 
 type OrderListFilter struct {
 	Status        string

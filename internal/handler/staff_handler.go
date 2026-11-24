@@ -11,7 +11,6 @@ import (
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/domain"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/auth"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/rbac"
-	"github.com/s9mcqytn4y-sys/cassy-backend/internal/repository/postgres"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/service"
 )
 
@@ -96,7 +95,7 @@ func lifecycleError(c *gin.Context, err error) {
 		authError(c, http.StatusForbidden, "FORBIDDEN", "Peran Anda tidak diizinkan melakukan aksi ini.")
 	case errors.Is(err, service.ErrStaffNotFound):
 		authError(c, http.StatusNotFound, "STAFF_NOT_FOUND", "Staf tidak ditemukan.")
-	case errors.Is(err, postgres.ErrEmailTaken):
+	case errors.Is(err, service.ErrEmailTaken):
 		authError(c, http.StatusConflict, "EMAIL_TAKEN", "Email sudah dipakai staf lain di toko ini.")
 	case errors.Is(err, service.ErrAuthBusy):
 		c.Header("Retry-After", "1")
