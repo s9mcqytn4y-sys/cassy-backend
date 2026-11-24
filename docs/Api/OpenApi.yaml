@@ -5153,7 +5153,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [device_role, features, catalog_version, first_served_at, catalog]
+                required: [device_role, features, catalog_version, first_served_at, catalog, cash_rounding_step]
                 properties:
                   device_role:
                     $ref: "#/components/schemas/DeviceRole"
@@ -5168,6 +5168,10 @@ paths:
                   catalog:
                     type: object
                     description: Same shape as GET /api/v1/pos/catalog.
+                  cash_rounding_step:
+                    type: integer
+                    enum: [0, 100, 500]
+                    description: Cash rounding (rupiah) the server applies at sync, so an offline device asks for the same cash.
         "401":
           description: DEVICE_INVALID (unknown, revoked, or credential of another store)
           content:
