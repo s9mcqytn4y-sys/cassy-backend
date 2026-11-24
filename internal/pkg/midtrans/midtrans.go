@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -24,14 +25,43 @@ import (
 // while keeping a strict 12-second total timeout per request.
 var sharedMidtransHTTPClient = &http.Client{
 	Timeout: 12 * time.Second,
-	Transport: &http.Transport{
+	Transport: &baseOverrideTransport{next: &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		MaxIdleConns:          64,
 		MaxIdleConnsPerHost:   32,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   5 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-	},
+	}},
+}
+
+// apiBaseOverride, when set, redirects every Core API request (platform and BYOK clients alike) to
+// a stub such as the Docker test stack's fake Midtrans. Set once at startup by UseAPIBaseURL.
+var apiBaseOverride *url.URL
+
+// UseAPIBaseURL points all Midtrans calls at base (scheme and host only). Call it once at startup,
+// before serving; config validation already refuses it in production. Empty base is a no-op.
+func UseAPIBaseURL(base string) error {
+	if base == "" {
+		return nil
+	}
+	u, err := url.Parse(base)
+	if err != nil || u.Host == "" {
+		return fmt.Errorf("invalid Midtrans API base %q", base)
+	}
+	apiBaseOverride = u
+	return nil
+}
+
+type baseOverrideTransport struct{ next http.RoundTripper }
+
+func (t *baseOverrideTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if apiBaseOverride == nil {
+		return t.next.RoundTrip(req)
+	}
+	redirected := req.Clone(req.Context())
+	redirected.URL.Scheme, redirected.URL.Host, redirected.Host = apiBaseOverride.Scheme, apiBaseOverride.Host, apiBaseOverride.Host
+	return t.next.RoundTrip(redirected)
 }
 
 type Client struct {

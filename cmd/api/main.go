@@ -21,6 +21,7 @@ import (
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/logging"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/mailer"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/metrics"
+	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/midtrans"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/sms"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/realtime"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/service"
@@ -37,6 +38,12 @@ func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("[FATAL CONFIG] %v", err)
+	}
+	if err := midtrans.UseAPIBaseURL(cfg.MidtransAPIBaseURL); err != nil {
+		log.Fatalf("[FATAL CONFIG] %v", err)
+	}
+	if cfg.MidtransAPIBaseURL != "" {
+		log.Printf("[MIDTRANS] all Core API calls go to the stub at %s (test stack only)", cfg.MidtransAPIBaseURL)
 	}
 
 	// Initialize Sentry error monitoring with Free Plan quota protection & PII scrubbing (R6)
