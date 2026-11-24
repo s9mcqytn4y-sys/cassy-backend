@@ -5153,10 +5153,13 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [device_role, features, catalog_version, first_served_at, catalog, cash_rounding_step]
+                required: [device_role, device_prefix, features, catalog_version, first_served_at, catalog, cash_rounding_step]
                 properties:
                   device_role:
                     $ref: "#/components/schemas/DeviceRole"
+                  device_prefix:
+                    type: string
+                    description: Starts every offline_queue_number this device sends ("<prefix>-..."); sync rejects any other prefix.
                   features:
                     $ref: "#/components/schemas/FeatureFlags"
                   catalog_version:

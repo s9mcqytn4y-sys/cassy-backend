@@ -74,7 +74,9 @@ type DeviceInput struct {
 
 // DeviceCatalog is the POS catalog plus the version a device sends back with each offline order.
 type DeviceCatalog struct {
-	Role          string          `json:"device_role"`
+	Role string `json:"device_role"`
+	// Prefix starts every offline_queue_number the device sends; sync rejects any other prefix (OF6).
+	Prefix        string          `json:"device_prefix"`
 	Features      map[string]bool `json:"features"`
 	Version       string          `json:"catalog_version"`
 	FirstServedAt time.Time       `json:"first_served_at"`
@@ -315,7 +317,7 @@ func (s *DeviceService) Catalog(ctx context.Context, credential string) (*Device
 		if err != nil {
 			return err
 		}
-		out = &DeviceCatalog{Role: device.Role, Features: features, Version: version, Catalog: view, CashRoundingStep: settings.CashRoundingStep}
+		out = &DeviceCatalog{Role: device.Role, Prefix: device.Prefix, Features: features, Version: version, Catalog: view, CashRoundingStep: settings.CashRoundingStep}
 		return tx.GetContext(ctx, &out.FirstServedAt, `SELECT first_served_at FROM catalog_versions WHERE store_id = $1 AND version = $2`, storeID, version)
 	})
 	if err != nil {

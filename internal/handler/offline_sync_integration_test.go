@@ -149,8 +149,12 @@ func TestOfflineSyncIntegration(t *testing.T) {
 
 	var served struct {
 		Version string `json:"catalog_version"`
+		Prefix  string `json:"device_prefix"`
 	}
 	_ = json.Unmarshal(call("GET", "/device/catalog", deviceAuth, nil).Body.Bytes(), &served)
+	if served.Prefix != prefix {
+		t.Fatalf("device catalog prefix = %q, want %q (the device numbers offline orders with it)", served.Prefix, prefix)
+	}
 
 	// A snapshot as if the device had been served Americano at Rp12.345 (prices the server must use).
 	var snapshot map[string]any
