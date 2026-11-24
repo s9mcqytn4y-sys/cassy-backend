@@ -23,7 +23,10 @@ Lihat antrean terpusat lintas repositori pada [BacklogAndDebt.md](../docs/Projec
 - [ ] Android: struk per bagian belum memuat item per orang (split per item).
 - [x] S3 OPS-06..08 terbukti live di CI (client #132, backend #170/#171, docker #12); merge #171 dulu agar govulncheck hijau.
 - [ ] Android: `MobileBootstrapData` membaca `hardware_config`, server mengirim `hardware`; konfigurasi hardware dari bootstrap tidak pernah terbaca.
-- [ ] S4: OPS-09 offline (TD-04 `enqueueCashOrder` tanpa pemanggil) dan gate PWA-01..07, PWA-10.
+- [x] S4: OPS-09 offline, cup label, live PWA-01/02/03/05/06, PWA-10 `check:copy` (client #133..#137, backend #172..#176, docker #13/#14).
+- [ ] Android: notifikasi sistem belum ada; `CassyNotificationManager` tanpa pemanggil dan izin `POST_NOTIFICATIONS` tidak pernah diminta (butuh foreground service).
+- [ ] Android: dapur offline W18 (tiket dicetak lewat print agent LAN, `printed_locally`) belum dipakai POS.
+- [ ] Gate PWA-08 (k6 50 klien satu IP) dan PWA-09 (Lighthouse CI) belum dikerjakan.
 - [x] Android: menu KDS dan Meja di layout HP, flag `split_bill` dibaca dari profil perangkat (client PR #102).
 - [x] Backend: flag `split_bill` ditegakkan di `dividePayFirstOrderTx` (split kasir non-tab dan tamu) dan `CloseTab` (split meja).
 - [x] Role `manager` K-04 (PR #167, migrasi 000078) dan tender EDC Android (client PR #118).
