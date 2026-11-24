@@ -10,12 +10,12 @@ Run once per client. Each step is checked before the next one.
 
 | # | Step | Check |
 |---|------|-------|
-| 1 | Hostinger KVM 2, Ubuntu 24.04. Create user `mycaffe` (sudo, docker group); SSH key login only; `PasswordAuthentication no`, `PermitRootLogin no` | `ssh mycaffe@<vps>` works and a password login is refused |
+| 1 | Hostinger KVM 2, Ubuntu 24.04. Create user `cassy` (sudo, docker group); SSH key login only; `PasswordAuthentication no`, `PermitRootLogin no` | `ssh cassy@<vps>` works and a password login is refused |
 | 2 | Firewall (§2) | `sudo ufw status verbose` shows deny incoming, with only 22 allowed from admin IPs |
 | 3 | Install Docker Engine + Compose plugin; enable unattended security upgrades | `docker compose version` |
-| 4 | Cloudflare: zone for the client domain → Zero Trust → Tunnels → create `mycaffe-<client>`; public hostnames `api.<domain>` and `pos.<domain>` → `http://nginx:80` | The tunnel shows *Healthy* after step 7 |
-| 5 | Check out the released tag to `/opt/mycaffe` (`deploy/` and `scripts/` only, never built here). Create `/etc/mycaffe/prod.env` (mode 600) from `.env.example`: database passwords, `JWT_SECRET_KEY` (`openssl rand -hex 32`), Midtrans production keys, SMTP, `CLOUDFLARE_TUNNEL_TOKEN`, `ALLOWED_ORIGINS=https://pos.<domain>` | `docker compose --env-file /etc/mycaffe/prod.env -f deploy/docker/docker-compose.prod.yml config` passes |
-| 6 | Backups: `/etc/mycaffe/backup.env`, then install `deploy/backup/mycaffe-backup.cron` to `/etc/cron.d/` | The first hourly backup appears in R2 |
+| 4 | Cloudflare: zone for the client domain → Zero Trust → Tunnels → create `cassy-<client>`; public hostnames `api.<domain>` and `pos.<domain>` → `http://nginx:80` | The tunnel shows *Healthy* after step 7 |
+| 5 | Check out the released tag to `/opt/cassy` (`deploy/` and `scripts/` only, never built here). Create `/etc/cassy/prod.env` (mode 600) from `.env.example`: database passwords, `JWT_SECRET_KEY` (`openssl rand -hex 32`), Midtrans production keys, SMTP, `CLOUDFLARE_TUNNEL_TOKEN`, `ALLOWED_ORIGINS=https://pos.<domain>` | `docker compose --env-file /etc/cassy/prod.env -f deploy/docker/docker-compose.prod.yml config` passes |
+| 6 | Backups: `/etc/cassy/backup.env`, the cron is installed by `scripts/deploy/BootstrapVps.sh` ([VpsBootstrap.md](VpsBootstrap.md)) | The first hourly backup appears in R2 |
 | 7 | First deploy: `scripts/deploy/DeployRelease.sh <api-digest> <web-digest>` | `https://api.<domain>/health/ready` returns 200 |
 | 8 | Bootstrap the store: `docker compose ... run --rm --entrypoint /app/cassy-migrate migrate -action=bootstrap-store -store-slug=<slug> -store-name=... -owner-name=... -owner-email=...` (the PIN is read from the terminal, never from a flag) | The owner logs in |
 | 9 | Midtrans dashboard: Payment Notification URL `https://api.<domain>/api/v1/payments/midtrans/webhook` | A sandbox or test transaction reaches `paid` |

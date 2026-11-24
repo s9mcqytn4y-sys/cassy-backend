@@ -18,7 +18,7 @@ Cloudflare, so there is no Certbot and no certificate volume. The firewall and p
 
 ## 2. Deploy
 
-On the VPS, as user `mycaffe`, from `/opt/mycaffe` (the released tag's `deploy/` and `scripts/`, see [BackupAndRestore.md](BackupAndRestore.md) Â§2):
+On the VPS, as user `cassy`, from `/opt/cassy` (git checkouts of `cassy-backend` and `cassy-docker` at the release tag, laid out by `scripts/deploy/BootstrapVps.sh`; see [VpsBootstrap.md](VpsBootstrap.md) and [BackupAndRestore.md](BackupAndRestore.md) Â§2):
 
 ```bash
 scripts/deploy/DeployRelease.sh sha256:<api digest>                      # web keeps its running digest; API-only while none was given
@@ -28,10 +28,10 @@ scripts/deploy/DeployRelease.sh sha256:<api digest> sha256:<web digest>  # adds 
 What it does, in order:
 
 1. Refuses anything that is not `sha256:<64 hex>`, and a second deploy running at the same time.
-2. Encrypted backup to R2 (`/etc/mycaffe/backup.env`, same lock as the hourly cron). A failed backup stops the deploy before anything changes.
-3. `docker compose pull`, then `up -d`. The `migrate` service applies additive migrations as `mycaffe_migrator` before `api` starts.
+2. Encrypted backup to R2 (`/etc/cassy/backup.env`, same lock as the hourly cron). A failed backup stops the deploy before anything changes.
+3. `docker compose pull`, then `up -d`. The `migrate` service applies additive migrations as `cassy_migrator` before `api` starts.
 4. Waits up to 180 s (`DEPLOY_HEALTH_TIMEOUT_S`) for the `api` container on the new digest to be `healthy` (`/health/ready`).
-5. Success: writes `/var/lib/mycaffe/deploy/current.env`, moves the old one to `previous.env`, appends to `history.log`.
+5. Success: writes `/var/lib/cassy/deploy/current.env`, moves the old one to `previous.env`, appends to `history.log`.
 6. Failure in pull, migrate, start or health: redeploys the previous digests and exits 1. The deploy is recorded as `FAILED ... rolled back` in `history.log`.
 
 Migrations stay additive (AGENTS.md), so the previous image keeps working on a schema that a failed deploy already migrated.
@@ -72,7 +72,7 @@ scripts/deploy/InvokeCompose.sh up -d alloy
 
 ## 5. Daily purge of technical rows (P0-08)
 
-`migrate -action=purge` runs as `mycaffe_migrator` and deletes only technical rows past retention.
+`migrate -action=purge` runs as `cassy_migrator` and deletes only technical rows past retention.
 It logs the deleted count per table.
 
 | Table | Deleted when |
@@ -89,12 +89,12 @@ It logs the deleted count per table.
 The job never purges money, audit or webhook evidence: payments, ledgers, `payment_notification_logs`,
 `audit_logs` and `approval_requests` are kept.
 
-The cron line is in `deploy/backup/mycaffe-backup.cron`, daily at 20:00 UTC (03:00 WIB). It reads the
-deployed digest from `/var/lib/mycaffe/deploy/current.env`.
+The cron line is in `Docker/Backup/CassyBackup.cron`, daily at 20:00 UTC (03:00 WIB). It reads the
+deployed digest from `/var/lib/cassy/deploy/current.env`.
 
 ## 6. If the rollback also fails (exit code 2)
 
-1. `cat /var/lib/mycaffe/deploy/history.log` and `scripts/deploy/InvokeCompose.sh logs --tail 300 migrate api`.
+1. `cat /var/lib/cassy/deploy/history.log` and `scripts/deploy/InvokeCompose.sh logs --tail 300 migrate api`.
 2. A migration that broke the old image is a migration bug: restore the pre-deploy backup ([BackupAndRestore.md](BackupAndRestore.md) Â§3), then deploy the last good digest.
 3. Never edit files or rebuild images on the VPS (ADR-002 Â§4).
 
@@ -107,12 +107,12 @@ deployed digest from `/var/lib/mycaffe/deploy/current.env`.
 ## 8. Demo host (WSL Ubuntu, decision W2)
 
 The public demo runs the same images and scripts as production on WSL Ubuntu 24.04, provisioned with
-[OperationsRunbook.md](OperationsRunbook.md) Â§1 steps 1â€“3 (user `mycaffe`, systemd, Docker Engine, ufw).
+[OperationsRunbook.md](OperationsRunbook.md) Â§1 steps 1â€“3 (user `cassy`, systemd, Docker Engine, ufw).
 Differences, all on the host and none in the images:
 
-- `/etc/profile.d/mycaffe-demo.sh` exports `DEPLOY_COMPOSE_OVERRIDE=/opt/mycaffe/deploy/docker/docker-compose.demo-vps.yml`
+- `/etc/profile.d/cassy-demo.sh` exports `DEPLOY_COMPOSE_OVERRIDE=/opt/cassy/Docker/Core/DockerComposeDemoVps.yml`
   (staging config, Midtrans sandbox, no Grafana agent) and `DEPLOY_SKIP_BACKUP=true` until the demo has an R2 backup bucket.
-- `/opt/mycaffe/deploy/docker/.env` links to `/etc/mycaffe/prod.env` (mode 600): fresh database passwords and JWT key,
+- `/opt/cassy/Docker/Core/.env` links to `/etc/cassy/prod.env` (mode 600): fresh database passwords and JWT key,
   provider keys copied from the owner's `.env.demo`.
 - Ingress is the `mycaffe-demo` Named Tunnel: public hostname `pos.abbdullaziz.online` â†’ `http://nginx:80`.
 
@@ -138,7 +138,7 @@ already forwards 127.0.0.1:5432 into the shared WSL network.
 
 The demo sends WhatsApp receipts through `cmd/wa-bridge` (whatsmeow, unofficial; demo and development only, the
 API refuses `WHATSAPP_DRIVER=bridge` in production). The override `docker-compose.demo-vps.yml` adds the
-`wa-bridge` container and points the API at it. On the demo host, `/etc/mycaffe/prod.env` needs
+`wa-bridge` container and points the API at it. On the demo host, `/etc/cassy/prod.env` needs
 `WA_BRIDGE_IMAGE_DIGEST` (from the `mycaffe-wa-bridge` release run summary) and `WHATSAPP_BRIDGE_TOKEN`
 (`openssl rand -hex 32`). Pair once with a dedicated demo number: `scripts/deploy/InvokeCompose.sh logs -f wa-bridge`,
 then WhatsApp > Linked devices > Link a device and scan the QR. The session stays in the `wa-bridge-data` volume;
