@@ -20,7 +20,8 @@ const staffContextKey = "mycaffe.staff"
 // is stored on the request context; handlers must never read store_id or actor ids from the body.
 func (h *AuthHandler) RequireStaff() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if h.authenticate(c) == nil {
+		staff := h.authenticate(c)
+		if staff == nil || !h.allowWrite(c, staff) {
 			return
 		}
 		c.Next()
@@ -41,8 +42,51 @@ func (h *AuthHandler) RequirePermission(p rbac.Permission) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		if !h.allowWrite(c, staff) {
+			return
+		}
 		c.Next()
 	}
+}
+
+// readOnlyExemptPrefixes stay writable after the trial ends: signing in and out, paying the
+// subscription, KYB and legal acceptance needed to pay, account clearance, and the realtime ticket.
+var readOnlyExemptPrefixes = []string{
+	"/api/v1/auth/staff/",
+	"/api/v1/store/subscription/",
+	"/api/v1/store/clearance",
+	"/api/v1/store/kyb",
+	"/api/v1/store/legal/",
+	"/api/v1/pos/ws-ticket",
+}
+
+// allowWrite refuses mutating requests (402 SUBSCRIPTION_READ_ONLY) from a store whose trial ended
+// without a paid plan. Reads and the exempt routes pass. On failure it writes the response, aborts,
+// and returns false.
+func (h *AuthHandler) allowWrite(c *gin.Context, staff *service.AuthenticatedStaff) bool {
+	switch c.Request.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	}
+	path := c.FullPath()
+	for _, prefix := range readOnlyExemptPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	readOnly, err := h.authService.SubscriptionReadOnly(c.Request.Context(), staff.Staff.Store.ID)
+	if err != nil {
+		log.Printf("[AUTH] subscription state error request_ip=%s: %v", c.ClientIP(), err)
+		authError(c, http.StatusServiceUnavailable, "SERVICE_TEMPORARILY_UNAVAILABLE", "Layanan sesi sedang tidak tersedia.")
+		c.Abort()
+		return false
+	}
+	if readOnly {
+		authError(c, http.StatusPaymentRequired, "SUBSCRIPTION_READ_ONLY", "Masa uji coba sudah berakhir. Data tetap aman dan bisa dilihat; pilih paket untuk mengubah data lagi.")
+		c.Abort()
+		return false
+	}
+	return true
 }
 
 // authenticate validates the bearer token, stores the identity on the context, and returns it.

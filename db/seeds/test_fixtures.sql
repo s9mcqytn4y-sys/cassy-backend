@@ -57,6 +57,11 @@ ON CONFLICT (id) DO UPDATE SET
     enabled_payment_methods = EXCLUDED.enabled_payment_methods,
     updated_at = NOW();
 
+-- FL1 W4: demo and e2e stores run on Pro so plan quotas and the expired-trial read-only guard
+-- never block the live Android and web suites.
+UPDATE platform_tenant_registry SET plan_code = 'pro_cafe', subscription_status = 'active', updated_at = NOW()
+WHERE store_id IN ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222') AND (plan_code, subscription_status) <> ('pro_cafe', 'active');
+
 -- =============================================================================
 -- 2. USERS (STAFF - 4 Operational Roles: owner, cashier, barista, kitchen)
 -- Development-only PIN for every seeded user: 482913 (argon2id, ADR-003 D2).

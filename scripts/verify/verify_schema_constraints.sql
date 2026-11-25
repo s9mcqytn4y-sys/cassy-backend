@@ -658,6 +658,11 @@ BEGIN
        OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_subscription_plans_quota_limits') THEN
         RAISE EXCEPTION 'CONSTRAINT FAILURE: pairing token TTL cap or plan quota check is missing!';
     END IF;
+    -- FL-Q4/FL-Q5 (migration 079): annual = 10 x monthly, KDS station quota non-negative.
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_subscription_plans_annual_ten_months')
+       OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_subscription_plans_kds_stations') THEN
+        RAISE EXCEPTION 'CONSTRAINT FAILURE: annual pricing or KDS station quota check is missing!';
+    END IF;
 
     RAISE NOTICE 'SUCCESS: Row-Level Security (RLS) on stores/orders/payments/notifications and DELETE privilege revocation verified.';
     RAISE NOTICE 'ALL CONSTRAINTS, RLS POLICIES, AND BEHAVIORAL VERIFICATIONS PASSED SUCCESSFULLY.';

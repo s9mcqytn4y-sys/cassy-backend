@@ -5,12 +5,12 @@
 
 INSERT INTO subscription_plans (
     code, name_id, name_en, monthly_price_idr, annual_price_idr, commission_bps,
-    max_tables, max_printers, supports_byok_midtrans, supports_kds_queue_tv, supports_whitelabel, supports_byo_notifications
+    max_tables, max_printers, supports_byok_midtrans, supports_kds_queue_tv, supports_whitelabel, supports_byo_notifications, max_kds_stations
 ) VALUES
-    ('trial_14d', 'Uji Coba Gratis 14 Hari', '14-Day Free Trial', 0, 0, 0, 15, 1, true, true, false, false),
-    ('starter_umkm', 'Starter UMKM', 'Starter SME', 149000, 1430400, 0, 15, 1, true, false, false, false),
-    ('pro_cafe', 'Pro Cafe & Resto', 'Pro Cafe & Resto', 299000, 2870400, 0, 0, 0, true, true, false, true),
-    ('enterprise_whitelabel', 'Enterprise White-Label', 'Enterprise White-Label', 599000, 5750400, 0, 0, 0, true, true, true, true)
+    ('trial_14d', 'Uji Coba Gratis 14 Hari', '14-Day Free Trial', 0, 0, 0, 15, 1, true, true, false, false, 1),
+    ('starter_umkm', 'Starter UMKM', 'Starter SME', 149000, 1490000, 0, 15, 1, true, true, false, false, 1),
+    ('pro_cafe', 'Pro Cafe & Resto', 'Pro Cafe & Resto', 299000, 2990000, 0, 0, 0, true, true, false, true, 0),
+    ('enterprise_whitelabel', 'Enterprise White-Label', 'Enterprise White-Label', 599000, 5990000, 0, 0, 0, true, true, true, true, 0)
 ON CONFLICT (code) DO UPDATE SET
     name_id = EXCLUDED.name_id,
     name_en = EXCLUDED.name_en,
@@ -20,6 +20,7 @@ ON CONFLICT (code) DO UPDATE SET
     supports_kds_queue_tv = EXCLUDED.supports_kds_queue_tv,
     supports_whitelabel = EXCLUDED.supports_whitelabel,
     supports_byo_notifications = EXCLUDED.supports_byo_notifications,
+    max_kds_stations = EXCLUDED.max_kds_stations,
     updated_at = NOW();
 
 INSERT INTO legal_documents (doc_type, version, locale, title, content_markdown, content_sha256)

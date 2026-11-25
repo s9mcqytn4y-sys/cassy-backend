@@ -6240,6 +6240,8 @@ paths:
                 enabled:
                   type: boolean
       responses:
+        "402":
+          $ref: "#/components/responses/PlanLimitReached"
         "200":
           description: All flags after the change
           content:
@@ -7285,10 +7287,24 @@ paths:
       tags: [SaaS Governance]
       operationId: listPublicSubscriptionPlans
       summary: List SaaS subscription plans in integer IDR (0% transaction commission)
+      description: |
+        Public price list read by the marketing site at build time. No tenant data. Annual price is
+        10 x monthly (FL-Q4). Every `max_*` quota uses 0 for unlimited. Sent with
+        `Cache-Control: public, max-age=300, s-maxage=300`.
       x-implementation-status: implemented
       responses:
         "200":
-          description: Active subscription plans
+          description: Active subscription plans, cheapest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [plans]
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SubscriptionPlan"
 
   /api/v1/public/onboarding/apply:
     post:
@@ -7844,26 +7860,39 @@ components:
             $ref: "#/components/schemas/ConflictResponse"
     PlanLimitReached:
       description: |
-        The store's subscription plan quota for this resource is full (`PLAN_LIMIT_REACHED`, PM-E1).
-        Archive, revoke, or deactivate an existing item or upgrade the plan. Limits come from
-        `subscription_plans` (`max_products`, `max_staff`, `max_devices`, `max_tables`, `max_printers`; 0 = unlimited).
+        The store's subscription plan does not allow this write. Three codes share 402:
+        - `PLAN_LIMIT_REACHED` (PM-E1): the quota for `resource` is full. Archive, revoke, or deactivate an
+          existing item or upgrade the plan. Limits come from `subscription_plans` (`max_products`, `max_staff`,
+          `max_devices`, `max_tables`, `max_printers`, `max_kds_stations`; 0 = unlimited). `kds_stations` counts
+          non-revoked devices with role `kds` and is checked on top of `devices`.
+        - `PLAN_FEATURE_UNAVAILABLE` (FL1 W4): the plan lacks `feature` (today only `kds_queue_tv`, behind the
+          `kds`/`queue_display` flags and device roles). Existing flags and devices are left as they are.
+        - `SUBSCRIPTION_READ_ONLY` (FL1 W4): the 14-day trial ended without a paid plan. Every staff write is refused
+          except sign-in/out, `/store/subscription/*`, `/store/kyb`, `/store/legal/*`, `/store/clearance*` and
+          `/pos/ws-ticket`; reads keep working and no data is deleted.
       content:
         application/json:
           schema:
             type: object
-            required: [code, error, resource, limit, plan_code]
+            required: [code, error]
             properties:
               code:
                 type: string
-                enum: [PLAN_LIMIT_REACHED]
+                enum: [PLAN_LIMIT_REACHED, PLAN_FEATURE_UNAVAILABLE, SUBSCRIPTION_READ_ONLY]
               error:
                 type: string
                 example: Paket Anda mencakup maksimal 2 perangkat POS aktif. Nonaktifkan yang tidak dipakai atau tingkatkan paket.
               resource:
                 type: string
-                enum: [products, staff, devices, tables, printers]
+                description: Set for PLAN_LIMIT_REACHED.
+                enum: [products, staff, devices, tables, printers, kds_stations]
               limit:
                 type: integer
+                description: Set for PLAN_LIMIT_REACHED.
+              feature:
+                type: string
+                description: Set for PLAN_FEATURE_UNAVAILABLE.
+                enum: [kds_queue_tv]
               plan_code:
                 type: string
     ValidationFailed:
@@ -7874,6 +7903,31 @@ components:
             $ref: "#/components/schemas/ValidationErrorResponse"
 
   schemas:
+    SubscriptionPlan:
+      type: object
+      required: [code, name_id, name_en, monthly_price_idr, annual_price_idr, commission_bps, max_tables, max_printers,
+        max_products, max_staff, max_devices, max_kds_stations, supports_byok_midtrans, supports_kds_queue_tv,
+        supports_whitelabel, supports_byo_notifications, is_active, created_at, updated_at]
+      properties:
+        code: {type: string, example: starter_umkm}
+        name_id: {type: string, example: Starter UMKM}
+        name_en: {type: string, example: Starter SME}
+        monthly_price_idr: {type: integer, format: int64, description: Integer rupiah, example: 149000}
+        annual_price_idr: {type: integer, format: int64, description: "Integer rupiah, always 10 x monthly", example: 1490000}
+        commission_bps: {type: integer, description: Always 0, example: 0}
+        max_tables: {type: integer, description: "0 = unlimited", example: 15}
+        max_printers: {type: integer, description: "0 = unlimited", example: 1}
+        max_products: {type: integer, description: "0 = unlimited", example: 100}
+        max_staff: {type: integer, description: "0 = unlimited", example: 5}
+        max_devices: {type: integer, description: "0 = unlimited", example: 2}
+        max_kds_stations: {type: integer, description: "0 = unlimited", example: 1}
+        supports_byok_midtrans: {type: boolean}
+        supports_kds_queue_tv: {type: boolean}
+        supports_whitelabel: {type: boolean}
+        supports_byo_notifications: {type: boolean}
+        is_active: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
     KDSTicket:
       type: object
       required: [id, order_id, order_number, queue_number, table_number, station, status, late_payment, created_at, lines]
