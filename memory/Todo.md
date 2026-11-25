@@ -39,4 +39,8 @@ Lihat antrean terpusat lintas repositori pada [BacklogAndDebt.md](../docs/Projec
 - [ ] A2 sisa: target PRD tiket pos ke kds di bawah 2 detik di LAN belum diukur.
 - [x] Ops Close Gate dan PWA Close Gate lulus simulasi (2026-11-25). A3 ditahan Director; gelombang FL1 berjalan (`Docs/PRD/PrdFrontendUxAndLaunch.md`).
 - [x] FL1 W1: nama MyCaffe di SMS OTP, reset PIN, jembatan SMS-email (warna Espresso ke Pandan), skrip MikroTik, label hop jaringan diganti Cassy. Identifier teknis (JWT iss/aud, salt OTP, kunci dev secretbox, nama service Windows, email seed) sengaja tetap.
-- [ ] FL1 W2 gerbang owner POS; W3 rilis Play; W4 situs pemasaran + batas paket; W5 micro-interaction.
+- [x] FL1 W2 gerbang owner POS (client #141). W3 hapus akun + pipeline AAB (backend #183, client #143/#144). W4 harga tahunan 10x, Starter KDS, batas paket, situs pemasaran (backend #182, client #142).
+- [ ] FL1 W5 micro-interaction (token motion + checklist komponen).
+- [ ] Director: D-U-N-S + akun Play organisasi; konfirmasi upload key di secret repo; masa retensi pajak; aset listing.
+- [ ] Data Safety: `network_security_config` prod masih mengizinkan HTTP ke `192.168.10.10`/`localhost` (server lokal LAN); putuskan sebelum menjawab "enkripsi saat transit: ya".
+- [ ] Mode baca-saja trial belum memblokir order QR tamu dan API perangkat; `/legal` dirender di klien (SEO lemah); gambar OG 1200x630 belum ada; tombol "Coba 14 hari" masih ke email (belum ada sign-up mandiri).
