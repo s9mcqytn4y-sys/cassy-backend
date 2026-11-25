@@ -1527,7 +1527,7 @@ func (s *GovernanceService) RunNetworkSimulation(ctx context.Context, actor *Aut
 	fallbackMode := "none"
 	recommendation := "Seluruh jalur Cloud HTTPS/WSS, PostgreSQL 18 RLS, dan perangkat LAN gerai beroperasi normal."
 	hops := []domain.NetworkSimulationHop{
-		{Hop: "Cloudflare Edge -> MyCaffe Go API", Protocol: "HTTPS/TLS 1.3", Status: "online", Latency: 14, Note: "Named Tunnel / Reverse Proxy aktif"},
+		{Hop: "Cloudflare Edge -> Cassy Go API", Protocol: "HTTPS/TLS 1.3", Status: "online", Latency: 14, Note: "Named Tunnel / Reverse Proxy aktif"},
 		{Hop: "Go API -> PostgreSQL 18 (WithTenantTx RLS)", Protocol: "TCP:5432", Status: "online", Latency: dbLatency, Note: "Isolasi tenant terverifikasi"},
 	}
 

@@ -28,7 +28,7 @@ Lihat antrean terpusat lintas repositori pada [BacklogAndDebt.md](../docs/Projec
 - [ ] Android: dapur offline W18 (tiket dicetak lewat print agent LAN, `printed_locally`) belum dipakai POS.
 - [x] S5: PWA-08 k6, PWA-09 Lighthouse, OPS-02/04/05 live, archtest, runbook VPS (backend #178/#179, docker #15, client #138..#140).
 - [ ] Drill RTO di VPS pilot setelah provisioning; tag rilis sama di `cassy-backend` dan `cassy-docker`.
-- [ ] A3 awal: upgrade Compose BOM/Kotlin, pecah `PosViewModel`, ekstrak `:core:*` untuk Cassy Manager.
+- [ ] A3 awal (ditahan): upgrade Compose BOM/Kotlin, pecah `PosViewModel`, ekstrak `:core:*` untuk Cassy Manager.
 - [x] Android: menu KDS dan Meja di layout HP, flag `split_bill` dibaca dari profil perangkat (client PR #102).
 - [x] Backend: flag `split_bill` ditegakkan di `dividePayFirstOrderTx` (split kasir non-tab dan tamu) dan `CloseTab` (split meja).
 - [x] Role `manager` K-04 (PR #167, migrasi 000078) dan tender EDC Android (client PR #118).
@@ -37,4 +37,6 @@ Lihat antrean terpusat lintas repositori pada [BacklogAndDebt.md](../docs/Projec
 - [ ] A2: uji RoleGate di tablet sungguhan (ubah peran perangkat ke `kds`, cek penahan saat shift terbuka); peran `backoffice` sementara tetap di kasir sampai layar A3 ada.
 - [x] KDS sebagai layar utama: tombol kembali disembunyikan (client PR #100).
 - [ ] A2 sisa: target PRD tiket pos ke kds di bawah 2 detik di LAN belum diukur.
-- [x] Ops Close Gate dan PWA Close Gate lulus simulasi (2026-11-25); A3 backoffice dibuka (`Docs/PRD/PrdOpsAndPwaClose.md` bagian 13).
+- [x] Ops Close Gate dan PWA Close Gate lulus simulasi (2026-11-25). A3 ditahan Director; gelombang FL1 berjalan (`Docs/PRD/PrdFrontendUxAndLaunch.md`).
+- [x] FL1 W1: nama MyCaffe di SMS OTP, reset PIN, jembatan SMS-email (warna Espresso ke Pandan), skrip MikroTik, label hop jaringan diganti Cassy. Identifier teknis (JWT iss/aud, salt OTP, kunci dev secretbox, nama service Windows, email seed) sengaja tetap.
+- [ ] FL1 W2 gerbang owner POS; W3 rilis Play; W4 situs pemasaran + batas paket; W5 micro-interaction.

@@ -22,7 +22,7 @@ import (
 
 var ErrVerificationNotFound = errors.New("verification not found")
 
-const customerVerifySMS = "Kode verifikasi nomor HP Anda di MyCaffe: %s. Berlaku 5 menit. Tunjukkan kode ini hanya kepada kasir."
+const customerVerifySMS = "Kode verifikasi nomor HP Anda di Cassy: %s. Berlaku 5 menit. Tunjukkan kode ini hanya kepada kasir."
 
 type Customer struct {
 	ID              uuid.UUID  `json:"id" db:"id"`

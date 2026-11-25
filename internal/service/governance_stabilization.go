@@ -87,7 +87,7 @@ func (s *GovernanceService) sendOnboardingProvisionedEmail(ctx context.Context, 
 	}
 	actionURL := s.appPublicURL
 	if actionURL == "" {
-		actionURL = "https://demo.abbdullaziz.online"
+		actionURL = "https://api.abbdullaziz.online"
 	}
 	rendered, err := mailer.Render(mailer.TemplateOnboardingProvisioned, mailer.Data{
 		StoreName:     app.BusinessName,
@@ -616,8 +616,8 @@ func defaultStoreMikrotikProfile(storeID uuid.UUID, now time.Time) *domain.Store
 		POSVLANCIDR:         "192.168.10.0/24",
 		StaffVLANCIDR:       "192.168.20.0/24",
 		GuestVLANCIDR:       "192.168.30.0/23",
-		POSWiFiSSID:         "MyCaffe-POS-Internal",
-		GuestWiFiSSID:       "MyCaffe-Guest-QR",
+		POSWiFiSSID:         "Cassy-POS-Internal",
+		GuestWiFiSSID:       "Cassy-Guest-QR",
 		GuestRateLimitMbps:  20,
 		POSReservedMbps:     10,
 		SFTPPort:            2222,
@@ -926,22 +926,22 @@ func (s *GovernanceService) GenerateStoreMikrotikRsc(ctx context.Context, actor 
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "# ============================================================================\n")
-	fmt.Fprintf(&b, "# MyCaffe POS by AzureDevID - MikroTik RouterOS v7 Baseline Automation (.rsc)\n")
+	fmt.Fprintf(&b, "# Cassy POS by AzureDevID - MikroTik RouterOS v7 Baseline Automation (.rsc)\n")
 	fmt.Fprintf(&b, "# Store Slug   : %s\n", storeSlug)
 	fmt.Fprintf(&b, "# Router Model : %s\n", profile.RouterModel)
 	fmt.Fprintf(&b, "# Generated At : %s\n", now.Format(time.RFC3339))
 	fmt.Fprintf(&b, "# Security     : Plain FTP (21), Telnet (23), HTTP (80), API (8728) DISABLED\n")
 	fmt.Fprintf(&b, "# ============================================================================\n\n")
 
-	fmt.Fprintf(&b, "/system identity set name=\"mycaffe-%s\"\n", storeSlug)
+	fmt.Fprintf(&b, "/system identity set name=\"cassy-%s\"\n", storeSlug)
 	fmt.Fprintf(&b, "/ip dns set servers=%s allow-remote-requests=yes cache-size=4096KiB\n\n", profile.DNSServers)
 
 	fmt.Fprintf(&b, "# 1. Bridge & 3-VLAN Segmentation (POS/KDS Critical, Staff Ops, Isolated Guest QR)\n")
-	fmt.Fprintf(&b, "/interface bridge add name=br-mycaffe vlan-filtering=no comment=\"MyCaffe Core LAN Bridge\"\n")
+	fmt.Fprintf(&b, "/interface bridge add name=br-cassy vlan-filtering=no comment=\"Cassy Core LAN Bridge\"\n")
 	fmt.Fprintf(&b, "/interface vlan\n")
-	fmt.Fprintf(&b, "add interface=br-mycaffe name=vlan10-pos-critical vlan-id=10 comment=\"POS Kasir, KDS, Thermal Printer TCP 9100, Local Print Agent\"\n")
-	fmt.Fprintf(&b, "add interface=br-mycaffe name=vlan20-staff-ops vlan-id=20 comment=\"Perangkat Operasional Staf & Manajer\"\n")
-	fmt.Fprintf(&b, "add interface=br-mycaffe name=vlan30-guest-qr vlan-id=30 comment=\"WiFi Pelanggan Scan QR Meja (Isolated)\"\n\n")
+	fmt.Fprintf(&b, "add interface=br-cassy name=vlan10-pos-critical vlan-id=10 comment=\"POS Kasir, KDS, Thermal Printer TCP 9100, Local Print Agent\"\n")
+	fmt.Fprintf(&b, "add interface=br-cassy name=vlan20-staff-ops vlan-id=20 comment=\"Perangkat Operasional Staf & Manajer\"\n")
+	fmt.Fprintf(&b, "add interface=br-cassy name=vlan30-guest-qr vlan-id=30 comment=\"WiFi Pelanggan Scan QR Meja (Isolated)\"\n\n")
 
 	fmt.Fprintf(&b, "# 2. IPv4 Addressing, DHCP Pools & Servers\n")
 	fmt.Fprintf(&b, "/ip address\n")
@@ -985,32 +985,32 @@ func (s *GovernanceService) GenerateStoreMikrotikRsc(ctx context.Context, actor 
 
 	fmt.Fprintf(&b, "# 4. Dual-WAN Recursive Failover (Primary Fiber ISP -> 4G LTE Backup Modem)\n")
 	fmt.Fprintf(&b, "/interface list\n")
-	fmt.Fprintf(&b, "add name=WAN-MYCAFFE\n")
-	fmt.Fprintf(&b, "add name=LAN-MYCAFFE\n")
+	fmt.Fprintf(&b, "add name=WAN-CASSY\n")
+	fmt.Fprintf(&b, "add name=LAN-CASSY\n")
 	fmt.Fprintf(&b, "/interface list member\n")
-	fmt.Fprintf(&b, "add list=WAN-MYCAFFE interface=\"%s\"\n", profile.WANPrimaryInterface)
-	fmt.Fprintf(&b, "add list=WAN-MYCAFFE interface=\"%s\"\n", profile.WANBackupInterface)
-	fmt.Fprintf(&b, "add list=LAN-MYCAFFE interface=vlan10-pos-critical\n")
-	fmt.Fprintf(&b, "add list=LAN-MYCAFFE interface=vlan20-staff-ops\n")
-	fmt.Fprintf(&b, "add list=LAN-MYCAFFE interface=vlan30-guest-qr\n\n")
+	fmt.Fprintf(&b, "add list=WAN-CASSY interface=\"%s\"\n", profile.WANPrimaryInterface)
+	fmt.Fprintf(&b, "add list=WAN-CASSY interface=\"%s\"\n", profile.WANBackupInterface)
+	fmt.Fprintf(&b, "add list=LAN-CASSY interface=vlan10-pos-critical\n")
+	fmt.Fprintf(&b, "add list=LAN-CASSY interface=vlan20-staff-ops\n")
+	fmt.Fprintf(&b, "add list=LAN-CASSY interface=vlan30-guest-qr\n\n")
 
 	fmt.Fprintf(&b, "/ip firewall nat\n")
-	fmt.Fprintf(&b, "add chain=srcnat out-interface-list=WAN-MYCAFFE action=masquerade comment=\"MyCaffe Dual-WAN NAT\"\n\n")
+	fmt.Fprintf(&b, "add chain=srcnat out-interface-list=WAN-CASSY action=masquerade comment=\"Cassy Dual-WAN NAT\"\n\n")
 
 	fmt.Fprintf(&b, "# Catatan: sesuaikan gateway IP ISP Utama & Modem 4G pada menu IP -> Routes di Winbox bila tidak memakai DHCP-Client otomatis\n")
 	fmt.Fprintf(&b, "/ip dhcp-client\n")
 	fmt.Fprintf(&b, "add interface=\"%s\" default-route-distance=1 use-peer-dns=no disabled=no comment=\"WAN1 Primary Fiber\"\n", profile.WANPrimaryInterface)
 	fmt.Fprintf(&b, "add interface=\"%s\" default-route-distance=2 use-peer-dns=no disabled=no comment=\"WAN2 Backup 4G LTE\"\n\n", profile.WANBackupInterface)
 
-	fmt.Fprintf(&b, "# 5. QoS Priority for MyCaffe Cloud (HTTPS/WSS) & Midtrans Core API + Guest Bandwidth Cap\n")
+	fmt.Fprintf(&b, "# 5. QoS Priority for Cassy Cloud (HTTPS/WSS) & Midtrans Core API + Guest Bandwidth Cap\n")
 	fmt.Fprintf(&b, "/ip firewall address-list\n")
-	fmt.Fprintf(&b, "add list=mycaffe-critical-cloud address=abbdullaziz.online comment=\"MyCaffe Production Root\"\n")
-	fmt.Fprintf(&b, "add list=mycaffe-critical-cloud address=demo.abbdullaziz.online comment=\"MyCaffe Cloud API & WSS\"\n")
-	fmt.Fprintf(&b, "add list=mycaffe-critical-cloud address=api.midtrans.com comment=\"Midtrans Production Core API\"\n")
-	fmt.Fprintf(&b, "add list=mycaffe-critical-cloud address=api.sandbox.midtrans.com comment=\"Midtrans Sandbox Core API\"\n\n")
+	fmt.Fprintf(&b, "add list=cassy-critical-cloud address=abbdullaziz.online comment=\"Cassy Production Root\"\n")
+	fmt.Fprintf(&b, "add list=cassy-critical-cloud address=api.abbdullaziz.online comment=\"Cassy Cloud API & WSS\"\n")
+	fmt.Fprintf(&b, "add list=cassy-critical-cloud address=api.midtrans.com comment=\"Midtrans Production Core API\"\n")
+	fmt.Fprintf(&b, "add list=cassy-critical-cloud address=api.sandbox.midtrans.com comment=\"Midtrans Sandbox Core API\"\n\n")
 
 	fmt.Fprintf(&b, "/ip firewall mangle\n")
-	fmt.Fprintf(&b, "add chain=prerouting src-address=%s dst-address-list=mycaffe-critical-cloud action=mark-connection new-connection-mark=pos-cloud-conn passthrough=yes\n", posSub.cidr)
+	fmt.Fprintf(&b, "add chain=prerouting src-address=%s dst-address-list=cassy-critical-cloud action=mark-connection new-connection-mark=pos-cloud-conn passthrough=yes\n", posSub.cidr)
 	fmt.Fprintf(&b, "add chain=prerouting connection-mark=pos-cloud-conn action=mark-packet new-packet-mark=pos-cloud-pkt passthrough=no\n")
 	fmt.Fprintf(&b, "add chain=prerouting src-address=%s action=mark-connection new-connection-mark=guest-wifi-conn passthrough=yes\n", guestSub.cidr)
 	fmt.Fprintf(&b, "add chain=prerouting connection-mark=guest-wifi-conn action=mark-packet new-packet-mark=guest-wifi-pkt passthrough=no\n\n")
@@ -1030,8 +1030,8 @@ func (s *GovernanceService) GenerateStoreMikrotikRsc(ctx context.Context, actor 
 	fmt.Fprintf(&b, "set api-ssl disabled=yes\n")
 	fmt.Fprintf(&b, "set ssh port=%d address=%s disabled=no\n", profile.SFTPPort, profile.WinboxAllowedCIDR)
 	fmt.Fprintf(&b, "set winbox port=%d address=%s disabled=no\n", profile.WinboxPort, profile.WinboxAllowedCIDR)
-	fmt.Fprintf(&b, "/tool mac-server set allowed-interface-list=LAN-MYCAFFE\n")
-	fmt.Fprintf(&b, "/tool mac-server mac-winbox set allowed-interface-list=LAN-MYCAFFE\n\n")
+	fmt.Fprintf(&b, "/tool mac-server set allowed-interface-list=LAN-CASSY\n")
+	fmt.Fprintf(&b, "/tool mac-server mac-winbox set allowed-interface-list=LAN-CASSY\n\n")
 
 	fmt.Fprintf(&b, "# 7. Stateful Firewall & Strict Guest-to-POS Isolation\n")
 	fmt.Fprintf(&b, "/ip firewall filter\n")
@@ -1039,13 +1039,13 @@ func (s *GovernanceService) GenerateStoreMikrotikRsc(ctx context.Context, actor 
 	fmt.Fprintf(&b, "add chain=input connection-state=invalid action=drop comment=\"Drop invalid input\"\n")
 	fmt.Fprintf(&b, "add chain=input in-interface=vlan30-guest-qr dst-port=%d,%d,21,22,23,80,8728 protocol=tcp action=drop comment=\"Block Guest WiFi from Winbox/SFTP/Router Management\"\n",
 		profile.WinboxPort, profile.SFTPPort)
-	fmt.Fprintf(&b, "add chain=input in-interface-list=WAN-MYCAFFE action=drop comment=\"Drop unsolicited WAN input\"\n")
+	fmt.Fprintf(&b, "add chain=input in-interface-list=WAN-CASSY action=drop comment=\"Drop unsolicited WAN input\"\n")
 	fmt.Fprintf(&b, "add chain=forward connection-state=established,related,untracked action=accept comment=\"Accept established forward\"\n")
 	fmt.Fprintf(&b, "add chain=forward connection-state=invalid action=drop comment=\"Drop invalid forward\"\n")
 	fmt.Fprintf(&b, "add chain=forward in-interface=vlan30-guest-qr out-interface=vlan10-pos-critical action=drop comment=\"CRITICAL: Block Guest WiFi -> POS/Printer TCP 9100/Local Server\"\n")
 	fmt.Fprintf(&b, "add chain=forward in-interface=vlan30-guest-qr out-interface=vlan20-staff-ops action=drop comment=\"Block Guest WiFi -> Staff VLAN\"\n")
 	fmt.Fprintf(&b, "# Aktifkan baris di bawah pada akhir setup melalui Safe Mode di Winbox:\n")
-	fmt.Fprintf(&b, "# /interface bridge set br-mycaffe vlan-filtering=yes\n")
+	fmt.Fprintf(&b, "# /interface bridge set br-cassy vlan-filtering=yes\n")
 
 	rscScript := b.String()
 	sum := sha256.Sum256([]byte(rscScript))
@@ -1095,9 +1095,9 @@ func (s *GovernanceService) GenerateStoreMikrotikRsc(ctx context.Context, actor 
 		},
 		{
 			StepNumber:  3,
-			Title:       "Unggah & Impor Skrip Otomasi MyCaffe (.rsc)",
-			MenuPath:    "Files -> Upload -> New Terminal -> /import file-name=mycaffe-" + storeSlug + ".rsc",
-			Instruction: fmt.Sprintf("Unggah berkas mycaffe-%s.rsc ke panel Files, buka New Terminal, lalu jalankan perintah import hingga muncul pesan 'Script file loaded and executed successfully'.", storeSlug),
+			Title:       "Unggah & Impor Skrip Otomasi Cassy (.rsc)",
+			MenuPath:    "Files -> Upload -> New Terminal -> /import file-name=cassy-" + storeSlug + ".rsc",
+			Instruction: fmt.Sprintf("Unggah berkas cassy-%s.rsc ke panel Files, buka New Terminal, lalu jalankan perintah import hingga muncul pesan 'Script file loaded and executed successfully'.", storeSlug),
 			SafetyCheck: "Tidak ada baris merah error pada jendela Terminal.",
 		},
 		{
@@ -1111,15 +1111,15 @@ func (s *GovernanceService) GenerateStoreMikrotikRsc(ctx context.Context, actor 
 			StepNumber:  5,
 			Title:       "Uji Isolasi WiFi Pelanggan & Failover Modem 4G",
 			MenuPath:    "IP -> Firewall -> Filter Rules & IP -> Routes",
-			Instruction: fmt.Sprintf("Sambungkan ponsel ke SSID %s (%s): pastikan halaman QR Order https://demo.abbdullaziz.online terbuka cepat namun ping ke printer kasir (%s) dan port Winbox (%d) ditolak total.", profile.GuestWiFiSSID, guestSub.cidr, posSub.poolEnd, profile.WinboxPort),
+			Instruction: fmt.Sprintf("Sambungkan ponsel ke SSID %s (%s): pastikan halaman QR Order https://api.abbdullaziz.online terbuka cepat namun ping ke printer kasir (%s) dan port Winbox (%d) ditolak total.", profile.GuestWiFiSSID, guestSub.cidr, posSub.poolEnd, profile.WinboxPort),
 			SafetyCheck: "Counter paket pada rule 'CRITICAL: Block Guest WiFi -> POS' bertambah saat diuji.",
 		},
 		{
 			StepNumber:  6,
 			Title:       "Kunci Bridge VLAN Filtering & Lepas Safe Mode",
-			MenuPath:    "Bridge -> br-mycaffe -> VLANs -> Centang VLAN Filtering -> Tekan [Safe Mode] lagi",
+			MenuPath:    "Bridge -> br-cassy -> VLANs -> Centang VLAN Filtering -> Tekan [Safe Mode] lagi",
 			Instruction: "Setelah port trunk/access sesuai dengan topologi switch gerai, aktifkan VLAN Filtering. Jika koneksi Winbox tetap stabil selama 30 detik, tekan kembali tombol Safe Mode untuk menyimpan permanen.",
-			SafetyCheck: "Koneksi kasir ke Cloud WSS & Midtrans Core API hijau pada Simulasi Jaringan MyCaffe.",
+			SafetyCheck: "Koneksi kasir ke Cloud WSS & Midtrans Core API hijau pada Simulasi Jaringan Cassy.",
 		},
 	}
 
@@ -1130,13 +1130,13 @@ func (s *GovernanceService) GenerateStoreMikrotikRsc(ctx context.Context, actor 
 		PlainFTPBlocked:        true,
 		PlainFTPPortBlocked:    21,
 		KeyAuthRecommended:     true,
-		RecommendedAlternative: "Cloudflare R2 Presigned Upload (Media Produk) & MyCaffe Offline Sync API (Data Transaksi)",
+		RecommendedAlternative: "Cloudflare R2 Presigned Upload (Media Produk) & Cassy Offline Sync API (Data Transaksi)",
 		SecurityRationale:      "Protokol FTP murni (port 21) mengirim kredensial dalam teks terbuka (cleartext) yang rentan disadap di jaringan WiFi kafe. Bila transfer berkas manual ke Local Edge Server diperlukan via FileZilla, wajib memilih protokol SFTP di port khusus dengan kunci SSH Ed25519 hanya dari VLAN POS.",
 	}
 
 	return &domain.MikrotikRscBundle{
 		Profile:             profile,
-		FileName:            fmt.Sprintf("mycaffe-%s-routeros7.rsc", storeSlug),
+		FileName:            fmt.Sprintf("cassy-%s-routeros7.rsc", storeSlug),
 		RscScript:           rscScript,
 		ScriptSHA256:        scriptHash,
 		WinboxSteps:         winboxSteps,
