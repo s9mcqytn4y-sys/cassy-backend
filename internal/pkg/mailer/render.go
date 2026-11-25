@@ -25,6 +25,7 @@ const (
 	TemplateInvoiceReminder       = "invoice_reminder"
 	TemplateOnboardingOTP         = "onboarding_otp"
 	TemplateOnboardingProvisioned = "onboarding_provisioned"
+	TemplateAccountDeletionOTP    = "account_deletion_otp"
 )
 
 var allTemplateNames = []string{
@@ -37,6 +38,7 @@ var allTemplateNames = []string{
 	TemplateInvoiceReminder,
 	TemplateOnboardingOTP,
 	TemplateOnboardingProvisioned,
+	TemplateAccountDeletionOTP,
 }
 
 type compiledTemplatePair struct {

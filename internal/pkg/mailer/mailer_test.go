@@ -24,6 +24,7 @@ func TestRenderAllTemplates(t *testing.T) {
 		mailer.TemplateInvoiceReminder,
 		mailer.TemplateOnboardingOTP,
 		mailer.TemplateOnboardingProvisioned,
+		mailer.TemplateAccountDeletionOTP,
 	} {
 		r, err := mailer.Render(name, data)
 		if err != nil {

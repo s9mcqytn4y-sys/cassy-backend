@@ -7337,6 +7337,121 @@ paths:
         "429":
           description: Cooldown active (60 seconds)
 
+  /api/v1/public/account-deletion/otp:
+    post:
+      security: []
+      tags: [SaaS Governance]
+      operationId: requestAccountDeletionOTP
+      summary: Email a 6-digit code to the store owner for /hapus-akun (always 202, no enumeration)
+      description: >-
+        Unknown stores, unknown or non-owner emails, inactive stores and rate-limited requests all
+        answer 202 without sending a code. A code lives 10 minutes; one per minute and five per hour
+        per owner. Every public deletion call counts toward 20 per 15 minutes per client IP.
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountDeletionOTPRequest"
+      responses:
+        "202":
+          description: Code sent when the owner email matches the store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeletionOTPResponse"
+        "429":
+          description: Too many requests from this IP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/public/account-deletion:
+    post:
+      security: []
+      tags: [SaaS Governance]
+      operationId: confirmAccountDeletion
+      summary: Verify the code and start the 30-day grace period before anonymization
+      description: >-
+        Creates a tenant clearance request with channel web. After cooling_off_ends_at the worker
+        anonymizes staff, customer and owner contact data and deactivates the store and its devices.
+        Orders, payments, shifts, reports and invoices are kept for the legal retention period.
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountDeletionConfirmRequest"
+      responses:
+        "201":
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeletionResponse"
+        "409":
+          description: >-
+            ACCOUNT_DELETION_PENDING (a request already runs its grace period, returned in request)
+            or CONFLICT (open shift or active order)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeletionPendingResponse"
+        "422":
+          description: OTP_INVALID (wrong, used or expired code, or unknown store/email)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests from this IP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/public/account-deletion/cancel:
+    post:
+      security: []
+      tags: [SaaS Governance]
+      operationId: cancelAccountDeletion
+      summary: Verify the code and cancel the request in its grace period
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountDeletionConfirmRequest"
+      responses:
+        "200":
+          description: Request cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeletionResponse"
+        "404":
+          description: ACCOUNT_DELETION_NOT_PENDING
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: OTP_INVALID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests from this IP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/v1/public/stores/{slug}/cms:
     get:
       security: []
@@ -7592,7 +7707,7 @@ paths:
     post:
       tags: [SaaS Governance]
       operationId: requestAccountClearance
-      summary: Request tax-safe account clearance (blocks if open shift or active orders exist; 7-day cooling-off, 10-year UU KUP ledger retention)
+      summary: Request tax-safe account clearance (blocks if open shift or active orders exist; 30-day cooling-off, 10-year UU KUP ledger retention)
       x-implementation-status: implemented
       security:
         - BearerStaffJWT: []
@@ -9604,6 +9719,99 @@ components:
               delta: {type: integer, format: int64}
               unit_cost_per_1000: {type: integer, format: int64}
               reason: {type: string}
+    AccountDeletionOTPRequest:
+      type: object
+      required: [store_slug, email]
+      properties:
+        store_slug:
+          type: string
+          example: central-cafe
+        email:
+          type: string
+          format: email
+
+    AccountDeletionOTPResponse:
+      type: object
+      required: [message, expires_in_seconds]
+      properties:
+        message:
+          type: string
+        expires_in_seconds:
+          type: integer
+          example: 600
+        dev_otp_preview:
+          type: string
+          description: Only in APP_ENV development or test
+
+    AccountDeletionConfirmRequest:
+      type: object
+      required: [store_slug, email, otp_code]
+      properties:
+        store_slug:
+          type: string
+        email:
+          type: string
+          format: email
+        otp_code:
+          type: string
+          pattern: "^[0-9]{6}$"
+        reason:
+          type: string
+          maxLength: 500
+          description: Optional; ignored by the cancel endpoint
+
+    AccountDeletionRequest:
+      type: object
+      required: [id, status, channel, cooling_off_ends_at, ledger_retention_until, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        store_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [cooling_off, cancelled, pii_anonymized_ledger_retained]
+          description: cooling_off = pending, pii_anonymized_ledger_retained = completed
+        channel:
+          type: string
+          enum: [pos, web]
+        reason:
+          type: string
+        cooling_off_ends_at:
+          type: string
+          format: date-time
+          description: When anonymization runs (requested + 30 days)
+        ledger_retention_until:
+          type: string
+          format: date-time
+        executed_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    AccountDeletionResponse:
+      type: object
+      required: [request]
+      properties:
+        request:
+          $ref: "#/components/schemas/AccountDeletionRequest"
+
+    AccountDeletionPendingResponse:
+      type: object
+      required: [code, error]
+      properties:
+        code:
+          type: string
+          example: ACCOUNT_DELETION_PENDING
+        error:
+          type: string
+        request:
+          $ref: "#/components/schemas/AccountDeletionRequest"
+
     ErrorResponse:
       type: object
       required: [error]

@@ -1,0 +1,13 @@
+Halo {{.RecipientName}},
+
+Ada permintaan untuk menghapus atau membatalkan penghapusan akun gerai {{.StoreName}} ({{.StoreSlug}}) di Cassy. Masukkan kode ini di halaman hapus akun:
+
+{{.OTPCode}}
+
+Berlaku {{.ExpiresIn}}. Jangan bagikan kode ini kepada siapa pun.
+Abaikan pesan ini bila Anda tidak memintanya. Akun Anda tidak berubah tanpa kode ini.{{if .ReplyTo}}
+Bantuan: {{.ReplyTo}}{{end}}
+
+--
+(c) {{.Year}} {{.StoreName}}
+Ditenagai Cassy oleh AzureDevID - Patuh UU PDP No. 27/2022

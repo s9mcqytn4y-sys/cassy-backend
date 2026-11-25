@@ -111,6 +111,8 @@ func wireHandlers(workerCtx context.Context, cfg *config.Config, db *sqlx.DB, hu
 	h.midtrans.SetPaymentService(paymentService)
 	h.midtrans.SetGovernanceService(governanceService)
 	h.governance = handler.NewGovernanceHandler(governanceService, cfg.PlatformAdminAPIKey)
+	// Anonymizes stores whose 30-day account deletion grace period ended (FL-Q9).
+	go governanceService.StartClearanceWorker(workerCtx, 15*time.Minute)
 
 	settingsService := service.NewSettingsService(db)
 	settingsService.SetRequireVerifiedGateway(cfg.AppEnv == "production")
@@ -525,6 +527,10 @@ func registerGovernanceRoutes(v1 *gin.RouterGroup, h *handlerSet) {
 	v1.POST("/public/onboarding/:id/verify-otp", handler.LimitBody(4<<10), h.governance.VerifyOnboardingOTP)
 	v1.POST("/public/onboarding/:id/resend-otp", handler.LimitBody(4<<10), h.governance.ResendOnboardingOTP)
 	v1.GET("/public/stores/:slug/cms", h.governance.GetPublicStoreCMS)
+	// Account deletion from /hapus-akun (FL-Q9): email OTP, 30-day grace period, then anonymization.
+	v1.POST("/public/account-deletion/otp", handler.LimitBody(4<<10), h.governance.RequestAccountDeletionOTP)
+	v1.POST("/public/account-deletion", handler.LimitBody(4<<10), h.governance.ConfirmAccountDeletion)
+	v1.POST("/public/account-deletion/cancel", handler.LimitBody(4<<10), h.governance.CancelAccountDeletion)
 
 	// Tenant Owner Self-Service Governance (strictly scoped via WithTenantTx + RLS)
 	ownerManage := h.auth.RequirePermission(rbac.StoreSettingsManage)
