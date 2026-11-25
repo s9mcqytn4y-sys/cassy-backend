@@ -218,6 +218,7 @@ type TenantClearanceRequest struct {
 	CoolingOffEndsAt     time.Time       `json:"cooling_off_ends_at" db:"cooling_off_ends_at"`
 	LedgerRetentionUntil time.Time       `json:"ledger_retention_until" db:"ledger_retention_until"`
 	ExecutedAt           *time.Time      `json:"executed_at,omitempty" db:"executed_at"`
+	Channel              string          `json:"channel" db:"channel"`
 	CreatedAt            time.Time       `json:"created_at" db:"created_at"`
 	UpdatedAt            time.Time       `json:"updated_at" db:"updated_at"`
 }

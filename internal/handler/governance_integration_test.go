@@ -988,39 +988,69 @@ func TestGovernanceIntegration(t *testing.T) {
 			t.Fatalf("expected 409 Conflict when Store A has active order, got %d: %s", blockedClear.Code, blockedClear.Body.String())
 		}
 
-		// 5. Tax-Safe Account Clearance on Store B (express-counter)
-		// Seed KYB & BYOK on Store B first, then request clearance -> execute clearance -> verify BYOK wiped while orders preserved!
-		_ = call("PUT", "/api/v1/store/kyb", ownerB, map[string]any{
+		// 5. Tax-Safe Account Clearance on a fresh store (the shared fixture stores must stay active for
+		// other tests, and executing a clearance now deactivates the store and anonymizes its staff).
+		migratorDSN := strings.TrimSpace(os.Getenv("TEST_MIGRATOR_DATABASE_URL"))
+		if migratorDSN == "" {
+			t.Skip("TEST_MIGRATOR_DATABASE_URL not set; skipping clearance execution")
+		}
+		migratorDB, err := database.NewPostgresDB(&config.Config{DatabaseURL: migratorDSN})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = migratorDB.Close() }()
+		suffixC := uuid.NewString()[:8]
+		slugC, emailC := "clear-"+suffixC, "owner.clear."+suffixC+"@cassy.local"
+		storeCID, _, err := service.BootstrapStore(context.Background(), migratorDB, service.BootstrapStoreInput{
+			Slug: slugC, StoreName: "Kafe Clearance", OwnerName: "Pemilik Clearance", OwnerEmail: emailC, PIN: "482913",
+		})
+		if err != nil {
+			t.Fatalf("bootstrap clearance store: %v", err)
+		}
+		ownerC := map[string]string{"Authorization": loginBearer(slugC, emailC)}
+		_ = call("PUT", "/api/v1/store/kyb", ownerC, map[string]any{
 			"entity_type":         "perorangan",
-			"legal_business_name": "Express Counter Test Clearance",
+			"legal_business_name": "Kafe Clearance Test",
 			"plan_code":           "starter_umkm",
 			"billing_cycle":       "monthly",
 		})
-		_ = call("PUT", "/api/v1/store/payment-credentials", ownerB, map[string]any{
+		_ = call("PUT", "/api/v1/store/payment-credentials", ownerC, map[string]any{
 			"environment": "sandbox",
-			"merchant_id": "G222222222",
-			"client_key":  "SB-Mid-client-StoreBTempKey22",
-			"server_key":  "SB-Mid-server-StoreBTempKey22",
+			"merchant_id": "G333333333",
+			"client_key":  "SB-Mid-client-StoreCTempKey33",
+			"server_key":  "SB-Mid-server-StoreCTempKey33",
 			"is_enabled":  true,
 		})
 
-		clearReq := call("POST", "/api/v1/store/clearance", ownerB, map[string]string{
+		clearReq := call("POST", "/api/v1/store/clearance", ownerC, map[string]string{
 			"reason": "Penutupan gerai cabang sementara setelah rekonsiliasi pajak",
 		})
 		if clearReq.Code != http.StatusCreated {
-			t.Fatalf("expected 201 requesting clearance on Store B, got %d: %s", clearReq.Code, clearReq.Body.String())
+			t.Fatalf("expected 201 requesting clearance, got %d: %s", clearReq.Code, clearReq.Body.String())
 		}
 		var cr domain.TenantClearanceRequest
 		_ = json.Unmarshal(clearReq.Body.Bytes(), &cr)
-
-		execRes := call("POST", fmt.Sprintf("/api/v1/platform/tenants/%s/clearance/%s/execute", storeBID, cr.ID), superadmin, nil)
-		if execRes.Code != http.StatusOK {
-			t.Fatalf("expected 200 executing Store B clearance, got %d: %s", execRes.Code, execRes.Body.String())
+		if cr.Channel != "pos" || time.Until(cr.CoolingOffEndsAt) < 29*24*time.Hour {
+			t.Fatalf("expected pos request with 30-day grace, got %+v", cr)
 		}
 
-		credAfter := call("GET", "/api/v1/store/payment-credentials", ownerB, nil)
-		if !strings.Contains(credAfter.Body.String(), `"server_key_masked":"REVOKED"`) || !strings.Contains(credAfter.Body.String(), `"is_enabled":false`) {
-			t.Fatalf("expected Store B BYOK credential to be cryptographically wiped and disabled, got: %s", credAfter.Body.String())
+		execRes := call("POST", fmt.Sprintf("/api/v1/platform/tenants/%s/clearance/%s/execute", storeCID, cr.ID), superadmin, nil)
+		if execRes.Code != http.StatusOK {
+			t.Fatalf("expected 200 executing clearance, got %d: %s", execRes.Code, execRes.Body.String())
+		}
+
+		// Owner sessions are revoked by the clearance, so check the result in the database.
+		var after struct {
+			Masked      string `db:"server_key_masked"`
+			Enabled     bool   `db:"is_enabled"`
+			StoreActive bool   `db:"store_active"`
+		}
+		if err := migratorDB.Get(&after, `SELECT c.server_key_masked, c.is_enabled, s.is_active AS store_active
+			FROM store_payment_credentials c JOIN stores s ON s.id = c.store_id WHERE c.store_id = $1`, storeCID); err != nil {
+			t.Fatal(err)
+		}
+		if after.Masked != "REVOKED" || after.Enabled || after.StoreActive {
+			t.Fatalf("expected BYOK wiped and store deactivated, got %+v", after)
 		}
 	})
 }
