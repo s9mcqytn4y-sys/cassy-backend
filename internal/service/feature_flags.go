@@ -137,6 +137,11 @@ func (s *FeatureService) Set(ctx context.Context, actor *AuthenticatedStaff, key
 		if err != nil {
 			return err
 		}
+		if enabled && !before[key] && (key == "kds" || key == "queue_display") {
+			if err := ensurePlanSupportsKDSQueueTV(ctx, tx, storeID); err != nil {
+				return err
+			}
+		}
 		now := s.nowFunc().UTC()
 		if _, err := tx.ExecContext(ctx, `INSERT INTO store_feature_flags (store_id, flag_key, enabled, updated_by, updated_at)
 			VALUES ($1, $2, $3, $4, $5)

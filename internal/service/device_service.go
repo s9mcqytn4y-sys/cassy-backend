@@ -159,13 +159,16 @@ func newDeviceFromInput(in DeviceInput, now time.Time) (*Device, error) {
 	return d, nil
 }
 
-// insertDeviceTx enforces the device plan quota, then inserts the device with its credential hash.
+// insertDeviceTx enforces the device plan quota and role gates, then inserts the device with its credential hash.
 func insertDeviceTx(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID, d *Device, credentialHash string, registeredBy uuid.UUID) error {
 	if err := ensurePlanQuota(ctx, tx, storeID, PlanResourceDevices); err != nil {
 		return err
 	}
 	if d.Role == "" {
 		d.Role = DeviceRolePOS
+	}
+	if err := ensureDeviceRoleAllowedTx(ctx, tx, storeID, d.Role); err != nil {
+		return err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, store_id, name, prefix, role, credential_hash, registered_by, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`, d.ID, storeID, d.Name, d.Prefix, d.Role, credentialHash, registeredBy, d.CreatedAt); err != nil {
@@ -226,7 +229,10 @@ func (s *DeviceService) UpdateDevice(ctx context.Context, actor *AuthenticatedSt
 		if in.Name != nil {
 			d.Name = name
 		}
-		if in.Role != nil {
+		if in.Role != nil && *in.Role != beforeRole {
+			if err := ensureDeviceRoleAllowedTx(ctx, tx, storeID, *in.Role); err != nil {
+				return err
+			}
 			d.Role = *in.Role
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE devices SET name = $3, role = $4, updated_at = $5 WHERE store_id = $1 AND id = $2`,

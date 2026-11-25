@@ -95,13 +95,15 @@ func (h *GovernanceHandler) ListPublicLegalDocuments(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"documents": docs})
 }
 
-// ListPublicSubscriptionPlans handles GET /api/v1/public/plans
+// ListPublicSubscriptionPlans handles GET /api/v1/public/plans. The list holds no tenant data and
+// changes only by migration, so shared caches (Cloudflare, the marketing site build) may keep it 5 minutes.
 func (h *GovernanceHandler) ListPublicSubscriptionPlans(c *gin.Context) {
 	plans, err := h.governance.ListSubscriptionPlans(c.Request.Context())
 	if err != nil {
 		writeGovernanceError(c, err)
 		return
 	}
+	c.Header("Cache-Control", "public, max-age=300, s-maxage=300")
 	c.JSON(http.StatusOK, gin.H{"plans": plans})
 }
 

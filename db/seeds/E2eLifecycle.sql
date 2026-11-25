@@ -16,6 +16,11 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+-- FL1 W4: demo and e2e stores run on Pro so plan quotas and the expired-trial read-only guard
+-- never block the live Android and web suites.
+UPDATE platform_tenant_registry SET plan_code = 'pro_cafe', subscription_status = 'active', updated_at = NOW()
+WHERE store_id IN ('e2e00000-0000-4000-8000-000000000001') AND (plan_code, subscription_status) <> ('pro_cafe', 'active');
+
 INSERT INTO users (id, store_id, email, full_name, role, phone, pin_hash, is_active, pin_set_at)
 VALUES
     ('e2e00001-0000-4000-8000-000000000001', 'e2e00000-0000-4000-8000-000000000001', 'owner.e2e@cassy.local',

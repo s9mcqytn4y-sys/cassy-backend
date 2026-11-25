@@ -197,7 +197,8 @@ func (s *GovernanceService) ListSubscriptionPlans(ctx context.Context) ([]domain
 	var plans []domain.SubscriptionPlan
 	if err := s.db.SelectContext(ctx, &plans, `
 		SELECT code, name_id, name_en, monthly_price_idr, annual_price_idr, commission_bps,
-		       max_tables, max_printers, supports_byok_midtrans, supports_kds_queue_tv,
+		       max_tables, max_printers, max_products, max_staff, max_devices, max_kds_stations,
+		       supports_byok_midtrans, supports_kds_queue_tv,
 		       supports_whitelabel, supports_byo_notifications, is_active, created_at, updated_at
 		FROM subscription_plans
 		WHERE is_active = true
@@ -1616,7 +1617,8 @@ func (s *GovernanceService) CreatePlatformSubscriptionInvoice(ctx context.Contex
 	var plan domain.SubscriptionPlan
 	if err := s.db.GetContext(ctx, &plan, `
 		SELECT code, name_id, name_en, monthly_price_idr, annual_price_idr, commission_bps,
-		       max_tables, max_printers, supports_byok_midtrans, supports_kds_queue_tv,
+		       max_tables, max_printers, max_products, max_staff, max_devices, max_kds_stations,
+		       supports_byok_midtrans, supports_kds_queue_tv,
 		       supports_whitelabel, supports_byo_notifications, is_active, created_at, updated_at
 		FROM subscription_plans
 		WHERE code = $1 AND is_active = true

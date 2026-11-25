@@ -24,6 +24,8 @@ const (
 	PlanResourceDevices  PlanResource = "devices"
 	PlanResourceTables   PlanResource = "tables"
 	PlanResourcePrinters PlanResource = "printers"
+	// PlanResourceKDSStations counts devices with role kds; checked on top of PlanResourceDevices.
+	PlanResourceKDSStations PlanResource = "kds_stations"
 )
 
 // PlanLimitError reports that the store's plan does not allow one more resource of this kind.
@@ -46,11 +48,12 @@ type planQuota struct {
 }
 
 var planQuotas = map[PlanResource]planQuota{
-	PlanResourceProducts: {"max_products", `SELECT COUNT(*) FROM products WHERE store_id = $1 AND archived_at IS NULL`},
-	PlanResourceStaff:    {"max_staff", `SELECT COUNT(*) FROM users WHERE store_id = $1 AND is_active`},
-	PlanResourceDevices:  {"max_devices", `SELECT COUNT(*) FROM devices WHERE store_id = $1 AND revoked_at IS NULL`},
-	PlanResourceTables:   {"max_tables", `SELECT COUNT(*) FROM tables WHERE store_id = $1 AND archived_at IS NULL`},
-	PlanResourcePrinters: {"max_printers", `SELECT COUNT(*) FROM printers WHERE store_id = $1 AND is_active`},
+	PlanResourceProducts:    {"max_products", `SELECT COUNT(*) FROM products WHERE store_id = $1 AND archived_at IS NULL`},
+	PlanResourceStaff:       {"max_staff", `SELECT COUNT(*) FROM users WHERE store_id = $1 AND is_active`},
+	PlanResourceDevices:     {"max_devices", `SELECT COUNT(*) FROM devices WHERE store_id = $1 AND revoked_at IS NULL`},
+	PlanResourceTables:      {"max_tables", `SELECT COUNT(*) FROM tables WHERE store_id = $1 AND archived_at IS NULL`},
+	PlanResourcePrinters:    {"max_printers", `SELECT COUNT(*) FROM printers WHERE store_id = $1 AND is_active`},
+	PlanResourceKDSStations: {"max_kds_stations", `SELECT COUNT(*) FROM devices WHERE store_id = $1 AND revoked_at IS NULL AND role = 'kds'`},
 }
 
 // errPlanNotResolved means the store has no registry row; creation fails closed (503).
@@ -91,6 +94,58 @@ func ensurePlanQuota(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID, resour
 	}
 	if used >= plan.Limit {
 		return &PlanLimitError{Resource: resource, Limit: plan.Limit, PlanCode: plan.Code}
+	}
+	return nil
+}
+
+// PlanFeatureKDSQueueTV names the plan capability behind the kds and queue_display flags and device roles.
+const PlanFeatureKDSQueueTV = "kds_queue_tv"
+
+// PlanFeatureError reports that the store's plan does not include a capability at all, as opposed
+// to PlanLimitError where the capability exists but its quota is full.
+type PlanFeatureError struct {
+	Feature  string
+	PlanCode string
+}
+
+func (e *PlanFeatureError) Error() string {
+	return fmt.Sprintf("plan %s does not include %s", e.PlanCode, e.Feature)
+}
+
+// ensurePlanSupportsKDSQueueTV returns *PlanFeatureError when the plan has supports_kds_queue_tv off.
+// Call it inside the tenant transaction before turning the kds/queue_display flag on or giving a
+// device the kds/queue_display role. Existing flags and devices are left as they are.
+func ensurePlanSupportsKDSQueueTV(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID) error {
+	var plan struct {
+		Code      string `db:"code"`
+		Supported bool   `db:"supports_kds_queue_tv"`
+	}
+	err := tx.GetContext(ctx, &plan, `SELECT p.code, p.supports_kds_queue_tv
+		FROM platform_tenant_registry r JOIN subscription_plans p ON p.code = r.plan_code
+		WHERE r.store_id = $1`, storeID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return errPlanNotResolved
+	}
+	if err != nil {
+		return fmt.Errorf("failed to load plan features: %w", err)
+	}
+	if !plan.Supported {
+		return &PlanFeatureError{Feature: PlanFeatureKDSQueueTV, PlanCode: plan.Code}
+	}
+	return nil
+}
+
+// ensureDeviceRoleAllowedTx gates the kds and queue_display roles on the plan capability and, for
+// kds, on the KDS station quota. Other roles pass untouched.
+func ensureDeviceRoleAllowedTx(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID, role string) error {
+	if role != DeviceRoleKDS && role != DeviceRoleQueueDisplay {
+		return nil
+	}
+	if err := ensurePlanSupportsKDSQueueTV(ctx, tx, storeID); err != nil {
+		return err
+	}
+	if role == DeviceRoleKDS {
+		return ensurePlanQuota(ctx, tx, storeID, PlanResourceKDSStations)
 	}
 	return nil
 }

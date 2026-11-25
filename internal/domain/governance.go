@@ -105,6 +105,8 @@ type LegalDocument struct {
 	CreatedAt       time.Time         `json:"created_at" db:"created_at"`
 }
 
+// SubscriptionPlan is one row of the public price list. Prices are integer rupiah; every max_*
+// quota uses 0 for unlimited.
 type SubscriptionPlan struct {
 	Code                     string    `json:"code" db:"code"`
 	NameID                   string    `json:"name_id" db:"name_id"`
@@ -114,6 +116,10 @@ type SubscriptionPlan struct {
 	CommissionBPS            int       `json:"commission_bps" db:"commission_bps"`
 	MaxTables                int       `json:"max_tables" db:"max_tables"`
 	MaxPrinters              int       `json:"max_printers" db:"max_printers"`
+	MaxProducts              int       `json:"max_products" db:"max_products"`
+	MaxStaff                 int       `json:"max_staff" db:"max_staff"`
+	MaxDevices               int       `json:"max_devices" db:"max_devices"`
+	MaxKDSStations           int       `json:"max_kds_stations" db:"max_kds_stations"`
 	SupportsBYOKMidtrans     bool      `json:"supports_byok_midtrans" db:"supports_byok_midtrans"`
 	SupportsKDSQueueTV       bool      `json:"supports_kds_queue_tv" db:"supports_kds_queue_tv"`
 	SupportsWhiteLabel       bool      `json:"supports_whitelabel" db:"supports_whitelabel"`

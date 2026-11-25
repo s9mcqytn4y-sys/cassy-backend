@@ -22,6 +22,7 @@ import (
 //	401/403                authentication / permission (middleware or service)
 //	404 NOT_FOUND          id not in the caller's store
 //	402 PLAN_LIMIT_REACHED subscription plan quota full, {"resource", "limit", "plan_code"}
+//	402 PLAN_FEATURE_UNAVAILABLE plan lacks the capability, {"feature", "plan_code"}
 //	409 CONFLICT           uniqueness clash, {"field": "..."}
 //	422 VALIDATION_FAILED  {"fields": {"name": "wajib diisi", ...}}
 //	503                    infrastructure failure (logged with request id)
@@ -38,9 +39,12 @@ func writeServiceError(c *gin.Context, err error) {
 	var validation *service.ValidationError
 	var conflict *service.ConflictError
 	var planLimit *service.PlanLimitError
+	var planFeature *service.PlanFeatureError
 	switch {
 	case errors.As(err, &planLimit):
 		writePlanLimit(c, planLimit)
+	case errors.As(err, &planFeature):
+		writePlanFeature(c, planFeature)
 	case errors.As(err, &validation):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "VALIDATION_FAILED", "error": "Periksa kembali isian yang ditandai.", "fields": validation.Fields})
 	case errors.As(err, &conflict):
@@ -59,11 +63,12 @@ func writeServiceError(c *gin.Context, err error) {
 
 // planResourceLabels names each quota resource in owner-facing copy.
 var planResourceLabels = map[service.PlanResource]string{
-	service.PlanResourceProducts: "menu aktif",
-	service.PlanResourceStaff:    "staf aktif",
-	service.PlanResourceDevices:  "perangkat POS aktif",
-	service.PlanResourceTables:   "meja aktif",
-	service.PlanResourcePrinters: "printer aktif",
+	service.PlanResourceProducts:    "menu aktif",
+	service.PlanResourceStaff:       "staf aktif",
+	service.PlanResourceDevices:     "perangkat POS aktif",
+	service.PlanResourceTables:      "meja aktif",
+	service.PlanResourcePrinters:    "printer aktif",
+	service.PlanResourceKDSStations: "stasiun KDS aktif",
 }
 
 // writePlanLimit answers 402 so clients can show an upgrade prompt instead of a generic error.
@@ -73,6 +78,16 @@ func writePlanLimit(c *gin.Context, e *service.PlanLimitError) {
 		"error":     fmt.Sprintf("Paket Anda mencakup maksimal %d %s. Nonaktifkan yang tidak dipakai atau tingkatkan paket.", e.Limit, planResourceLabels[e.Resource]),
 		"resource":  e.Resource,
 		"limit":     e.Limit,
+		"plan_code": e.PlanCode,
+	})
+}
+
+// writePlanFeature answers 402 when the plan does not include the capability at all.
+func writePlanFeature(c *gin.Context, e *service.PlanFeatureError) {
+	c.JSON(http.StatusPaymentRequired, gin.H{
+		"code":      "PLAN_FEATURE_UNAVAILABLE",
+		"error":     "Paket Anda belum mencakup KDS dan TV antrean. Tingkatkan paket untuk memakainya.",
+		"feature":   e.Feature,
 		"plan_code": e.PlanCode,
 	})
 }
