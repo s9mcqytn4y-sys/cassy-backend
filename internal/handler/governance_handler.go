@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/service"
@@ -19,12 +20,14 @@ const PlatformAdminHeader = "X-Platform-Admin-Key"
 type GovernanceHandler struct {
 	governance       *service.GovernanceService
 	platformAdminKey string
+	deletionPerIP    *loginFailureLimiter
 }
 
 func NewGovernanceHandler(governance *service.GovernanceService, platformAdminKey string) *GovernanceHandler {
 	return &GovernanceHandler{
 		governance:       governance,
 		platformAdminKey: strings.TrimSpace(platformAdminKey),
+		deletionPerIP:    newLoginFailureLimiter(20, 15*time.Minute),
 	}
 }
 

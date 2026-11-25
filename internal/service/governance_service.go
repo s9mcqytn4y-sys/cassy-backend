@@ -1801,59 +1801,75 @@ func (s *GovernanceService) RequestAccountClearance(ctx context.Context, actor *
 	userID := actor.Staff.UserID
 	now := s.nowFunc().UTC()
 
-	var out domain.TenantClearanceRequest
+	var out *domain.TenantClearanceRequest
 	err := database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
-		var hasOpenShift bool
-		if err := tx.GetContext(ctx, &hasOpenShift, `SELECT EXISTS (SELECT 1 FROM shifts WHERE store_id = $1 AND status = 'open')`, storeID); err != nil {
-			return err
-		}
-		if hasOpenShift {
-			return &ConflictError{Field: "shift", Message: "tutup seluruh sesi shift kasir yang masih terbuka sebelum mengajukan penutupan akun"}
-		}
-
-		var hasActiveOrders bool
-		if err := tx.GetContext(ctx, &hasActiveOrders, `
-			SELECT EXISTS (
-				SELECT 1 FROM orders
-				WHERE store_id = $1 AND (status IN ('open', 'queued', 'preparing', 'ready', 'served') OR payment_status = 'pending')
-			)
-		`, storeID); err != nil {
-			return err
-		}
-		if hasActiveOrders {
-			return &ConflictError{Field: "orders", Message: "selesaikan atau batalkan pesanan aktif/pending sebelum mengajukan penutupan akun"}
-		}
-
-		var existingActive bool
-		if err := tx.GetContext(ctx, &existingActive, `
-			SELECT EXISTS (SELECT 1 FROM tenant_clearance_requests WHERE store_id = $1 AND status = 'cooling_off')
-		`, storeID); err != nil {
-			return err
-		}
-		if existingActive {
-			return &ConflictError{Field: "status", Message: "pengajuan penutupan akun sedang berjalan pada masa tenggang"}
-		}
-
-		// Immediately disable BYOK Midtrans new charges when clearance is requested.
-		_, _ = tx.ExecContext(ctx, `UPDATE store_payment_credentials SET is_enabled = false, updated_at = $2 WHERE store_id = $1`, storeID, now)
-		_, _ = tx.ExecContext(ctx, `UPDATE platform_tenant_registry SET byok_midtrans_enabled = false, updated_at = $2 WHERE store_id = $1`, storeID, now)
-
-		err := tx.GetContext(ctx, &out, `
-			INSERT INTO tenant_clearance_requests (
-				id, store_id, requested_by_user_id, reason, status, cooling_off_ends_at, ledger_retention_until, created_at, updated_at
-			) VALUES ($1, $2, $3, $4, 'cooling_off', $5, $6, $7, $7)
-			RETURNING id, store_id, requested_by_user_id, reason, status, cooling_off_ends_at, ledger_retention_until, executed_at, created_at, updated_at
-		`, uuid.New(), storeID, userID, cleanReason, now.Add(7*24*time.Hour), now.AddDate(10, 0, 0), now)
-		if err != nil {
-			return err
-		}
-		return s.writeGovernanceAuditTx(ctx, tx, storeID, &userID, "tenant_owner", "CLEARANCE_REQUESTED",
-			cleanReason, map[string]any{"clearance_id": out.ID, "cooling_off_ends_at": out.CoolingOffEndsAt})
+		var err error
+		out, err = s.createClearanceTx(ctx, tx, storeID, userID, cleanReason, "pos", now)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &out, nil
+	return out, nil
+}
+
+// ClearanceGracePeriod is the cooling-off window between a deletion request and anonymization
+// (FL-Q9: 30 days). The owner can cancel from the POS or from /hapus-akun until it ends.
+const ClearanceGracePeriod = 30 * 24 * time.Hour
+
+// createClearanceTx refuses while a shift or order is still open, disables new BYOK charges, and
+// inserts the cooling-off request with its audit row. Shared by the POS and web channels.
+func (s *GovernanceService) createClearanceTx(ctx context.Context, tx *sqlx.Tx, storeID, userID uuid.UUID, reason, channel string, now time.Time) (*domain.TenantClearanceRequest, error) {
+	out := &domain.TenantClearanceRequest{}
+	var hasOpenShift bool
+	if err := tx.GetContext(ctx, &hasOpenShift, `SELECT EXISTS (SELECT 1 FROM shifts WHERE store_id = $1 AND status = 'open')`, storeID); err != nil {
+		return nil, err
+	}
+	if hasOpenShift {
+		return nil, &ConflictError{Field: "shift", Message: "tutup seluruh sesi shift kasir yang masih terbuka sebelum mengajukan penutupan akun"}
+	}
+
+	var hasActiveOrders bool
+	if err := tx.GetContext(ctx, &hasActiveOrders, `
+		SELECT EXISTS (
+			SELECT 1 FROM orders
+			WHERE store_id = $1 AND (status IN ('open', 'queued', 'preparing', 'ready', 'served') OR payment_status = 'pending')
+		)
+	`, storeID); err != nil {
+		return nil, err
+	}
+	if hasActiveOrders {
+		return nil, &ConflictError{Field: "orders", Message: "selesaikan atau batalkan pesanan aktif/pending sebelum mengajukan penutupan akun"}
+	}
+
+	var existingActive bool
+	if err := tx.GetContext(ctx, &existingActive, `
+		SELECT EXISTS (SELECT 1 FROM tenant_clearance_requests WHERE store_id = $1 AND status = 'cooling_off')
+	`, storeID); err != nil {
+		return nil, err
+	}
+	if existingActive {
+		return nil, &ConflictError{Field: "status", Message: "pengajuan penutupan akun sedang berjalan pada masa tenggang"}
+	}
+
+	// Immediately disable BYOK Midtrans new charges when clearance is requested.
+	_, _ = tx.ExecContext(ctx, `UPDATE store_payment_credentials SET is_enabled = false, updated_at = $2 WHERE store_id = $1`, storeID, now)
+	_, _ = tx.ExecContext(ctx, `UPDATE platform_tenant_registry SET byok_midtrans_enabled = false, updated_at = $2 WHERE store_id = $1`, storeID, now)
+
+	err := tx.GetContext(ctx, out, `
+		INSERT INTO tenant_clearance_requests (
+			id, store_id, requested_by_user_id, reason, status, cooling_off_ends_at, ledger_retention_until, channel, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, 'cooling_off', $5, $6, $7, $8, $8)
+		RETURNING id, store_id, requested_by_user_id, reason, status, cooling_off_ends_at, ledger_retention_until, executed_at, channel, created_at, updated_at
+	`, uuid.New(), storeID, userID, reason, now.Add(ClearanceGracePeriod), now.AddDate(10, 0, 0), channel, now)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.writeGovernanceAuditTx(ctx, tx, storeID, &userID, "tenant_owner", "CLEARANCE_REQUESTED",
+		reason, map[string]any{"clearance_id": out.ID, "cooling_off_ends_at": out.CoolingOffEndsAt, "channel": channel}); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (s *GovernanceService) CancelAccountClearance(ctx context.Context, actor *AuthenticatedStaff, clearanceID uuid.UUID) (*domain.TenantClearanceRequest, error) {
@@ -1870,7 +1886,7 @@ func (s *GovernanceService) CancelAccountClearance(ctx context.Context, actor *A
 			UPDATE tenant_clearance_requests
 			SET status = 'cancelled', updated_at = $3
 			WHERE store_id = $1 AND id = $2 AND status = 'cooling_off'
-			RETURNING id, store_id, requested_by_user_id, reason, status, cooling_off_ends_at, ledger_retention_until, executed_at, created_at, updated_at
+			RETURNING id, store_id, requested_by_user_id, reason, status, cooling_off_ends_at, ledger_retention_until, executed_at, channel, created_at, updated_at
 		`, storeID, clearanceID, now)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrGovernanceNotFound
@@ -2078,75 +2094,96 @@ func (s *GovernanceService) ReviewStoreKYB(ctx context.Context, storeID uuid.UUI
 // for 10 years per UU KUP Pasal 28 & UU PDP No. 27/2022.
 func (s *GovernanceService) ExecuteTenantClearance(ctx context.Context, storeID, clearanceID uuid.UUID) (*domain.TenantClearanceRequest, error) {
 	now := s.nowFunc().UTC()
-	var out domain.TenantClearanceRequest
-
+	var out *domain.TenantClearanceRequest
 	err := database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
-		err := tx.GetContext(ctx, &out, `
-			UPDATE tenant_clearance_requests
-			SET status = 'pii_anonymized_ledger_retained',
-			    executed_at = $3,
-			    updated_at = $3
-			WHERE store_id = $1 AND id = $2 AND status = 'cooling_off'
-			RETURNING id, store_id, requested_by_user_id, reason, status, cooling_off_ends_at, ledger_retention_until, executed_at, created_at, updated_at
-		`, storeID, clearanceID, now)
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrGovernanceNotFound
-		}
-		if err != nil {
-			return err
-		}
-
-		// Cryptographically overwrite BYOK Midtrans ciphertext and disable gateway routing.
-		revokedBytes := []byte("REVOKED_BY_CLEARANCE")
-		if s.box != nil {
-			if sealed, sErr := s.box.Seal("REVOKED_BY_ACCOUNT_CLEARANCE", midtransServerKeyAAD(storeID)); sErr == nil {
-				revokedBytes = sealed
-			}
-		}
-		_, _ = tx.ExecContext(ctx, `
-			UPDATE store_payment_credentials
-			SET server_key_ciphertext = $2,
-			    server_key_masked = 'REVOKED',
-			    client_key = 'REVOKED',
-			    validation_status = 'unverified',
-			    is_enabled = false,
-			    updated_at = $3
-			WHERE store_id = $1
-		`, storeID, revokedBytes, now)
-
-		// Wipe custom SMTP and WhatsApp tokens.
-		_, _ = tx.ExecContext(ctx, `
-			UPDATE store_notification_configs
-			SET email_mode = 'disabled',
-			    smtp_password_ciphertext = NULL,
-			    smtp_password_masked = '',
-			    whatsapp_mode = 'disabled',
-			    whatsapp_token_ciphertext = NULL,
-			    whatsapp_token_masked = '',
-			    updated_at = $2
-			WHERE store_id = $1
-		`, storeID, now)
-
-		_, _ = tx.ExecContext(ctx, `
-			UPDATE store_kyb_profiles
-			SET subscription_status = 'cleared', updated_at = $2
-			WHERE store_id = $1
-		`, storeID, now)
-
-		_, _ = tx.ExecContext(ctx, `
-			UPDATE platform_tenant_registry
-			SET subscription_status = 'cleared', byok_midtrans_enabled = false, updated_at = $2
-			WHERE store_id = $1
-		`, storeID, now)
-
-		return s.writeGovernanceAuditTx(ctx, tx, storeID, nil, "platform_admin", "CLEARANCE_EXECUTED",
-			"PII & kredensial BYOK dibersihkan; buku besar transaksi dipertahankan 10 tahun sesuai UU KUP",
-			map[string]any{"clearance_id": out.ID, "ledger_retention_until": out.LedgerRetentionUntil})
+		var err error
+		out, err = s.executeClearanceTx(ctx, tx, storeID, clearanceID, "platform_admin", now)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &out, nil
+	return out, nil
+}
+
+// executeClearanceTx moves a cooling-off request to pii_anonymized_ledger_retained, revokes BYOK and
+// notification secrets, anonymizes personal data and deactivates the store. It returns
+// ErrGovernanceNotFound when the request is no longer cooling off, which makes reruns no-ops.
+func (s *GovernanceService) executeClearanceTx(ctx context.Context, tx *sqlx.Tx, storeID, clearanceID uuid.UUID, actorType string, now time.Time) (*domain.TenantClearanceRequest, error) {
+	out := &domain.TenantClearanceRequest{}
+	err := tx.GetContext(ctx, out, `
+		UPDATE tenant_clearance_requests
+		SET status = 'pii_anonymized_ledger_retained',
+		    executed_at = $3,
+		    updated_at = $3
+		WHERE store_id = $1 AND id = $2 AND status = 'cooling_off'
+		RETURNING id, store_id, requested_by_user_id, reason, status, cooling_off_ends_at, ledger_retention_until, executed_at, channel, created_at, updated_at
+	`, storeID, clearanceID, now)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrGovernanceNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Cryptographically overwrite BYOK Midtrans ciphertext and disable gateway routing.
+	revokedBytes := []byte("REVOKED_BY_CLEARANCE")
+	if s.box != nil {
+		if sealed, sErr := s.box.Seal("REVOKED_BY_ACCOUNT_CLEARANCE", midtransServerKeyAAD(storeID)); sErr == nil {
+			revokedBytes = sealed
+		}
+	}
+	_, _ = tx.ExecContext(ctx, `
+		UPDATE store_payment_credentials
+		SET server_key_ciphertext = $2,
+		    server_key_masked = 'REVOKED',
+		    client_key = 'REVOKED',
+		    validation_status = 'unverified',
+		    is_enabled = false,
+		    updated_at = $3
+		WHERE store_id = $1
+	`, storeID, revokedBytes, now)
+
+	// Wipe custom SMTP and WhatsApp tokens.
+	_, _ = tx.ExecContext(ctx, `
+		UPDATE store_notification_configs
+		SET email_mode = 'disabled',
+		    smtp_password_ciphertext = NULL,
+		    smtp_password_masked = '',
+		    whatsapp_mode = 'disabled',
+		    whatsapp_token_ciphertext = NULL,
+		    whatsapp_token_masked = '',
+		    updated_at = $2
+		WHERE store_id = $1
+	`, storeID, now)
+
+	_, _ = tx.ExecContext(ctx, `
+		UPDATE store_kyb_profiles
+		SET subscription_status = 'cleared', updated_at = $2
+		WHERE store_id = $1
+	`, storeID, now)
+
+	_, _ = tx.ExecContext(ctx, `
+		UPDATE platform_tenant_registry
+		SET subscription_status = 'cleared', byok_midtrans_enabled = false, updated_at = $2
+		WHERE store_id = $1
+	`, storeID, now)
+
+	counts, err := anonymizeStoreTx(ctx, tx, storeID, out.RequestedByUserID, now)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.writeGovernanceAuditTx(ctx, tx, storeID, nil, actorType, "CLEARANCE_PII_ANONYMIZED",
+		"Data pribadi staf, pelanggan dan kontak pemilik dianonimkan; toko dan perangkat dinonaktifkan",
+		map[string]any{"clearance_id": out.ID, "rows": counts}); err != nil {
+		return nil, err
+	}
+	if err := s.writeGovernanceAuditTx(ctx, tx, storeID, nil, actorType, "CLEARANCE_EXECUTED",
+		"PII & kredensial BYOK dibersihkan; buku besar transaksi dipertahankan 10 tahun sesuai UU KUP",
+		map[string]any{"clearance_id": out.ID, "ledger_retention_until": out.LedgerRetentionUntil}); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (s *GovernanceService) EvaluateMidtransBusinessReviewReadiness(ctx context.Context) (*domain.MidtransBusinessReviewReadiness, error) {
