@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -22,13 +23,23 @@ const trialLengthSQL = `INTERVAL '14 days'`
 func (s *AuthService) SubscriptionReadOnly(ctx context.Context, storeID uuid.UUID) (bool, error) {
 	var readOnly bool
 	err := database.WithTenantTx(ctx, s.db, storeID, func(tx *sqlx.Tx) error {
-		return tx.GetContext(ctx, &readOnly, `SELECT r.subscription_status = 'trialing'
-				AND COALESCE(k.current_period_ends_at, st.created_at + `+trialLengthSQL+`) < $2
-			FROM platform_tenant_registry r
-			JOIN stores st ON st.id = r.store_id
-			LEFT JOIN store_kyb_profiles k ON k.store_id = r.store_id
-			WHERE r.store_id = $1`, storeID, s.nowFunc().UTC())
+		var err error
+		readOnly, err = subscriptionReadOnlyTx(ctx, tx, storeID, s.nowFunc().UTC())
+		return err
 	})
+	return readOnly, err
+}
+
+// subscriptionReadOnlyTx is SubscriptionReadOnly inside an existing tenant transaction, so guest QR
+// ordering can refuse new orders from a read-only store in the same transaction that places them.
+func subscriptionReadOnlyTx(ctx context.Context, tx *sqlx.Tx, storeID uuid.UUID, nowUTC time.Time) (bool, error) {
+	var readOnly bool
+	err := tx.GetContext(ctx, &readOnly, `SELECT r.subscription_status = 'trialing'
+			AND COALESCE(k.current_period_ends_at, st.created_at + `+trialLengthSQL+`) < $2
+		FROM platform_tenant_registry r
+		JOIN stores st ON st.id = r.store_id
+		LEFT JOIN store_kyb_profiles k ON k.store_id = r.store_id
+		WHERE r.store_id = $1`, storeID, nowUTC)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}

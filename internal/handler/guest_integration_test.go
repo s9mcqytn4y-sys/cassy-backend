@@ -235,6 +235,32 @@ func TestGuestQROrderingIteration5bIntegration(t *testing.T) {
 			t.Fatalf("paused store must be 409 QR_ORDERING_PAUSED, got %d: %s", code, body)
 		}
 
+		// A store whose trial ended unpaid is read-only: guests see it as closed (FL1 W4 follow-up).
+		if migratorDSN := strings.TrimSpace(os.Getenv("TEST_MIGRATOR_DATABASE_URL")); migratorDSN != "" {
+			migratorDB, err := database.NewPostgresDB(&config.Config{DatabaseURL: migratorDSN})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer migratorDB.Close()
+			var status string
+			if err := migratorDB.GetContext(ctx, &status, `SELECT subscription_status FROM platform_tenant_registry WHERE store_id = $1`, centralID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := migratorDB.ExecContext(ctx, `UPDATE platform_tenant_registry SET subscription_status = 'trialing' WHERE store_id = $1`, centralID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := migratorDB.ExecContext(ctx, `UPDATE store_kyb_profiles SET current_period_ends_at = NOW() - INTERVAL '1 day' WHERE store_id = $1`, centralID); err != nil {
+				t.Fatal(err)
+			}
+			code, _, body := startSession(qrToken)
+			if _, err := migratorDB.ExecContext(ctx, `UPDATE platform_tenant_registry SET subscription_status = $2 WHERE store_id = $1`, centralID, status); err != nil {
+				t.Fatal(err)
+			}
+			if code != http.StatusConflict || !strings.Contains(body, "STORE_CLOSED") {
+				t.Fatalf("read-only store must refuse QR ordering as 409 STORE_CLOSED, got %d: %s", code, body)
+			}
+		}
+
 		if code, deviceA, body = startSession(qrToken); code != http.StatusCreated || deviceA == "" {
 			t.Fatalf("start session failed: %d: %s", code, body)
 		}
