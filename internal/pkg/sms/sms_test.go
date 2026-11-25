@@ -55,7 +55,7 @@ func TestEmailSender(t *testing.T) {
 	}
 	err = sender.Send(context.Background(), sms.Message{
 		To:   "+6281234567890",
-		Body: "Kode OTP MyCaffe Anda: 482910",
+		Body: "Kode OTP Cassy Anda: 482910",
 	})
 	if err != nil {
 		t.Fatalf("Send failed: %v", err)
@@ -67,11 +67,11 @@ func TestEmailSender(t *testing.T) {
 		t.Fatalf("unexpected email content: subject=%q text=%q", cm.last.Subject, cm.last.Text)
 	}
 
-	rawMIME, err := mailer.BuildMIME("noreply@abbdullaziz.online", "MyCaffe POS", cm.last, time.Now().UTC())
+	rawMIME, err := mailer.BuildMIME("noreply@abbdullaziz.online", "Cassy POS", cm.last, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("BuildMIME failed: %v", err)
 	}
-	if !strings.Contains(string(rawMIME), "MyCaffe SMS-to-Email Bridge") || !strings.Contains(string(rawMIME), "482910") {
+	if !strings.Contains(string(rawMIME), "Cassy SMS-to-Email Bridge") || !strings.Contains(string(rawMIME), "482910") {
 		t.Fatalf("MIME output missing SMS bridge content: %s", string(rawMIME))
 	}
 

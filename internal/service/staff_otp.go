@@ -23,7 +23,7 @@ func WithAuthSMS(messages *MessageService) AuthServiceOption {
 	return func(s *AuthService) { s.messages = messages }
 }
 
-const staffResetSMS = "Kode reset PIN MyCaffe: %s. Berlaku 5 menit. Jangan berikan kode ini kepada siapa pun, termasuk staf MyCaffe."
+const staffResetSMS = "Kode reset PIN Cassy: %s. Berlaku 5 menit. Jangan berikan kode ini kepada siapa pun, termasuk staf Cassy."
 
 // RequestPINResetSMS is the public "lupa PIN via SMS" flow. Like RequestPINReset it never reveals
 // whether the store, phone or staff member exists, and a rate-limited request is silently dropped.

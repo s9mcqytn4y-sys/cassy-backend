@@ -73,14 +73,14 @@ func (s *EmailSender) Send(ctx context.Context, m Message) error {
 	if phone == "" {
 		return fmt.Errorf("%w: empty destination phone", ErrPermanent)
 	}
-	subject := fmt.Sprintf("[MyCaffe SMS Gateway] Pesan untuk %s", phone)
+	subject := fmt.Sprintf("[Cassy SMS Gateway] Pesan untuk %s", phone)
 	textBody := fmt.Sprintf("Penerima SMS : %s\nWaktu (UTC)  : %s\n\nIsi Pesan SMS:\n%s\n",
 		phone, time.Now().UTC().Format(time.RFC3339), m.Body)
 	htmlBody := fmt.Sprintf(
-		`<div style="font-family:sans-serif;max-width:520px;padding:16px;border:1px solid #e5e0d8;border-radius:8px;background:#faf7f2;color:#2c1e18;">`+
-			`<h3 style="margin-top:0;color:#4a2c1d;">MyCaffe SMS-to-Email Bridge</h3>`+
+		`<div style="font-family:sans-serif;max-width:520px;padding:16px;border:1px solid #E2DDD2;border-radius:8px;background:#F7F5F0;color:#17211E;">`+
+			`<h3 style="margin-top:0;color:#1F5F52;">Cassy SMS-to-Email Bridge</h3>`+
 			`<p style="margin:4px 0;"><strong>Nomor Tujuan:</strong> <code>%s</code></p>`+
-			`<div style="margin-top:12px;padding:12px;background:#ffffff;border-left:4px solid #c87d55;border-radius:4px;font-size:15px;white-space:pre-wrap;">%s</div>`+
+			`<div style="margin-top:12px;padding:12px;background:#ffffff;border-left:4px solid #E9A23B;border-radius:4px;font-size:15px;white-space:pre-wrap;">%s</div>`+
 			`</div>`,
 		html.EscapeString(phone),
 		html.EscapeString(m.Body),
