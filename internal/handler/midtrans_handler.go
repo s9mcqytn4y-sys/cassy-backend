@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/metrics"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/pkg/midtrans"
 	"github.com/s9mcqytn4y-sys/cassy-backend/internal/realtime"
@@ -116,7 +117,7 @@ func (h *MidtransHandler) HandleWebhook(c *gin.Context) {
 		return
 	}
 
-	h.processVerifiedNotification(c, body, notif, trimmedOrderID)
+	h.processVerifiedNotification(c, body, notif, trimmedOrderID, uuid.Nil)
 }
 
 // HandleTenantWebhook processes Midtrans Core API notifications signed with a specific tenant's
@@ -156,7 +157,7 @@ func (h *MidtransHandler) HandleTenantWebhook(c *gin.Context) {
 		return
 	}
 
-	verified, err := h.governanceService.VerifyTenantWebhookSignature(
+	storeID, verified, err := h.governanceService.VerifyTenantWebhookSignature(
 		c.Request.Context(),
 		storeSlug,
 		notif.OrderID,
@@ -180,10 +181,14 @@ func (h *MidtransHandler) HandleTenantWebhook(c *gin.Context) {
 		return
 	}
 
-	h.processVerifiedNotification(c, body, notif, trimmedOrderID)
+	h.processVerifiedNotification(c, body, notif, trimmedOrderID, storeID)
 }
 
-func (h *MidtransHandler) processVerifiedNotification(c *gin.Context, body []byte, notif MidtransNotificationPayload, trimmedOrderID string) {
+// processVerifiedNotification applies a notification whose signature already passed. tenantStoreID is
+// the store whose BYOK key signed it, or uuid.Nil for the platform key. A tenant-signed notification
+// may only touch that store's own payments and never a Lane 1 platform invoice: otherwise a tenant
+// could settle its own subscription, or another tenant's payment, with a key it controls.
+func (h *MidtransHandler) processVerifiedNotification(c *gin.Context, body []byte, notif MidtransNotificationPayload, trimmedOrderID string, tenantStoreID uuid.UUID) {
 
 	if !strings.EqualFold(strings.TrimSpace(notif.Currency), "IDR") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported currency: only IDR is accepted"})
@@ -213,10 +218,11 @@ func (h *MidtransHandler) processVerifiedNotification(c *gin.Context, body []byt
 		FraudStatus:       notif.FraudStatus,
 		PaymentType:       notif.PaymentType,
 		Currency:          notif.Currency,
+		TenantStoreID:     tenantStoreID,
 	}
 
 	// Route Lane 1 Platform Subscription Invoices first when the order_id belongs to platform_invoices.
-	if h.governanceService != nil {
+	if h.governanceService != nil && tenantStoreID == uuid.Nil {
 		platRes, platErr := h.governanceService.ProcessPlatformInvoiceWebhook(c.Request.Context(), webhookInput)
 		if platErr == nil {
 			outcome := "ok"

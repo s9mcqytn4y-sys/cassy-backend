@@ -131,6 +131,10 @@ type MidtransWebhookInput struct {
 	FraudStatus       string
 	PaymentType       string
 	Currency          string
+	// TenantStoreID is the store whose BYOK key signed the notification (tenant webhook). When set,
+	// a payment of any other store is treated as not found, so one tenant's key can never settle
+	// another tenant's payment. uuid.Nil means the platform key signed it.
+	TenantStoreID uuid.UUID
 }
 
 type PaymentWebhookResult struct {
