@@ -56,6 +56,9 @@ func (s *PaymentService) ProcessMidtransWebhook(
 	if err != nil {
 		return nil, err
 	}
+	if input.TenantStoreID != uuid.Nil && resolved.StoreID != input.TenantStoreID {
+		return nil, ErrPaymentNotFound
+	}
 
 	// Midtrans notifications can be delivered out of order. If local state is already
 	// paid and an older non-paid notification arrives, query provider status before

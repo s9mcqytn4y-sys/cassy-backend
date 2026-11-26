@@ -764,6 +764,23 @@ func TestGovernanceIntegration(t *testing.T) {
 			"currency":           "IDR",
 			"signature_key":      signMidtransWebhook(provOrderID, "200", grossStr, defaultFallbackKey),
 		}
+		// A tenant holds its own BYOK key. Signing the platform invoice with it on the tenant route must not
+		// settle Lane 1 (security review 2026-11-26): the payment lane finds no payment and answers 404.
+		forged := map[string]any{}
+		for k, v := range platWebhook {
+			forged[k] = v
+		}
+		forged["signature_key"] = signMidtransWebhook(provOrderID, "200", grossStr, tenantAServerKey)
+		if res := call("POST", "/api/v1/payments/midtrans/webhook/central-cafe", nil, forged); res.Code == http.StatusOK || strings.Contains(res.Body.String(), "platform_subscription") {
+			t.Fatalf("tenant-signed webhook must never settle a platform invoice, got %d: %s", res.Code, res.Body.String())
+		}
+		var invStatus string
+		if err := database.WithTenantTx(ctx, db, storeAID, func(tx *sqlx.Tx) error {
+			return tx.GetContext(ctx, &invStatus, `SELECT status FROM platform_invoices WHERE store_id = $1 AND id = $2`, storeAID, inv.ID)
+		}); err != nil || invStatus == "paid" {
+			t.Fatalf("platform invoice must stay unpaid after a tenant-signed webhook, got %q (err=%v)", invStatus, err)
+		}
+
 		wh1 := call("POST", "/api/v1/payments/midtrans/webhook", nil, platWebhook)
 		if wh1.Code != http.StatusOK || !strings.Contains(wh1.Body.String(), `"lane":"platform_subscription"`) {
 			t.Fatalf("expected 200 OK settling Lane 1 platform invoice webhook, got %d: %s", wh1.Code, wh1.Body.String())

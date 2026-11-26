@@ -907,19 +907,19 @@ func (s *GovernanceService) VerifyTenantWebhookSignature(
 	statusCode string,
 	grossAmount string,
 	incomingSignature string,
-) (bool, error) {
+) (uuid.UUID, bool, error) {
 	if s == nil || s.box == nil {
-		return false, ErrBYOKEncryptionUnavailable
+		return uuid.Nil, false, ErrBYOKEncryptionUnavailable
 	}
 	storeID, isActive, err := s.authRepo.ResolveStoreForLogin(ctx, s.db, strings.ToLower(strings.TrimSpace(storeSlug)))
 	if err != nil {
 		if errors.Is(err, postgres.ErrStoreNotFound) {
-			return false, ErrGovernanceNotFound
+			return uuid.Nil, false, ErrGovernanceNotFound
 		}
-		return false, err
+		return uuid.Nil, false, err
 	}
 	if !isActive {
-		return false, ErrGovernanceNotFound
+		return uuid.Nil, false, ErrGovernanceNotFound
 	}
 
 	var verified bool
@@ -947,9 +947,9 @@ func (s *GovernanceService) VerifyTenantWebhookSignature(
 		return nil
 	})
 	if err != nil {
-		return false, err
+		return uuid.Nil, false, err
 	}
-	return verified, nil
+	return storeID, verified, nil
 }
 
 type StoreCMSConfigInput struct {
